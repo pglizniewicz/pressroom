@@ -1,0 +1,20 @@
+#!/usr/bin/env python3
+"""Scraper for intc.com/news-events/press-releases → unified pressroom.db.
+
+Usage:
+  python scrape_intel.py                    # scrape all pages
+  python scrape_intel.py --pages 5          # first 5 pages only
+  python scrape_intel.py --start 10         # start from page 10
+  python scrape_intel.py --start 10 --pages 20  # pages 10–29
+"""
+
+from pathlib import Path
+
+from common import make_arg_parser, scrape
+
+DB_PATH = Path(__file__).parent / "pressroom.db"
+LIST_URL = "https://www.intc.com/news-events/press-releases"
+
+if __name__ == "__main__":
+    args = make_arg_parser("Scrape Intel IR press releases").parse_args()
+    scrape(source="intel", list_url=LIST_URL, db_path=DB_PATH, pages=args.pages, start=args.start)
