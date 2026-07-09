@@ -62,6 +62,38 @@ def list_snapshots_by_prefix(prefix_url: str, limit: int = 10000, retries: int =
     return [dict(zip(header, row)) for row in data]
 
 
+def list_all_captures(exact_url: str, retries: int = 3) -> list:
+    """Return every historical HTTP-200 capture timestamp of one exact URL
+    (no collapsing), for sites where the page's own content changes over
+    time and a single "latest" snapshot would miss older revisions.
+    """
+    for attempt in range(retries):
+        try:
+            r = requests.get(
+                TIMEMAP_URL,
+                params={"url": exact_url, "output": "json", "fl": "timestamp,statuscode", "limit": 1000},
+                headers=HEADERS,
+                timeout=30,
+            )
+            r.raise_for_status()
+            break
+        except requests.exceptions.RequestException:
+            if attempt == retries - 1:
+                raise
+            time.sleep(SLEEP * (attempt + 1) * 5)
+    rows = r.json()
+    if not rows:
+        return []
+    _, *data = rows
+    seen = set()
+    timestamps = []
+    for ts, status in data:
+        if status == "200" and ts not in seen:
+            seen.add(ts)
+            timestamps.append(ts)
+    return sorted(timestamps)
+
+
 def _get_wb_json(session: requests.Session, url: str, params: dict, referer: str) -> dict:
     headers = {**HEADERS, "Referer": referer}
     r = session.get(url, params=params, headers=headers, timeout=20)
