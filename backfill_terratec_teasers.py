@@ -21,9 +21,9 @@ import sqlite3
 
 import requests
 from bs4 import BeautifulSoup
-from dateutil import parser as du
 
 from db import stored_detail_id
+from dates import iso_date
 import db
 from progress import Stats
 import wayback
@@ -78,10 +78,7 @@ def extract_teasers(html: str) -> dict:
         if not m_title:
             continue
         date_str, title = m_title.group(1), m_title.group(2).strip()
-        try:
-            date = du.parse(date_str, dayfirst=True).strftime("%Y-%m-%d")
-        except Exception:
-            date = ""
+        date = iso_date(date_str, dayfirst=True)
 
         title_tr = a.find_parent("tr")
         content_tr = title_tr.find_next_sibling("tr") if title_tr else None
@@ -137,10 +134,7 @@ def parse_article_snapshot(html: str) -> dict:
     if not m:
         return {"title": "", "date": "", "body": ""}
     date_str, title = m.group(1), m.group(2).strip()
-    try:
-        date = du.parse(date_str, dayfirst=True).strftime("%Y-%m-%d")
-    except Exception:
-        date = ""
+    date = iso_date(date_str, dayfirst=True)
     heading = f"{date_str} - {title}"
     text = soup.get_text(" ", strip=True)
     parts = text.split(heading)
@@ -156,10 +150,7 @@ def parse_print_snapshot(html: str) -> dict:
     m = TITLE_RE.match(title_tag.get_text(strip=True))
     if not m:
         return {"title": "", "date": "", "body": ""}
-    try:
-        date = du.parse(m.group(1), dayfirst=True).strftime("%Y-%m-%d")
-    except Exception:
-        date = ""
+    date = iso_date(m.group(1), dayfirst=True)
     title = m.group(2).strip()
     body_tag = soup.select_one("font.print-normal")
     body = body_tag.get_text(" ", strip=True) if body_tag else ""

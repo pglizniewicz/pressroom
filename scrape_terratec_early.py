@@ -14,8 +14,8 @@ import re
 
 import requests
 from bs4 import BeautifulSoup
-from dateutil import parser as du
 
+from dates import iso_date
 import db
 import wayback
 
@@ -60,10 +60,7 @@ def extract_entries(html: str, page: dict) -> list:
         chunk_html = html[pos:chunk_end]
         body = BeautifulSoup(chunk_html, "html.parser").get_text(" ", strip=True)
 
-        try:
-            date = du.parse(date_str, dayfirst=True).strftime("%Y-%m-%d")
-        except Exception:
-            date = ""
+        date = iso_date(date_str, dayfirst=True)
 
         anchor = find_anchor_for(pos, anchors)
         url = page["base_url"] + (page["anchor_fmt"].format(anchor) if anchor else "")

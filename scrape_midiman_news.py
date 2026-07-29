@@ -55,9 +55,9 @@ from urllib.parse import urljoin
 
 import requests
 from bs4 import BeautifulSoup
-from dateutil import parser as du
 
 from db import stored_detail_id
+from dates import iso_date
 import db
 from progress import Stats
 import wayback
@@ -75,13 +75,6 @@ ID_HREF_RE = re.compile(r"ID=([0-9a-f]{32})")
 DATE_TITLE_RE = re.compile(r"^([A-Za-z]+ \d{1,2},\s*\d{4})\s*-\s*(.+)$")
 
 
-def _parse_date(date_str: str) -> str:
-    try:
-        return du.parse(date_str).strftime("%Y-%m-%d")
-    except Exception:
-        return ""
-
-
 def extract_entries(html: bytes, base_url: str, timestamp: str = None) -> list:
     soup = BeautifulSoup(html, "html.parser")
     entries = []
@@ -93,7 +86,7 @@ def extract_entries(html: bytes, base_url: str, timestamp: str = None) -> list:
         if not m:
             continue
         date_str, title = m.groups()
-        date = _parse_date(date_str)
+        date = iso_date(date_str)
         href = urljoin(base_url, a["href"])
 
         teaser = ""

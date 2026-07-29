@@ -49,9 +49,9 @@ from urllib.parse import urljoin
 
 import requests
 from bs4 import BeautifulSoup
-from dateutil import parser as du
 
 from db import already_stored
+from dates import iso_date
 import db
 from progress import Stats
 import wayback
@@ -97,10 +97,7 @@ def extract_entries(html: bytes, base_url: str, timestamp: str = None) -> list:
         date_str = date_td.get_text(strip=True) if date_td else ""
         date = ""
         if date_str:
-            try:
-                date = du.parse(date_str).strftime("%Y-%m-%d")
-            except Exception:
-                date = ""
+            date = iso_date(date_str)
 
         table = bold_td.find_parent("table")
         body = ""

@@ -19,10 +19,10 @@ import time
 
 import requests
 from bs4 import BeautifulSoup
-from dateutil import parser as du
 
 from fetch import SLEEP
 from db import already_stored
+from dates import iso_date
 import db
 from progress import Stats
 import wayback
@@ -69,10 +69,7 @@ def parse_snapshot(html: str) -> dict:
     body = ""
     if m:
         date_str, title = m.group(1), m.group(2).strip()
-        try:
-            date = du.parse(date_str, dayfirst=True).strftime(date_fmt)
-        except Exception:
-            date = ""
+        date = iso_date(date_str, dayfirst=True, fmt=date_fmt)
 
         heading = f"{date_str} - {title}"
         text = soup.get_text(" ", strip=True)

@@ -50,9 +50,9 @@ from urllib.parse import urljoin
 
 import requests
 from bs4 import BeautifulSoup
-from dateutil import parser as du
 
 from db import already_stored
+from dates import iso_date
 import db
 from progress import Stats
 import wayback
@@ -63,13 +63,6 @@ DOMAINS = {
     "midiman_com_media_pr": "http://www.midiman.com/index.php?do=media.media_pr",
     "maudio_com_media_pr": "http://www.m-audio.com/index.php?do=media.media_pr",
 }
-
-
-def _parse_date(date_str: str) -> str:
-    try:
-        return du.parse(date_str).strftime("%Y-%m-%d")
-    except Exception:
-        return ""
 
 
 def _dedupe_repeated_title(title: str) -> str:
@@ -98,7 +91,7 @@ def extract_entries_template_a(soup: BeautifulSoup, base_url: str) -> list:
         if not title:
             continue
         url = urljoin(base_url, a["href"])
-        date = _parse_date(date_td.get_text(strip=True))
+        date = iso_date(date_td.get_text(strip=True))
 
         teaser = ""
         next_tr = tr.find_next_sibling("tr")
@@ -126,7 +119,7 @@ def extract_entries_template_b(soup: BeautifulSoup, base_url: str) -> list:
             continue
         url = urljoin(base_url, a["href"])
         date_str = date_strong.get_text(strip=True).rstrip(" -").strip()
-        date = _parse_date(date_str)
+        date = iso_date(date_str)
 
         teaser = ""
         content_div = div.find("div", id="news-short-content")

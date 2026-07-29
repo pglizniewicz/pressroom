@@ -18,9 +18,9 @@ import time
 
 import requests
 from bs4 import BeautifulSoup
-from dateutil import parser as du
 
 from fetch import SLEEP
+from dates import iso_date
 import db
 from progress import Stats
 import wayback
@@ -62,10 +62,7 @@ def parse_print_snapshot(html: str) -> dict:
     if title_tag:
         m = TITLE_RE.match(title_tag.get_text(strip=True))
         if m:
-            try:
-                date = du.parse(m.group(1), dayfirst=True).strftime("%Y-%m-%d")
-            except Exception:
-                date = ""
+            date = iso_date(m.group(1), dayfirst=True)
             title = m.group(2).strip()
 
         body_tag = soup.select_one("font.print-normal")

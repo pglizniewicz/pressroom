@@ -20,6 +20,7 @@ from pathlib import Path
 import requests
 from bs4 import BeautifulSoup
 
+from dates import iso_date
 import db
 from progress import Stats
 from fetch import HEADERS, SLEEP
@@ -45,13 +46,9 @@ def _parse_date(time_el) -> str:
     if dt_attr:
         return dt_attr[:10]
     text = time_el.get_text(strip=True)
-    if not text:
-        return ""
-    try:
-        from dateutil import parser as du
-        return du.parse(text).strftime("%Y-%m-%d")
-    except Exception:
-        return text
+    # Falls back to the raw text, not "" - a Q4 page always has *something*
+    # here and keeping it beats discarding it.
+    return iso_date(text) or text
 
 
 def parse_list_page(

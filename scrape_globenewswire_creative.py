@@ -23,10 +23,10 @@ import time
 
 import requests
 from bs4 import BeautifulSoup
-from dateutil import parser as du
 
 from fetch import HEADERS, SLEEP
 from db import already_stored
+from dates import iso_date
 import db
 from progress import Stats
 
@@ -49,10 +49,7 @@ def parse_list_page(session: requests.Session, page: int) -> list:
         href = a["href"]
         url = href if href.startswith("http") else f"{BASE_URL}{href}"
         date_text = date_span.get_text(strip=True) if date_span else ""
-        try:
-            date = du.parse(date_text, fuzzy=True).strftime("%Y-%m-%d")
-        except Exception:
-            date = ""
+        date = iso_date(date_text, fuzzy=True)
         m = re.search(r"/news-release/\d{4}/\d{2}/\d{2}/(\d+)/", url)
         detail_id = m.group(1) if m else None
         items.append({

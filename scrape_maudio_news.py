@@ -53,9 +53,9 @@ from urllib.parse import urljoin
 
 import requests
 from bs4 import BeautifulSoup
-from dateutil import parser as du
 
 from db import stored_detail_id
+from dates import iso_date
 import db
 from progress import Stats
 import wayback
@@ -79,12 +79,7 @@ DATE_RE = re.compile(rf"{MONTHS} \d{{1,2}},\s*\d{{4}}")
 
 def _extract_date(text: str) -> str:
     m = DATE_RE.search(text)
-    if not m:
-        return ""
-    try:
-        return du.parse(m.group(0)).strftime("%Y-%m-%d")
-    except Exception:
-        return ""
+    return iso_date(m.group(0)) if m else ""
 
 
 def parse_listing_page(content: bytes, base_url: str) -> list:

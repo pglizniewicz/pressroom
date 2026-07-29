@@ -25,10 +25,10 @@ import time
 
 import requests
 from bs4 import BeautifulSoup
-from dateutil import parser as du
 
 from fetch import SLEEP
 from db import already_stored
+from dates import iso_date
 import db
 from progress import Stats
 from scrape_terratec import parse_snapshot as parse_net_snapshot
@@ -62,10 +62,7 @@ def extract_links(html: str, base_url: str) -> list:
             continue
         tds = row.find_all("td")
         date_str = tds[-1].get_text(strip=True) if len(tds) >= 2 else ""
-        try:
-            date = du.parse(date_str, dayfirst=True).strftime("%Y-%m-%d") if date_str else ""
-        except Exception:
-            date = ""
+        date = iso_date(date_str, dayfirst=True)
         entries.append({
             "title": a.get_text(" ", strip=True),
             "date": date,
@@ -81,10 +78,7 @@ def parse_de_snapshot(html: str) -> dict:
     date = ""
     m = DATE_RE_DE.search(text)
     if m:
-        try:
-            date = du.parse(m.group(1), dayfirst=True).strftime("%Y-%m-%d")
-        except Exception:
-            date = ""
+        date = iso_date(m.group(1), dayfirst=True)
 
     title = ""
     bold_tags = soup.find_all(["b", "strong"])
