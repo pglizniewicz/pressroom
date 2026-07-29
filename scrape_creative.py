@@ -21,6 +21,7 @@ from bs4 import BeautifulSoup
 from fetch import HEADERS, SLEEP
 from db import already_stored
 import db
+from progress import Stats
 
 BASE_URL = "https://sg.creative.com"
 LIST_URL = f"{BASE_URL}/corporate/pressroom"
@@ -72,8 +73,7 @@ def scrape(from_year: int = FIRST_YEAR, to_year: int = None) -> None:
 
     print(f"[{SOURCE}] Scraping years {from_year}-{current_year}", flush=True)
 
-    new_count = 0
-    skip_count = 0
+    stats = Stats(SOURCE)
 
     for year in range(from_year, current_year + 1):
         print(f"  Year {year}", end="  ", flush=True)
@@ -87,8 +87,7 @@ def scrape(from_year: int = FIRST_YEAR, to_year: int = None) -> None:
 
         for item in items:
             if already_stored(conn, item["url"]):
-                skip_count += 1
-                print(".", end="", flush=True)
+                stats.skipped()
                 continue
 
             try:
@@ -100,13 +99,11 @@ def scrape(from_year: int = FIRST_YEAR, to_year: int = None) -> None:
 
             if db.store_release(conn, SOURCE, item["url"], title=item["title"],
                                 date=item["date"], body=body, detail_id=item["detail_id"]):
-                new_count += 1
-                print("+", end="", flush=True)
+                stats.added()
 
         print()
 
-    total_in_db = db.source_total(conn, SOURCE)
-    print(f"\nDone. Added {new_count} new, skipped {skip_count} existing. Total [{SOURCE}] in DB: {total_in_db}")
+    stats.summary(conn)
     conn.close()
 
 

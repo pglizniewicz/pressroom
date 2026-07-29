@@ -72,6 +72,7 @@ from bs4 import BeautifulSoup
 
 from db import stored_detail_id
 import db
+from progress import Stats
 import wayback
 
 SOURCE = "midiman_de"
@@ -234,25 +235,19 @@ def scrape(limit: int = None) -> None:
             title, date = key
             e["url"] = f"http://www.midiman.de/press/{_slugify(title)}-{date or 'undated'}"
 
-    new_count = 0
-    upgraded_count = 0
-    teaser_only_count = 0
-    skip_count = 0
-    dead_count = 0
+    stats = Stats(SOURCE)
 
     for (title, date), e in best.items():
         url = e["url"]
         existing = stored_detail_id(conn, url)
         if existing is not None and existing != "teaser":
-            skip_count += 1
-            print(".", end="", flush=True)
+            stats.skipped()
             continue
 
         if e["kind"] == "inline":
             db.store_release(conn, SOURCE, url, title=title, date=date,
                              body=e["body"], detail_id=e["detail_id"])
-            new_count += 1
-            print("+", end="", flush=True)
+            stats.added()
             continue
 
         # linkout: try to recover the real page's full text
@@ -264,41 +259,30 @@ def scrape(limit: int = None) -> None:
                 # the linked page's, so only the body is upgraded.
                 db.upgrade_release(conn, url, detail_id=parsed["detail_id"],
                                    body=parsed["body"], commit=False)
-                upgraded_count += 1
-                print("U", end="", flush=True)
+                stats.upgraded()
             else:
                 db.store_release(conn, SOURCE, url, title=title, date=date,
                                  body=parsed["body"], detail_id=parsed["detail_id"], commit=False)
-                new_count += 1
-                print("+", end="", flush=True)
+                stats.added()
             conn.commit()
             continue
 
         if existing == "teaser":
-            skip_count += 1
-            print(".", end="", flush=True)
+            stats.skipped()
             continue
 
         if not confirmed:
-            skip_count += 1
-            print("?", end="", flush=True)
+            stats.uncertain()
             continue
 
         if e["body"]:
             db.store_release(conn, SOURCE, url, title=title, date=date,
                              body=e["body"], detail_id="teaser")
-            teaser_only_count += 1
-            print("t", end="", flush=True)
+            stats.teaser()
         else:
-            dead_count += 1
-            print("d", end="", flush=True)
+            stats.dead()
 
-    total = db.source_total(conn, SOURCE)
-    print(
-        f"\n[{SOURCE}] Added {new_count} new, upgraded {upgraded_count} teaser(s) to full text "
-        f"({teaser_only_count} new teaser-only), skipped {skip_count} existing/uncertain, "
-        f"{dead_count} confirmed never archived. Total [{SOURCE}] in DB: {total}"
-    )
+    stats.summary(conn)
     conn.close()
 
 

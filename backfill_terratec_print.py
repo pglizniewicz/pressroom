@@ -22,6 +22,7 @@ from dateutil import parser as du
 
 from fetch import SLEEP
 import db
+from progress import Stats
 import wayback
 
 
@@ -84,8 +85,7 @@ def backfill(prefix: str, source: str, limit: int = None) -> None:
         sids = sids[:limit]
     print(f"[{source}] {len(sids)} sids missing a full article but archived via print.php", flush=True)
 
-    new_count = 0
-    dead_count = 0
+    stats = Stats(source)
 
     for sid in sids:
         print_url = f"{prefix}print.php?sid={sid}"
@@ -95,10 +95,10 @@ def backfill(prefix: str, source: str, limit: int = None) -> None:
         except Exception as e:
             print(f"\n  ERROR probing snapshots for {print_url}: {e}")
             time.sleep(SLEEP * 2)
+            stats.uncertain()
             continue
         if not found:
-            dead_count += 1
-            print(f"\n  no working print.php snapshot for sid={sid}")
+            stats.dead()
             continue
         snapshot_url, timestamp = found
 
@@ -107,18 +107,14 @@ def backfill(prefix: str, source: str, limit: int = None) -> None:
             parsed = parse_print_snapshot(content)
         except Exception as e:
             print(f"\n  ERROR fetching {snapshot_url}: {e}")
+            stats.uncertain()
             continue
 
         if db.store_release(conn, source, print_url, title=parsed["title"],
                             date=parsed["date"], body=parsed["body"], detail_id=timestamp):
-            new_count += 1
-            print("+", end="", flush=True)
+            stats.added()
 
-    total_in_db = db.source_total(conn, source)
-    print(
-        f"\n[{source}] Backfilled {new_count} via print.php, {dead_count} never archived successfully. "
-        f"Total in DB: {total_in_db}"
-    )
+    stats.summary(conn)
     conn.close()
 
 

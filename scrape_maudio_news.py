@@ -57,6 +57,7 @@ from dateutil import parser as du
 
 from db import stored_detail_id
 import db
+from progress import Stats
 import wayback
 
 SOURCE = "maudio_com_news"
@@ -163,18 +164,13 @@ def scrape(limit: int = None) -> None:
     if limit:
         entries = entries[:limit]
 
-    new_count = 0
-    upgraded_count = 0
-    teaser_only_count = 0
-    skip_count = 0
-    dead_count = 0
+    stats = Stats(SOURCE)
 
     for e in entries:
         url = e["url"]
         existing = stored_detail_id(conn, url)
         if existing is not None and existing != "teaser":
-            skip_count += 1
-            print(".", end="", flush=True)
+            stats.skipped()
             continue
 
         parsed, confirmed = wayback.fetch_detail_snapshot(conn, session, url, parse_detail)
@@ -185,41 +181,30 @@ def scrape(limit: int = None) -> None:
             if existing == "teaser":
                 db.upgrade_release(conn, url, detail_id=parsed["detail_id"], title=title,
                                    date=date, body=parsed["body"], commit=False)
-                upgraded_count += 1
-                print("U", end="", flush=True)
+                stats.upgraded()
             else:
                 db.store_release(conn, SOURCE, url, title=title, date=date,
                                  body=parsed["body"], detail_id=parsed["detail_id"], commit=False)
-                new_count += 1
-                print("+", end="", flush=True)
+                stats.added()
             conn.commit()
             continue
 
         if existing == "teaser":
-            skip_count += 1
-            print(".", end="", flush=True)
+            stats.skipped()
             continue
 
         if not confirmed:
-            skip_count += 1
-            print("?", end="", flush=True)
+            stats.uncertain()
             continue
 
         if e["teaser"]:
             db.store_release(conn, SOURCE, url, title=e["title"], date=e["date"],
                              body=e["teaser"], detail_id="teaser")
-            teaser_only_count += 1
-            print("t", end="", flush=True)
+            stats.teaser()
         else:
-            dead_count += 1
-            print("d", end="", flush=True)
+            stats.dead()
 
-    total = db.source_total(conn, SOURCE)
-    print(
-        f"\n[{SOURCE}] Added {new_count} new, upgraded {upgraded_count} teaser(s) to full text "
-        f"({teaser_only_count} new teaser-only), skipped {skip_count} existing/uncertain, "
-        f"{dead_count} confirmed never archived. Total [{SOURCE}] in DB: {total}"
-    )
+    stats.summary(conn)
     conn.close()
 
 

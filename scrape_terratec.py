@@ -19,6 +19,7 @@ from dateutil import parser as du
 from fetch import SLEEP
 from db import already_stored
 import db
+from progress import Stats
 import wayback
 
 PREFIX = "http://www.terratec.net:80/press/pressemit/"
@@ -64,15 +65,12 @@ def scrape(limit: int = None) -> None:
         snapshots = snapshots[:limit]
     print(f"[{SOURCE}] {len(snapshots)} candidate press pages", flush=True)
 
-    new_count = 0
-    skip_count = 0
-    dead_count = 0
+    stats = Stats(SOURCE)
 
     for entry in snapshots:
         url = entry["original"]
         if already_stored(conn, url):
-            skip_count += 1
-            print(".", end="", flush=True)
+            stats.skipped()
             continue
 
         try:
@@ -80,10 +78,10 @@ def scrape(limit: int = None) -> None:
         except Exception as e:
             print(f"\n  ERROR probing snapshots for {url}: {e}")
             time.sleep(SLEEP * 2)
+            stats.uncertain()
             continue
         if not found:
-            dead_count += 1
-            print(f"\n  no working snapshot for {url}")
+            stats.dead()
             continue
         snapshot_url, timestamp = found
 
@@ -92,18 +90,14 @@ def scrape(limit: int = None) -> None:
             parsed = parse_snapshot(content)
         except Exception as e:
             print(f"\n  ERROR fetching {snapshot_url}: {e}")
+            stats.uncertain()
             continue
 
         if db.store_release(conn, SOURCE, url, title=parsed["title"],
                             date=parsed["date"], body=parsed["body"], detail_id=timestamp):
-            new_count += 1
-            print("+", end="", flush=True)
+            stats.added()
 
-    total_in_db = db.source_total(conn, SOURCE)
-    print(
-        f"\nDone. Added {new_count} new, skipped {skip_count} existing, "
-        f"{dead_count} never archived successfully. Total [{SOURCE}] in DB: {total_in_db}"
-    )
+    stats.summary(conn)
     conn.close()
 
 

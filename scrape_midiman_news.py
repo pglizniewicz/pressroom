@@ -59,6 +59,7 @@ from dateutil import parser as du
 
 from db import stored_detail_id
 import db
+from progress import Stats
 import wayback
 
 SOURCE = "midiman_couk_news"
@@ -175,11 +176,7 @@ def scrape(limit: int = None, prefix_crawl: bool = True) -> None:
     if prefix_crawl:
         extra_ids = discover_prefix_ids() - set(id_to_key)
 
-    new_count = 0
-    upgraded_count = 0
-    teaser_only_count = 0
-    skip_count = 0
-    dead_count = 0
+    stats = Stats(SOURCE)
 
     work = list(best.items())
     if limit:
@@ -191,8 +188,7 @@ def scrape(limit: int = None, prefix_crawl: bool = True) -> None:
 
         existing = stored_detail_id(conn, url)
         if existing is not None and existing != "teaser":
-            skip_count += 1
-            print(".", end="", flush=True)
+            stats.skipped()
             continue
 
         parsed, confirmed = ({}, True) if not m else wayback.fetch_detail_snapshot(conn, session, url, parse_detail)
@@ -203,34 +199,28 @@ def scrape(limit: int = None, prefix_crawl: bool = True) -> None:
                 # the detail page's, so only the body is upgraded.
                 db.upgrade_release(conn, url, detail_id=parsed["detail_id"],
                                    body=parsed["body"], commit=False)
-                upgraded_count += 1
-                print("U", end="", flush=True)
+                stats.upgraded()
             else:
                 db.store_release(conn, SOURCE, url, title=title, date=date,
                                  body=parsed["body"], detail_id=parsed["detail_id"], commit=False)
-                new_count += 1
-                print("+", end="", flush=True)
+                stats.added()
             conn.commit()
             continue
 
         if existing == "teaser":
-            skip_count += 1
-            print(".", end="", flush=True)
+            stats.skipped()
             continue
 
         if not confirmed:
-            skip_count += 1
-            print("?", end="", flush=True)
+            stats.uncertain()
             continue
 
         if e["teaser"]:
             db.store_release(conn, SOURCE, url, title=title, date=date,
                              body=e["teaser"], detail_id="teaser")
-            teaser_only_count += 1
-            print("t", end="", flush=True)
+            stats.teaser()
         else:
-            dead_count += 1
-            print("d", end="", flush=True)
+            stats.dead()
 
     extra_ids_list = sorted(extra_ids)
     if limit:
@@ -241,32 +231,23 @@ def scrape(limit: int = None, prefix_crawl: bool = True) -> None:
 
         existing = stored_detail_id(conn, url)
         if existing is not None:
-            skip_count += 1
-            print(".", end="", flush=True)
+            stats.skipped()
             continue
 
         parsed, confirmed = wayback.fetch_detail_snapshot(conn, session, url, parse_detail)
         if not parsed.get("body") or not parsed.get("title"):
             if confirmed:
-                dead_count += 1
-                print("d", end="", flush=True)
+                stats.dead()
             else:
-                skip_count += 1
-                print("?", end="", flush=True)
+                stats.uncertain()
             continue
 
         date = title_to_date.get(parsed["title"], "")
         db.store_release(conn, SOURCE, url, title=parsed["title"], date=date,
                          body=parsed["body"], detail_id=parsed["detail_id"])
-        new_count += 1
-        print("+", end="", flush=True)
+        stats.added()
 
-    total = db.source_total(conn, SOURCE)
-    print(
-        f"\n[{SOURCE}] Added {new_count} new, upgraded {upgraded_count} teaser(s) to full text "
-        f"({teaser_only_count} new teaser-only), skipped {skip_count} existing/uncertain, "
-        f"{dead_count} confirmed never archived. Total [{SOURCE}] in DB: {total}"
-    )
+    stats.summary(conn)
     conn.close()
 
 

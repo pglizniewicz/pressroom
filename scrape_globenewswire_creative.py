@@ -28,6 +28,7 @@ from dateutil import parser as du
 from fetch import HEADERS, SLEEP
 from db import already_stored
 import db
+from progress import Stats
 
 BASE_URL = "https://www.globenewswire.com"
 LIST_URL = f"{BASE_URL}/en/search/organization/Creative%2520Labs%CE%B4%2520Inc%C2%A7"
@@ -79,8 +80,7 @@ def scrape(pages: int = None) -> None:
 
     print(f"[{SOURCE}] Scraping GlobeNewswire Creative Labs, Inc. archive", flush=True)
 
-    new_count = 0
-    skip_count = 0
+    stats = Stats(SOURCE)
     page = 1
 
     while True:
@@ -101,8 +101,7 @@ def scrape(pages: int = None) -> None:
 
         for item in items:
             if already_stored(conn, item["url"]):
-                skip_count += 1
-                print(".", end="", flush=True)
+                stats.skipped()
                 continue
 
             try:
@@ -114,14 +113,12 @@ def scrape(pages: int = None) -> None:
 
             if db.store_release(conn, SOURCE, item["url"], title=item["title"],
                                 date=item["date"], body=body, detail_id=item["detail_id"]):
-                new_count += 1
-                print("+", end="", flush=True)
+                stats.added()
 
         print()
         page += 1
 
-    total_in_db = db.source_total(conn, SOURCE)
-    print(f"\nDone. Added {new_count} new, skipped {skip_count} existing. Total [{SOURCE}] in DB: {total_in_db}")
+    stats.summary(conn)
     conn.close()
 
 

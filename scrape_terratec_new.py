@@ -28,6 +28,7 @@ from dateutil import parser as du
 from fetch import SLEEP
 from db import already_stored
 import db
+from progress import Stats
 import wayback
 
 
@@ -157,12 +158,11 @@ def scrape_lang(lang: str, limit: int = None) -> None:
         prefix_urls = prefix_urls[:limit]
     print(f"[{source}] {len(prefix_urls)} individually-archived article candidates", flush=True)
 
-    new_count = 0
-    stub_count = 0
+    stats = Stats(source)
 
     for url in prefix_urls:
         if already_stored(conn, url):
-            print(".", end="", flush=True)
+            stats.skipped()
             continue
 
         try:
@@ -170,6 +170,7 @@ def scrape_lang(lang: str, limit: int = None) -> None:
         except Exception as e:
             print(f"\n  ERROR probing snapshots for {url}: {e}")
             time.sleep(SLEEP * 2)
+            stats.uncertain()
             continue
 
         title, date, body, detail_id = "", "", "", "stub"
@@ -180,6 +181,7 @@ def scrape_lang(lang: str, limit: int = None) -> None:
                 fetched = extract_entries(content)
             except Exception as e:
                 print(f"\n  ERROR fetching {snapshot_url}: {e}")
+                stats.uncertain()
                 continue
             if fetched:
                 title, date, body, detail_id = fetched[0]["title"], fetched[0]["date"], fetched[0]["body"], timestamp
@@ -190,17 +192,15 @@ def scrape_lang(lang: str, limit: int = None) -> None:
             title, date, body, detail_id = listed["title"], listed["date"], listed["body"], listed["detail_id"]
 
         if not title and not body:
-            print("d", end="", flush=True)
+            stats.dead()
             continue
 
         db.store_release(conn, source, url, title=title, date=date, body=body,
                          detail_id=detail_id if body else "stub")
         if body:
-            new_count += 1
-            print("+", end="", flush=True)
+            stats.added()
         else:
-            stub_count += 1
-            print("t", end="", flush=True)
+            stats.stub()
 
     # 3. Any listing-page discoveries never covered by the prefix crawl at all.
     for url, e in best.items():
@@ -209,16 +209,12 @@ def scrape_lang(lang: str, limit: int = None) -> None:
         db.store_release(conn, source, url, title=e["title"], date=e["date"], body=e["body"],
                          detail_id=e["detail_id"] if e["body"] else "stub", commit=False)
         if e["body"]:
-            new_count += 1
+            stats.added()
         else:
-            stub_count += 1
+            stats.stub()
     conn.commit()
 
-    total = db.source_total(conn, source)
-    print(
-        f"\n[{source}] Added {new_count} full articles, {stub_count} title-only stubs. "
-        f"Total in DB: {total}"
-    )
+    stats.summary(conn)
     conn.close()
 
 

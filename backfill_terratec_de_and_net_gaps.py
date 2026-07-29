@@ -30,6 +30,7 @@ from dateutil import parser as du
 from fetch import SLEEP
 from db import already_stored
 import db
+from progress import Stats
 from scrape_terratec import parse_snapshot as parse_net_snapshot
 import wayback
 
@@ -124,12 +125,12 @@ def backfill() -> None:
           f"({sum(1 for c in candidates if c['source']=='terratec_de')} terratec_de, "
           f"{sum(1 for c in candidates if c['source']=='terratec')} terratec)", flush=True)
 
-    new_count = 0
-    stub_count = 0
+    stats = {}
 
     for e in candidates:
+        s = stats.setdefault(e["source"], Stats(e["source"]))
         if already_stored(conn, e["url"]):
-            print(".", end="", flush=True)
+            s.skipped()
             continue
 
         parse_fn = parse_net_snapshot if e["source"] == "terratec" else parse_de_snapshot
@@ -139,13 +140,13 @@ def backfill() -> None:
         except Exception as err:
             print(f"\n  ERROR probing snapshots for {e['url']}: {err}")
             time.sleep(SLEEP * 2)
+            s.uncertain()
             continue
 
         if not found:
             db.store_release(conn, e["source"], e["url"], title=e["title"],
                              date=e["date"], detail_id="stub")
-            stub_count += 1
-            print("s", end="", flush=True)
+            s.stub()
             continue
 
         snapshot_url, timestamp = found
@@ -154,20 +155,17 @@ def backfill() -> None:
             parsed = parse_fn(content)
         except Exception as err:
             print(f"\n  ERROR fetching {snapshot_url}: {err}")
+            s.uncertain()
             continue
 
         title = parsed["title"] or e["title"]
         date = parsed["date"] or e["date"]
         db.store_release(conn, e["source"], e["url"], title=title, date=date,
                          body=parsed["body"], detail_id=timestamp)
-        new_count += 1
-        print("+", end="", flush=True)
+        s.added()
 
-    for source in ("terratec", "terratec_de"):
-        total = db.source_total(conn, source)
-        print(f"\n[{source}] total in DB: {total}")
-
-    print(f"\nAdded {new_count} full articles, {stub_count} title-only stubs.")
+    for s in stats.values():
+        s.summary(conn)
     conn.close()
 
 

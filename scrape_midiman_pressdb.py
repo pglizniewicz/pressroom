@@ -53,6 +53,7 @@ from dateutil import parser as du
 
 from db import already_stored
 import db
+from progress import Stats
 import wayback
 
 
@@ -139,20 +140,18 @@ def scrape_domain(source: str, listing_url: str, limit: int = None) -> None:
 
     print(f"\n[{source}] {len(best)} distinct release entries found across all captures", flush=True)
 
-    new_count = 0
-    skip_count = 0
+    stats = Stats(source)
     for (title, date), e in best.items():
         url = e["url"]
         if already_stored(conn, url):
-            skip_count += 1
+            stats.skipped()
             continue
         if db.store_release(conn, source, url, title=title, date=date,
                             body=e["body"], detail_id=e["detail_id"], commit=False):
-            new_count += 1
+            stats.added()
     conn.commit()
 
-    total = db.source_total(conn, source)
-    print(f"[{source}] Added {new_count} new, skipped {skip_count} existing. Total [{source}] in DB: {total}")
+    stats.summary(conn)
     conn.close()
 
 

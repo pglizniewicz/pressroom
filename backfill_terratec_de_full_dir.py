@@ -15,6 +15,7 @@ import requests
 from fetch import SLEEP
 from db import already_stored
 import db
+from progress import Stats
 from backfill_terratec_de_and_net_gaps import parse_de_snapshot
 import wayback
 
@@ -51,12 +52,11 @@ def backfill() -> None:
     conn = db.connect()
     session = requests.Session()
 
-    new_count = 0
-    dead_count = 0
+    stats = Stats(SOURCE)
 
     for url in URLS:
         if already_stored(conn, url):
-            print(".", end="", flush=True)
+            stats.skipped()
             continue
 
         try:
@@ -64,10 +64,10 @@ def backfill() -> None:
         except Exception as e:
             print(f"\n  ERROR probing snapshots for {url}: {e}")
             time.sleep(SLEEP * 2)
+            stats.uncertain()
             continue
         if not found:
-            dead_count += 1
-            print(f"\n  no working snapshot for {url}")
+            stats.dead()
             continue
         snapshot_url, timestamp = found
 
@@ -76,15 +76,14 @@ def backfill() -> None:
             parsed = parse_de_snapshot(content)
         except Exception as e:
             print(f"\n  ERROR fetching {snapshot_url}: {e}")
+            stats.uncertain()
             continue
 
         if db.store_release(conn, SOURCE, url, title=parsed["title"],
                             date=parsed["date"], body=parsed["body"], detail_id=timestamp):
-            new_count += 1
-            print("+", end="", flush=True)
+            stats.added()
 
-    total = db.source_total(conn, SOURCE)
-    print(f"\nAdded {new_count} new, {dead_count} never archived successfully. Total [{SOURCE}] in DB: {total}")
+    stats.summary(conn)
     conn.close()
 
 

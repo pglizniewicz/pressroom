@@ -21,6 +21,7 @@ import requests
 from bs4 import BeautifulSoup
 
 import db
+from progress import Stats
 from fetch import HEADERS, SLEEP
 
 
@@ -121,8 +122,7 @@ def scrape(
 
     print(f"[{source}] Scraping pages {start}–{end_page} of {total} total", flush=True)
 
-    new_count = 0
-    skip_count = 0
+    stats = Stats(source)
 
     for page in range(start, end_page + 1):
         print(f"  Page {page}/{end_page}", end="  ", flush=True)
@@ -136,8 +136,7 @@ def scrape(
 
         for item in items:
             if db.already_stored(conn, item["url"]):
-                skip_count += 1
-                print(".", end="", flush=True)
+                stats.skipped()
                 continue
 
             try:
@@ -149,13 +148,11 @@ def scrape(
 
             if db.store_release(conn, source, item["url"], title=item["title"],
                                 date=item["date"], body=body, detail_id=item["detail_id"]):
-                new_count += 1
-                print("+", end="", flush=True)
+                stats.added()
 
         print()
 
-    total_in_db = db.source_total(conn, source)
-    print(f"\nDone. Added {new_count} new, skipped {skip_count} existing. Total [{source}] in DB: {total_in_db}")
+    stats.summary(conn)
     conn.close()
 
 

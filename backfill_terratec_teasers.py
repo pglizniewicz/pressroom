@@ -25,6 +25,7 @@ from dateutil import parser as du
 
 from db import stored_detail_id
 import db
+from progress import Stats
 import wayback
 
 
@@ -181,22 +182,16 @@ def backfill() -> None:
         print(f"  {len(teasers)} teasers found")
         all_teasers.setdefault((prefix, source), {}).update(teasers)
 
-    full_recovered = 0
-    upgraded = 0
-    teaser_only = 0
-    skipped = 0
-    dead = 0
-
     for (prefix, source), teasers in all_teasers.items():
         print(f"\n[{source}] {len(teasers)} teaser sids to check", flush=True)
+        stats = Stats(source)
 
         for sid, (teaser_date, teaser_title, teaser_text) in teasers.items():
             article_url = f"{prefix}modules.php?op=modload&name=News&file=article&sid={sid}"
 
             existing = stored_detail_id(conn, article_url)
             if existing is not None and existing != "teaser":
-                skipped += 1
-                print(".", end="", flush=True)
+                stats.skipped()
                 continue
 
             recovered, confirmed = recover_full_content(conn, prefix, str(sid), session)
@@ -206,41 +201,32 @@ def backfill() -> None:
                     db.upgrade_release(conn, article_url, detail_id=timestamp,
                                        title=parsed["title"], date=parsed["date"],
                                        body=parsed["body"], commit=False)
-                    upgraded += 1
-                    print("U", end="", flush=True)
+                    stats.upgraded()
                 else:
                     db.store_release(conn, source, article_url, title=parsed["title"],
                                      date=parsed["date"], body=parsed["body"],
                                      detail_id=timestamp, commit=False)
-                    full_recovered += 1
-                    print("+", end="", flush=True)
+                    stats.added()
                 conn.commit()
                 continue
 
             if existing == "teaser":
-                skipped += 1
-                print(".", end="", flush=True)
+                stats.skipped()
                 continue
 
             if not confirmed:
-                skipped += 1
-                print("?", end="", flush=True)
+                stats.uncertain()
                 continue
 
             if teaser_text:
                 db.store_release(conn, source, article_url, title=teaser_title,
                                  date=teaser_date, body=teaser_text, detail_id="teaser")
-                teaser_only += 1
-                print("t", end="", flush=True)
+                stats.teaser()
             else:
-                dead += 1
-                print("x", end="", flush=True)
+                stats.dead()
 
-    print(
-        f"\n\nDone. {full_recovered} recovered in full, {upgraded} teaser(s) upgraded to full text, "
-        f"{teaser_only} stored as teaser-only, {skipped} skipped (existing/uncertain), "
-        f"{dead} confirmed unrecoverable."
-    )
+        stats.summary(conn)
+
     conn.close()
 
 

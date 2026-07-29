@@ -55,6 +55,7 @@ from bs4 import BeautifulSoup
 from fetch import SLEEP
 from db import already_stored
 import db
+from progress import Stats
 import wayback
 
 
@@ -212,16 +213,15 @@ def scrape(limit: int = None, prefix_crawl: bool = True) -> None:
         items = items[:limit]
     print(f"{len(items)} total candidate release pages", flush=True)
 
-    counts = {}
+    stats = {}
 
     for item in items:
         source = item["source"]
         url = item["url"]
-        c = counts.setdefault(source, {"new": 0, "skip": 0, "dead": 0})
+        s = stats.setdefault(source, Stats(source))
 
         if already_stored(conn, url):
-            c["skip"] += 1
-            print(".", end="", flush=True)
+            s.skipped()
             continue
 
         try:
@@ -229,10 +229,10 @@ def scrape(limit: int = None, prefix_crawl: bool = True) -> None:
         except Exception as e:
             print(f"\n  ERROR probing snapshots for {url}: {e}")
             time.sleep(SLEEP * 2)
+            s.uncertain()
             continue
         if not found:
-            c["dead"] += 1
-            print("d", end="", flush=True)
+            s.dead()
             continue
         snapshot_url, timestamp = found
 
@@ -241,22 +241,17 @@ def scrape(limit: int = None, prefix_crawl: bool = True) -> None:
             parsed = parse_snapshot(content)
         except Exception as e:
             print(f"\n  ERROR fetching {snapshot_url}: {e}")
+            s.uncertain()
             continue
 
         title = parsed["title"] or item["title"]
 
         if db.store_release(conn, source, url, title=title, date=parsed["date"],
                             body=parsed["body"], detail_id=timestamp):
-            c["new"] += 1
-            print("+", end="", flush=True)
+            s.added()
 
-    print()
-    for source, c in counts.items():
-        total_in_db = db.source_total(conn, source)
-        print(
-            f"[{source}] Added {c['new']} new, skipped {c['skip']} existing, "
-            f"{c['dead']} never archived successfully. Total [{source}] in DB: {total_in_db}"
-        )
+    for s in stats.values():
+        s.summary(conn)
     conn.close()
 
 

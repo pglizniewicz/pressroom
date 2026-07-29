@@ -20,6 +20,7 @@ import requests
 from bs4 import BeautifulSoup
 
 from fetch import HEADERS, SLEEP as CONTENT_SLEEP
+import progress
 
 TIMEMAP_URL = "https://web.archive.org/web/timemap/json"
 SPARKLINE_URL = "https://web.archive.org/__wb/sparkline"
@@ -192,7 +193,7 @@ def sample_all_captures(conn: sqlite3.Connection, session: requests.Session, url
         except Exception as e:
             print(f"\n  ERROR fetching {snap_url}: {e}")
             continue
-        print("+", end="", flush=True)
+        print(progress.CAPTURE, end="", flush=True)
     return entries
 
 

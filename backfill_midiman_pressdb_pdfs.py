@@ -49,6 +49,7 @@ import subprocess
 import requests
 
 import db
+from progress import Stats
 import wayback
 
 SOURCES = ["midiman_com_pressdb", "midiman_net_pressdb"]
@@ -90,18 +91,21 @@ def backfill_source(source: str, limit: int = None) -> None:
         rows = rows[:limit]
     print(f"[{source}] {len(rows)} PDF-linked rows to attempt", flush=True)
 
-    updated = 0
-    dead = 0
-    unchanged = 0
+    stats = Stats(source)
 
     for url, old_body in rows:
         text = ""
+        # A network error is not evidence that the PDF was never archived, so
+        # track it separately - otherwise a run with no connectivity would
+        # report every row as a confirmed dead end.
+        uncertain = False
         for candidate in domain_variants(url):
             try:
                 found = wayback.get_latest_working_snapshot(candidate)
             except Exception as e:
                 print(f"\n  ERROR probing snapshots for {candidate}: {e}")
-                found = None
+                uncertain = True
+                continue
             if not found:
                 continue
             snapshot_url, timestamp = found
@@ -110,27 +114,22 @@ def backfill_source(source: str, limit: int = None) -> None:
                 text = extract_pdf_text(content)
             except Exception as e:
                 print(f"\n  ERROR fetching {snapshot_url}: {e}")
+                uncertain = True
                 text = ""
             if text:
                 break
 
         if not text:
-            dead += 1
-            print("d", end="", flush=True)
+            stats.uncertain() if uncertain else stats.dead()
             continue
         if len(text) <= len(old_body or ""):
-            unchanged += 1
-            print(".", end="", flush=True)
+            stats.skipped()
             continue
 
         db.upgrade_release(conn, url, body=text)
-        updated += 1
-        print("+", end="", flush=True)
+        stats.upgraded()
 
-    print(
-        f"\n[{source}] Updated {updated} with full PDF text, {dead} unrecoverable, "
-        f"{unchanged} left as teaser-only."
-    )
+    stats.summary(conn)
     conn.close()
 
 
