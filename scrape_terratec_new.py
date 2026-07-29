@@ -27,7 +27,7 @@ import requests
 from bs4 import BeautifulSoup
 from dateutil import parser as du
 
-from common import HEADERS, SLEEP, already_stored, init_db
+from common import SLEEP, already_stored, init_db
 import wayback
 
 DB_PATH = Path(__file__).parent / "pressroom.db"
@@ -82,11 +82,13 @@ def parse_month_year(title: str):
     return year, rest.strip()
 
 
-def extract_entries(html: str) -> list:
+def extract_entries(html: str, base_url: str = None, timestamp: str = None) -> list:
     """Every <h2>Month YYYY - Title</h2> heading on the page, each paired
     with its containing block's link and body text. Works for both listing
     pages (many headings, each in its own div.block) and individual article
-    pages (one heading, no div.block wrapper)."""
+    pages (one heading, no div.block wrapper). `base_url` is unused (this
+    page's own links are already absolute) - the 3-arg shape matches
+    wayback.sample_all_captures' parse_fn contract."""
     soup = BeautifulSoup(html, "html.parser")
     entries = []
 
@@ -114,7 +116,7 @@ def extract_entries(html: str) -> list:
                 p.decompose()
         body = work.get_text(" ", strip=True)
 
-        entries.append({"url": url, "title": title, "date": date, "body": body})
+        entries.append({"url": url, "title": title, "date": date, "body": body, "detail_id": timestamp})
 
     return entries
 
@@ -140,27 +142,10 @@ def scrape_lang(lang: str, limit: int = None) -> None:
     # go, so do this first and keep the results in memory for step 2 to draw on.
     print(f"[{source}] Sampling listing-page history", flush=True)
     for listing_url in cfg["listing_urls"]:
-        try:
-            timestamps = wayback.list_all_captures(listing_url)
-        except Exception as e:
-            print(f"\n  ERROR listing captures for {listing_url}: {e}")
-            continue
-        print(f"  {listing_url}: {len(timestamps)} captures", flush=True)
-
-        for ts in timestamps:
-            snapshot_url = f"https://web.archive.org/web/{ts}id_/{listing_url}"
-            try:
-                r = session.get(snapshot_url, headers=HEADERS, timeout=20)
-                r.raise_for_status()
-                entries = extract_entries(r.content)
-            except Exception as e:
-                print(f"\n  ERROR fetching {snapshot_url}: {e}")
-                continue
-            time.sleep(SLEEP)
-
-            for e in entries:
-                consider(e["url"], e["title"], e["date"], e["body"], ts)
-            print("+", end="", flush=True)
+        print(f"  {listing_url}", flush=True)
+        entries = wayback.sample_all_captures(conn, session, listing_url, extract_entries)
+        for e in entries:
+            consider(e["url"], e["title"], e["date"], e["body"], e["detail_id"])
 
     # 2. Prefix crawl of individually-archived article pages - the slow part,
     # prone to Wayback's transient rate-limiting, so write incrementally
@@ -193,13 +178,11 @@ def scrape_lang(lang: str, limit: int = None) -> None:
         if found:
             snapshot_url, timestamp = found
             try:
-                r = session.get(snapshot_url, headers=HEADERS, timeout=20)
-                r.raise_for_status()
-                fetched = extract_entries(r.content)
+                content = wayback.fetch_snapshot(conn, session, snapshot_url, timeout=20)
+                fetched = extract_entries(content)
             except Exception as e:
                 print(f"\n  ERROR fetching {snapshot_url}: {e}")
                 continue
-            time.sleep(SLEEP)
             if fetched:
                 title, date, body, detail_id = fetched[0]["title"], fetched[0]["date"], fetched[0]["body"], timestamp
 

@@ -23,7 +23,7 @@ import requests
 from bs4 import BeautifulSoup
 from dateutil import parser as du
 
-from common import HEADERS, SLEEP, already_stored, init_db
+from common import SLEEP, already_stored, init_db
 import wayback
 
 DB_PATH = Path(__file__).parent / "pressroom.db"
@@ -116,13 +116,11 @@ def scrape(limit: int = None) -> None:
         snapshot_url, timestamp = found
 
         try:
-            r = session.get(snapshot_url, headers=HEADERS, timeout=20)
-            r.raise_for_status()
-            parsed = parse_snapshot(r.text)
+            content = wayback.fetch_snapshot(conn, session, snapshot_url, timeout=20)
+            parsed = parse_snapshot(content)
         except Exception as e:
             print(f"\n  ERROR fetching {snapshot_url}: {e}")
             continue
-        time.sleep(SLEEP)
 
         conn.execute(
             "INSERT OR IGNORE INTO releases (source, detail_id, title, date, url, body) VALUES (?,?,?,?,?,?)",

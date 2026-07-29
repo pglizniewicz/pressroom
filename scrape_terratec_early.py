@@ -18,7 +18,8 @@ import requests
 from bs4 import BeautifulSoup
 from dateutil import parser as du
 
-from common import HEADERS, init_db
+from common import init_db
+import wayback
 
 DB_PATH = Path(__file__).parent / "pressroom.db"
 SOURCE = "terratec_early"
@@ -89,9 +90,8 @@ def scrape() -> None:
 
     all_entries = []
     for page in PAGES:
-        r = session.get(page["wayback_url"], headers=HEADERS, timeout=20)
-        r.raise_for_status()
-        entries = extract_entries(r.text, page)
+        content = wayback.fetch_snapshot(conn, session, page["wayback_url"], timeout=20)
+        entries = extract_entries(content.decode("cp1252", errors="replace"), page)
         print(f"[{page['lang']}] {len(entries)} entries found", flush=True)
         all_entries.append((page, entries))
 

@@ -14,7 +14,7 @@ from pathlib import Path
 
 import requests
 
-from common import HEADERS, SLEEP, already_stored, init_db
+from common import SLEEP, already_stored, init_db
 from backfill_terratec_de_and_net_gaps import parse_de_snapshot
 import wayback
 
@@ -74,13 +74,11 @@ def backfill() -> None:
         snapshot_url, timestamp = found
 
         try:
-            r = session.get(snapshot_url, headers=HEADERS, timeout=20)
-            r.raise_for_status()
-            parsed = parse_de_snapshot(r.text)
+            content = wayback.fetch_snapshot(conn, session, snapshot_url, timeout=20)
+            parsed = parse_de_snapshot(content)
         except Exception as e:
             print(f"\n  ERROR fetching {snapshot_url}: {e}")
             continue
-        time.sleep(SLEEP)
 
         conn.execute(
             "INSERT OR IGNORE INTO releases (source, detail_id, title, date, url, body) VALUES (?,?,?,?,?,?)",

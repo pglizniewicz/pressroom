@@ -28,7 +28,7 @@ import requests
 from bs4 import BeautifulSoup
 from dateutil import parser as du
 
-from common import HEADERS, SLEEP, already_stored, init_db
+from common import SLEEP, already_stored, init_db
 from scrape_terratec import parse_snapshot as parse_net_snapshot
 import wayback
 
@@ -112,12 +112,10 @@ def backfill() -> None:
     all_entries = {}  # url -> entry dict (title, date, url, source)
     for base_url, source, wayback_url in INDEX_PAGES:
         print(f"Fetching {wayback_url}", flush=True)
-        r = session.get(wayback_url, headers=HEADERS, timeout=20)
-        r.raise_for_status()
-        for e in extract_links(r.text, base_url):
+        content = wayback.fetch_snapshot(conn, session, wayback_url, timeout=20)
+        for e in extract_links(content, base_url):
             e["source"] = source
             all_entries.setdefault(e["url"], e)
-        time.sleep(SLEEP)
 
     net_have = already_have_net_filenames(conn)
     candidates = []
@@ -159,13 +157,11 @@ def backfill() -> None:
 
         snapshot_url, timestamp = found
         try:
-            r = session.get(snapshot_url, headers=HEADERS, timeout=20)
-            r.raise_for_status()
-            parsed = parse_fn(r.text)
+            content = wayback.fetch_snapshot(conn, session, snapshot_url, timeout=20)
+            parsed = parse_fn(content)
         except Exception as err:
             print(f"\n  ERROR fetching {snapshot_url}: {err}")
             continue
-        time.sleep(SLEEP)
 
         title = parsed["title"] or e["title"]
         date = parsed["date"] or e["date"]

@@ -4,9 +4,13 @@ yearly category-listing pages (file=index&catid=N&allstories=1), which show
 every article that year as a title + short teaser paragraph - including
 sids that never surfaced in the site-wide timemap prefix search at all.
 
-For each teaser sid not already in pressroom.db, tries to recover the full
-article (via the standard article URL, then print.php) before falling back
-to storing the teaser paragraph itself as the body.
+For each teaser sid, tries to recover the full article (via the standard
+article URL, then print.php) before falling back to storing the teaser
+paragraph itself as the body. Sids already stored in full are skipped, but
+a sid previously stored as teaser-only (detail_id == "teaser") is retried
+every run and upgraded in place if a full article can now be recovered -
+a probe/fetch network error is never allowed to lock in a permanent
+teaser-only row, only a confirmed dead end is.
 
 Usage:
   python backfill_terratec_teasers.py
@@ -14,62 +18,48 @@ Usage:
 
 import re
 import sqlite3
-import time
 from pathlib import Path
 
 import requests
 from bs4 import BeautifulSoup
 from dateutil import parser as du
 
-from common import HEADERS, SLEEP, init_db
+from common import init_db, stored_detail_id
 import wayback
 
 DB_PATH = Path(__file__).parent / "pressroom.db"
 
-# (domain prefix, source, wayback snapshot URL) - URLs and timestamps as given,
-# already resolved to a working capture; id_ is inserted before fetching.
+# (domain prefix, source, wayback snapshot URL) - id_ baked in directly,
+# matching every other hardcoded-URL table in this repo.
 CATEGORY_PAGES = [
     ("http://pressde.terratec.net:80/", "terratec_pressde",
-     "https://web.archive.org/web/20031115085312/http://pressde.terratec.net:80/modules.php?op=modload&name=News&file=index&catid=13&topic=&allstories=1&menu=300"),
+     "https://web.archive.org/web/20031115085312id_/http://pressde.terratec.net:80/modules.php?op=modload&name=News&file=index&catid=13&topic=&allstories=1&menu=300"),
     ("http://pressde.terratec.net:80/", "terratec_pressde",
-     "https://web.archive.org/web/20031115084858/http://pressde.terratec.net/modules.php?op=modload&name=News&file=index&catid=14&topic=&allstories=1&menu=304"),
+     "https://web.archive.org/web/20031115084858id_/http://pressde.terratec.net/modules.php?op=modload&name=News&file=index&catid=14&topic=&allstories=1&menu=304"),
     ("http://pressde.terratec.net:80/", "terratec_pressde",
-     "https://web.archive.org/web/20031213100854/http://pressde.terratec.net:80/modules.php?op=modload&name=News&file=index&catid=15&topic=&allstories=1&amp"),
+     "https://web.archive.org/web/20031213100854id_/http://pressde.terratec.net:80/modules.php?op=modload&name=News&file=index&catid=15&topic=&allstories=1&amp"),
     ("http://pressde.terratec.net:80/", "terratec_pressde",
-     "https://web.archive.org/web/20041010061159/http://pressde.terratec.net/modules.php?op=modload&name=News&file=index&catid=17&topic=&allstories=1&amp"),
+     "https://web.archive.org/web/20041010061159id_/http://pressde.terratec.net/modules.php?op=modload&name=News&file=index&catid=17&topic=&allstories=1&amp"),
     ("http://pressde.terratec.net:80/", "terratec_pressde",
-     "https://web.archive.org/web/20070730011217/http://pressde.terratec.net/modules.php?op=modload&name=News&file=index&catid=19&topic=&allstories=1"),
+     "https://web.archive.org/web/20070730011217id_/http://pressde.terratec.net/modules.php?op=modload&name=News&file=index&catid=19&topic=&allstories=1"),
     ("http://pressde.terratec.net:80/", "terratec_pressde",
-     "https://web.archive.org/web/20070730010823/http://pressde.terratec.net/modules.php?op=modload&name=News&file=index&catid=20&topic=&allstories=1"),
+     "https://web.archive.org/web/20070730010823id_/http://pressde.terratec.net/modules.php?op=modload&name=News&file=index&catid=20&topic=&allstories=1"),
     ("http://pressde.terratec.net:80/", "terratec_pressde",
-     "https://web.archive.org/web/20070730010351/http://pressde.terratec.net/modules.php?op=modload&name=News&file=index&catid=18&topic=&allstories=1&menu=2"),
+     "https://web.archive.org/web/20070730010351id_/http://pressde.terratec.net/modules.php?op=modload&name=News&file=index&catid=18&topic=&allstories=1&menu=2"),
     ("http://pressen.terratec.net:80/", "terratec_pressen",
-     "https://web.archive.org/web/20031001235452/http://pressen.terratec.net/modules.php?op=modload&name=News&file=index&catid=15&topic=&allstories=1&menu=2"),
+     "https://web.archive.org/web/20031001235452id_/http://pressen.terratec.net/modules.php?op=modload&name=News&file=index&catid=15&topic=&allstories=1&menu=2"),
     ("http://pressen.terratec.net:80/", "terratec_pressen",
-     "https://web.archive.org/web/20041010063929/http://pressen.terratec.net:80/modules.php?op=modload&name=News&file=index&catid=16&topic=&allstories=1&amp"),
+     "https://web.archive.org/web/20041010063929id_/http://pressen.terratec.net:80/modules.php?op=modload&name=News&file=index&catid=16&topic=&allstories=1&amp"),
     ("http://pressen.terratec.net:80/", "terratec_pressen",
-     "https://web.archive.org/web/20070808232502/http://pressen.terratec.net/modules.php?op=modload&name=News&file=index&catid=17&topic=&allstories=1&menu=2&menu=307"),
+     "https://web.archive.org/web/20070808232502id_/http://pressen.terratec.net/modules.php?op=modload&name=News&file=index&catid=17&topic=&allstories=1&menu=2&menu=307"),
     ("http://pressen.terratec.net:80/", "terratec_pressen",
-     "https://web.archive.org/web/20070808232455/http://pressen.terratec.net/modules.php?op=modload&name=News&file=index&catid=18&topic=&allstories=1&menu=2&menu=309"),
+     "https://web.archive.org/web/20070808232455id_/http://pressen.terratec.net/modules.php?op=modload&name=News&file=index&catid=18&topic=&allstories=1&menu=2&menu=309"),
     ("http://pressen.terratec.net:80/", "terratec_pressen",
-     "https://web.archive.org/web/20070630063657/http://pressen.terratec.net/modules.php?op=modload&name=News&file=index&catid=19&topic=&allstories=1&menu=2"),
+     "https://web.archive.org/web/20070630063657id_/http://pressen.terratec.net/modules.php?op=modload&name=News&file=index&catid=19&topic=&allstories=1&menu=2"),
 ]
 
 SID_RE = re.compile(r"sid=(\d+)(?:&|$)")
 TITLE_RE = re.compile(r"(\d{2}\.\d{2}\.\d{4})\s*-\s*(.+)")
-
-
-def with_id_modifier(wayback_url: str) -> str:
-    return re.sub(r"(/web/\d+)/", r"\1id_/", wayback_url, count=1)
-
-
-def stored_sids(conn: sqlite3.Connection, source: str) -> set:
-    sids = set()
-    for (url,) in conn.execute("SELECT url FROM releases WHERE source = ?", (source,)):
-        m = SID_RE.search(url)
-        if m:
-            sids.add(int(m.group(1)))
-    return sids
 
 
 def extract_teasers(html: str) -> dict:
@@ -108,8 +98,12 @@ def extract_teasers(html: str) -> dict:
     return teasers
 
 
-def recover_full_content(prefix: str, sid: str, session: requests.Session):
-    """Try the standard article URL, then print.php. Returns parsed dict or None."""
+def recover_full_content(conn: sqlite3.Connection, prefix: str, sid: str, session: requests.Session):
+    """Try the standard article URL, then print.php. Returns (result, confirmed):
+    result is (timestamp, parsed) or None; confirmed is False if any attempt
+    hit a network error (caller must not treat that as a verified dead end -
+    only a cleanly-checked "not found" or "fetched fine, no title" counts)."""
+    uncertain = False
     for url_tmpl, parse_fn in [
         (f"{prefix}modules.php?op=modload&name=News&file=article&sid={sid}", parse_article_snapshot),
         (f"{prefix}print.php?sid={sid}", parse_print_snapshot),
@@ -117,20 +111,20 @@ def recover_full_content(prefix: str, sid: str, session: requests.Session):
         try:
             found = wayback.get_latest_working_snapshot(url_tmpl)
         except Exception:
-            found = None
+            uncertain = True
+            continue
         if not found:
             continue
         snapshot_url, timestamp = found
         try:
-            r = session.get(snapshot_url, headers=HEADERS, timeout=20)
-            r.raise_for_status()
-            parsed = parse_fn(r.text)
+            content = wayback.fetch_snapshot(conn, session, snapshot_url, timeout=20)
+            parsed = parse_fn(content)
         except Exception:
+            uncertain = True
             continue
-        time.sleep(SLEEP)
         if parsed.get("title"):
-            return timestamp, parsed
-    return None
+            return (timestamp, parsed), True
+    return None, not uncertain
 
 
 TITLE_TAG_RE = re.compile(r"(\d{2}\.\d{2}\.\d{4})\s*-\s*(.+?)\s*::\s*Press")
@@ -181,53 +175,78 @@ def backfill() -> None:
     for prefix, source, url in CATEGORY_PAGES:
         print(f"Fetching {url}", flush=True)
         try:
-            r = session.get(with_id_modifier(url), headers=HEADERS, timeout=20)
-            r.raise_for_status()
+            content = wayback.fetch_snapshot(conn, session, url, timeout=20)
         except Exception as e:
             print(f"  ERROR fetching category page: {e}")
             continue
-        time.sleep(SLEEP)
-        teasers = extract_teasers(r.text)
+        teasers = extract_teasers(content)
         print(f"  {len(teasers)} teasers found")
         all_teasers.setdefault((prefix, source), {}).update(teasers)
 
     full_recovered = 0
+    upgraded = 0
     teaser_only = 0
+    skipped = 0
     dead = 0
 
     for (prefix, source), teasers in all_teasers.items():
-        have = stored_sids(conn, source)
-        new_sids = sorted(set(teasers) - have)
-        print(f"\n[{source}] {len(new_sids)} teaser sids not already in the DB", flush=True)
+        print(f"\n[{source}] {len(teasers)} teaser sids to check", flush=True)
 
-        for sid in new_sids:
+        for sid, (teaser_date, teaser_title, teaser_text) in teasers.items():
             article_url = f"{prefix}modules.php?op=modload&name=News&file=article&sid={sid}"
-            teaser_date, teaser_title, teaser_text = teasers[sid]
 
-            recovered = recover_full_content(prefix, str(sid), session)
+            existing = stored_detail_id(conn, article_url)
+            if existing is not None and existing != "teaser":
+                skipped += 1
+                print(".", end="", flush=True)
+                continue
+
+            recovered, confirmed = recover_full_content(conn, prefix, str(sid), session)
             if recovered:
                 timestamp, parsed = recovered
-                conn.execute(
-                    "INSERT OR IGNORE INTO releases (source, detail_id, title, date, url, body) VALUES (?,?,?,?,?,?)",
-                    (source, timestamp, parsed["title"], parsed["date"], article_url, parsed["body"]),
-                )
-                full_recovered += 1
-                print("+", end="", flush=True)
-            elif teaser_text:
+                if existing == "teaser":
+                    conn.execute(
+                        "UPDATE releases SET detail_id = ?, title = ?, date = ?, body = ? WHERE url = ?",
+                        (timestamp, parsed["title"], parsed["date"], parsed["body"], article_url),
+                    )
+                    upgraded += 1
+                    print("U", end="", flush=True)
+                else:
+                    conn.execute(
+                        "INSERT OR IGNORE INTO releases (source, detail_id, title, date, url, body) VALUES (?,?,?,?,?,?)",
+                        (source, timestamp, parsed["title"], parsed["date"], article_url, parsed["body"]),
+                    )
+                    full_recovered += 1
+                    print("+", end="", flush=True)
+                conn.commit()
+                continue
+
+            if existing == "teaser":
+                skipped += 1
+                print(".", end="", flush=True)
+                continue
+
+            if not confirmed:
+                skipped += 1
+                print("?", end="", flush=True)
+                continue
+
+            if teaser_text:
                 conn.execute(
                     "INSERT OR IGNORE INTO releases (source, detail_id, title, date, url, body) VALUES (?,?,?,?,?,?)",
                     (source, "teaser", teaser_title, teaser_date, article_url, teaser_text),
                 )
+                conn.commit()
                 teaser_only += 1
                 print("t", end="", flush=True)
             else:
                 dead += 1
                 print("x", end="", flush=True)
-            conn.commit()
 
     print(
-        f"\n\nDone. {full_recovered} recovered in full, {teaser_only} stored as teaser-only, "
-        f"{dead} unrecoverable."
+        f"\n\nDone. {full_recovered} recovered in full, {upgraded} teaser(s) upgraded to full text, "
+        f"{teaser_only} stored as teaser-only, {skipped} skipped (existing/uncertain), "
+        f"{dead} confirmed unrecoverable."
     )
     conn.close()
 
