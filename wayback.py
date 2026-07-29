@@ -1,16 +1,22 @@
 #!/usr/bin/env python3
 """Generic Wayback Machine helpers, reusable by any dead-site scraper.
 
-Two building blocks:
-  - list_snapshots_by_prefix: enumerate every archived URL under a prefix
-    (CDX timemap API).
-  - get_latest_working_snapshot: for a single URL, find the most recent
-    capture that actually returned HTTP 200 (many captures are dead/error
-    responses), by drilling sparkline -> year calendar -> day calendar.
+Everything that asks archive.org *what exists* goes through the public CDX
+API (_cdx), and everything that asks for *content* goes through
+fetch_snapshot, which caches it. The three CDX-backed queries are:
 
-The internal __wb/sparkline and __wb/calendarcaptures endpoints return a
-disguised HTML 404 unless a Referer pointing at a web.archive.org/web/...
-URL is sent - a normal User-Agent alone is not enough. Verified empirically.
+  - list_snapshots_by_prefix: every archived URL under a prefix.
+  - list_all_captures: every HTTP-200 capture of one exact URL, for pages
+    whose content grows over time so a single "latest" would miss revisions.
+  - get_latest_working_snapshot: the newest capture of one URL that actually
+    returned 200 - most captures of a dead site are 404s.
+
+get_latest_working_snapshot used to drill the private __wb/sparkline and
+__wb/calendarcaptures endpoints, which need a forged Referer to answer at all
+and cost three requests per URL. CDX answers the same question in one, and
+was verified to give identical timestamps on every stored row it was
+compared against, including the awkward cases (newest captures are 404s;
+only one capture exists; the newest servable capture is a revisit record).
 """
 
 import sqlite3
@@ -22,9 +28,7 @@ from bs4 import BeautifulSoup
 from fetch import HEADERS, SLEEP as CONTENT_SLEEP
 import progress
 
-TIMEMAP_URL = "https://web.archive.org/web/timemap/json"
-SPARKLINE_URL = "https://web.archive.org/__wb/sparkline"
-CALENDAR_URL = "https://web.archive.org/__wb/calendarcaptures/2"
+CDX_URL = "https://web.archive.org/cdx/search/cdx"
 SLEEP = 1.0
 
 
@@ -32,30 +36,16 @@ def snapshot_url(timestamp: str, original_url: str) -> str:
     return f"https://web.archive.org/web/{timestamp}id_/{original_url}"
 
 
-def list_snapshots_by_prefix(prefix_url: str, limit: int = 10000, retries: int = 3) -> list:
-    """Return every archived URL under `prefix_url` as a list of dicts with
-    keys original, mimetype, timestamp, endtimestamp, groupcount, uniqcount.
+def _cdx(retries: int = 3, **params) -> list:
+    """One CDX query -> a list of row dicts (the header row becomes the keys).
 
-    This single request is the entry point every scraper run starts with, and
     archive.org's connection-level rate limiting is frequent enough that a
-    bare cold-start easily hits it - retry a few times before giving up.
+    bare cold-start easily hits it, so retry a few times before giving up.
     """
+    params.setdefault("output", "json")
     for attempt in range(retries):
         try:
-            r = requests.get(
-                TIMEMAP_URL,
-                params={
-                    "url": prefix_url,
-                    "matchType": "prefix",
-                    "collapse": "urlkey",
-                    "output": "json",
-                    "fl": "original,mimetype,timestamp,endtimestamp,groupcount,uniqcount",
-                    "filter": "!statuscode:[45]..",
-                    "limit": limit,
-                },
-                headers=HEADERS,
-                timeout=30,
-            )
+            r = requests.get(CDX_URL, params=params, headers=HEADERS, timeout=30)
             r.raise_for_status()
             break
         except requests.exceptions.RequestException:
@@ -67,6 +57,21 @@ def list_snapshots_by_prefix(prefix_url: str, limit: int = 10000, retries: int =
         return []
     header, *data = rows
     return [dict(zip(header, row)) for row in data]
+
+
+def list_snapshots_by_prefix(prefix_url: str, limit: int = 10000, retries: int = 3) -> list:
+    """Return every archived URL under `prefix_url` as a list of dicts with
+    keys original, mimetype, timestamp, endtimestamp, groupcount, uniqcount.
+    """
+    return _cdx(
+        retries=retries,
+        url=prefix_url,
+        matchType="prefix",
+        collapse="urlkey",
+        fl="original,mimetype,timestamp,endtimestamp,groupcount,uniqcount",
+        filter="!statuscode:[45]..",
+        limit=limit,
+    )
 
 
 def list_snapshots_or_exit(prefix_url: str, **kwargs) -> list:
@@ -92,38 +97,9 @@ def list_all_captures(exact_url: str, retries: int = 3) -> list:
     (no collapsing), for sites where the page's own content changes over
     time and a single "latest" snapshot would miss older revisions.
     """
-    for attempt in range(retries):
-        try:
-            r = requests.get(
-                TIMEMAP_URL,
-                params={"url": exact_url, "output": "json", "fl": "timestamp,statuscode", "limit": 1000},
-                headers=HEADERS,
-                timeout=30,
-            )
-            r.raise_for_status()
-            break
-        except requests.exceptions.RequestException:
-            if attempt == retries - 1:
-                raise
-            time.sleep(SLEEP * (attempt + 1) * 5)
-    rows = r.json()
-    if not rows:
-        return []
-    _, *data = rows
-    seen = set()
-    timestamps = []
-    for ts, status in data:
-        if status == "200" and ts not in seen:
-            seen.add(ts)
-            timestamps.append(ts)
-    return sorted(timestamps)
-
-
-def _get_wb_json(session: requests.Session, url: str, params: dict, referer: str) -> dict:
-    headers = {**HEADERS, "Referer": referer}
-    r = session.get(url, params=params, headers=headers, timeout=20)
-    r.raise_for_status()
-    return r.json()
+    rows = _cdx(retries=retries, url=exact_url, filter="statuscode:200",
+                fl="timestamp", limit=1000)
+    return sorted({row["timestamp"] for row in rows})
 
 
 def fetch_snapshot(conn: sqlite3.Connection, session: requests.Session, url: str, timeout: int = 20) -> bytes:
@@ -250,41 +226,17 @@ def fetch_detail_snapshot(conn: sqlite3.Connection, session: requests.Session, u
 def get_latest_working_snapshot(original_url: str):
     """Find the most recent capture of `original_url` that returned HTTP 200.
 
-    Walks candidate years newest-first (from the sparkline), and within the
-    first year that has any 200 capture, picks the latest day and then the
-    latest time on that day. Returns (snapshot_url, timestamp) using the
-    `id_` raw-content modifier, or None if the page never returned 200.
+    Returns (snapshot_url, timestamp) using the `id_` raw-content modifier, or
+    None if the page never returned 200.
+
+    `limit=-1` asks CDX for the last matching row, and it applies the filter
+    before the limit - so a URL whose newest captures are 404s (common here:
+    a page that later disappeared) still yields its newest *working* capture
+    rather than nothing.
     """
-    session = requests.Session()
-    referer = f"https://web.archive.org/web/2020/{original_url}"
-
-    sparkline = _get_wb_json(
-        session, SPARKLINE_URL, {"output": "json", "url": original_url, "collection": "web"}, referer
-    )
+    rows = _cdx(url=original_url, filter="statuscode:200", fl="timestamp", limit=-1)
     time.sleep(SLEEP)
-
-    for year in sorted(sparkline.get("years", {}), reverse=True):
-        year_data = _get_wb_json(
-            session, CALENDAR_URL, {"url": original_url, "date": year, "groupby": "day"}, referer
-        )
-        time.sleep(SLEEP)
-
-        day_hits = [item for item in year_data.get("items", []) if item[1] == 200]
-        if not day_hits:
-            continue
-        month, day = max(
-            (int(str(item[0]).zfill(4)[:-2]), int(str(item[0]).zfill(4)[-2:])) for item in day_hits
-        )
-        date_str = f"{year}{month:02d}{day:02d}"
-
-        day_data = _get_wb_json(session, CALENDAR_URL, {"url": original_url, "date": date_str}, referer)
-        time.sleep(SLEEP)
-
-        time_hits = [item for item in day_data.get("items", []) if item[1] == 200]
-        if not time_hits:
-            continue
-        hms = max(str(item[0]).zfill(6) for item in time_hits)
-        timestamp = f"{date_str}{hms}"
-        return f"https://web.archive.org/web/{timestamp}id_/{original_url}", timestamp
-
-    return None
+    if not rows:
+        return None
+    timestamp = rows[0]["timestamp"]
+    return snapshot_url(timestamp, original_url), timestamp
