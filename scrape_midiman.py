@@ -46,9 +46,7 @@ Usage:
 
 import argparse
 import re
-import sqlite3
 import time
-from pathlib import Path
 from urllib.parse import urljoin
 
 import requests
@@ -59,7 +57,6 @@ from db import already_stored
 import db
 import wayback
 
-DB_PATH = Path(__file__).parent / "pressroom.db"
 
 INDEX_PAGES = [
     {
@@ -176,8 +173,7 @@ def parse_snapshot(html: str) -> dict:
 
 
 def scrape(limit: int = None, prefix_crawl: bool = True) -> None:
-    conn = sqlite3.connect(DB_PATH)
-    db.init_db(conn)
+    conn = db.connect()
     session = requests.Session()
 
     candidates = {}  # (source, url) -> title

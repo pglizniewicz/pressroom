@@ -19,9 +19,7 @@ Usage:
 
 import argparse
 import re
-import sqlite3
 import time
-from pathlib import Path
 
 import requests
 from bs4 import BeautifulSoup
@@ -31,7 +29,6 @@ from common import HEADERS, SLEEP
 from db import already_stored
 import db
 
-DB_PATH = Path(__file__).parent / "pressroom.db"
 BASE_URL = "https://www.globenewswire.com"
 LIST_URL = f"{BASE_URL}/en/search/organization/Creative%2520Labs%CE%B4%2520Inc%C2%A7"
 SOURCE = "creative_gnw"
@@ -77,8 +74,7 @@ def fetch_body(session: requests.Session, url: str) -> str:
 
 
 def scrape(pages: int = None) -> None:
-    conn = sqlite3.connect(DB_PATH)
-    db.init_db(conn)
+    conn = db.connect()
     session = requests.Session()
 
     print(f"[{SOURCE}] Scraping GlobeNewswire Creative Labs, Inc. archive", flush=True)

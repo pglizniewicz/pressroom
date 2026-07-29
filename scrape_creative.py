@@ -13,9 +13,7 @@ Usage:
 
 import argparse
 import re
-import sqlite3
 import time
-from pathlib import Path
 
 import requests
 from bs4 import BeautifulSoup
@@ -24,7 +22,6 @@ from common import HEADERS, SLEEP
 from db import already_stored
 import db
 
-DB_PATH = Path(__file__).parent / "pressroom.db"
 BASE_URL = "https://sg.creative.com"
 LIST_URL = f"{BASE_URL}/corporate/pressroom"
 SOURCE = "creative"
@@ -71,8 +68,7 @@ def scrape(from_year: int = FIRST_YEAR, to_year: int = None) -> None:
     import datetime
     current_year = to_year or int(time.strftime("%Y"))
 
-    conn = sqlite3.connect(DB_PATH)
-    db.init_db(conn)
+    conn = db.connect()
     session = requests.Session()
 
     print(f"[{SOURCE}] Scraping years {from_year}-{current_year}", flush=True)

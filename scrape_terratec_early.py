@@ -11,8 +11,6 @@ Usage:
 """
 
 import re
-import sqlite3
-from pathlib import Path
 
 import requests
 from bs4 import BeautifulSoup
@@ -21,7 +19,6 @@ from dateutil import parser as du
 import db
 import wayback
 
-DB_PATH = Path(__file__).parent / "pressroom.db"
 SOURCE = "terratec_early"
 
 PAGES = [
@@ -84,8 +81,7 @@ def extract_entries(html: str, page: dict) -> list:
 
 
 def scrape() -> None:
-    conn = sqlite3.connect(DB_PATH)
-    db.init_db(conn)
+    conn = db.connect()
     session = requests.Session()
 
     all_entries = []

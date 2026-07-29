@@ -15,7 +15,6 @@ import argparse
 import re
 import sqlite3
 import time
-from pathlib import Path
 
 import requests
 from bs4 import BeautifulSoup
@@ -25,7 +24,6 @@ from common import SLEEP
 import db
 import wayback
 
-DB_PATH = Path(__file__).parent / "pressroom.db"
 
 DOMAINS = [
     ("http://pressen.terratec.net:80/", "terratec_pressen"),
@@ -77,8 +75,7 @@ def parse_print_snapshot(html: str) -> dict:
 
 
 def backfill(prefix: str, source: str, limit: int = None) -> None:
-    conn = sqlite3.connect(DB_PATH)
-    db.init_db(conn)
+    conn = db.connect()
     session = requests.Session()
 
     have = stored_sids(conn, source)

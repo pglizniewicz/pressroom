@@ -18,7 +18,6 @@ Usage:
 
 import re
 import sqlite3
-from pathlib import Path
 
 import requests
 from bs4 import BeautifulSoup
@@ -28,7 +27,6 @@ from db import stored_detail_id
 import db
 import wayback
 
-DB_PATH = Path(__file__).parent / "pressroom.db"
 
 # (domain prefix, source, wayback snapshot URL) - id_ baked in directly,
 # matching every other hardcoded-URL table in this repo.
@@ -168,8 +166,7 @@ def parse_print_snapshot(html: str) -> dict:
 
 
 def backfill() -> None:
-    conn = sqlite3.connect(DB_PATH)
-    db.init_db(conn)
+    conn = db.connect()
     session = requests.Session()
 
     all_teasers = {}  # source -> {sid: (date, title, teaser)}

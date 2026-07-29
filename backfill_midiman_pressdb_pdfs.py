@@ -44,16 +44,13 @@ Usage:
 
 import argparse
 import re
-import sqlite3
 import subprocess
-from pathlib import Path
 
 import requests
 
 import db
 import wayback
 
-DB_PATH = Path(__file__).parent / "pressroom.db"
 SOURCES = ["midiman_com_pressdb", "midiman_net_pressdb"]
 
 
@@ -83,8 +80,7 @@ def extract_pdf_text(pdf_bytes: bytes) -> str:
 
 
 def backfill_source(source: str, limit: int = None) -> None:
-    conn = sqlite3.connect(DB_PATH)
-    db.init_db(conn)
+    conn = db.connect()
     session = requests.Session()
 
     rows = conn.execute(

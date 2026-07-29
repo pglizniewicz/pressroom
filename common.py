@@ -4,7 +4,6 @@ plus the HTTP constants every scraper uses. Database access lives in db.py."""
 
 import argparse
 import re
-import sqlite3
 import time
 from pathlib import Path
 
@@ -104,8 +103,7 @@ def scrape(
 ) -> None:
     base_url = re.match(r"(https?://[^/]+)", list_url).group(1)
 
-    conn = sqlite3.connect(db_path)
-    db.init_db(conn)
+    conn = db.connect(db_path)
     session = requests.Session()
 
     print("Detecting total page count...", flush=True)

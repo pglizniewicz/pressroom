@@ -51,7 +51,6 @@ Usage:
 import argparse
 import re
 import sqlite3
-from pathlib import Path
 from urllib.parse import urljoin
 
 import requests
@@ -62,7 +61,6 @@ from db import stored_detail_id
 import db
 import wayback
 
-DB_PATH = Path(__file__).parent / "pressroom.db"
 SOURCE = "midiman_couk_news"
 
 LISTING_URLS = [
@@ -162,8 +160,7 @@ def discover_prefix_ids() -> set:
 
 
 def scrape(limit: int = None, prefix_crawl: bool = True) -> None:
-    conn = sqlite3.connect(DB_PATH)
-    db.init_db(conn)
+    conn = db.connect()
     session = requests.Session()
 
     best = discover_listing_best(conn, limit=limit)

@@ -8,11 +8,10 @@ Usage:
   python scrape_intel.py --start 10 --pages 20  # pages 10–29
 """
 
-from pathlib import Path
 
 from common import make_arg_parser, scrape
+from db import DB_PATH
 
-DB_PATH = Path(__file__).parent / "pressroom.db"
 LIST_URL = "https://www.intc.com/news-events/press-releases"
 
 if __name__ == "__main__":

@@ -19,9 +19,7 @@ Usage:
 
 import argparse
 import re
-import sqlite3
 import time
-from pathlib import Path
 
 import requests
 from bs4 import BeautifulSoup
@@ -32,7 +30,6 @@ from db import already_stored
 import db
 import wayback
 
-DB_PATH = Path(__file__).parent / "pressroom.db"
 
 LANGS = {
     "en": {
@@ -126,8 +123,7 @@ def extract_entries(html: str, base_url: str = None, timestamp: str = None) -> l
 def scrape_lang(lang: str, limit: int = None) -> None:
     cfg = LANGS[lang]
     source = cfg["source"]
-    conn = sqlite3.connect(DB_PATH)
-    db.init_db(conn)
+    conn = db.connect()
     session = requests.Session()
 
     best = {}  # url -> {title, date, body, detail_id}

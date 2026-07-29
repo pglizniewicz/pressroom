@@ -65,8 +65,6 @@ Usage:
 
 import argparse
 import re
-import sqlite3
-from pathlib import Path
 from urllib.parse import urljoin
 
 import requests
@@ -76,7 +74,6 @@ from db import stored_detail_id
 import db
 import wayback
 
-DB_PATH = Path(__file__).parent / "pressroom.db"
 SOURCE = "midiman_de"
 
 PAGES = [
@@ -216,8 +213,7 @@ def parse_generic_page(content: bytes) -> dict:
 
 
 def scrape(limit: int = None) -> None:
-    conn = sqlite3.connect(DB_PATH)
-    db.init_db(conn)
+    conn = db.connect()
     session = requests.Session()
 
     best = {}  # (title, date) -> entry dict (+ detail_id)

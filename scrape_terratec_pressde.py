@@ -16,9 +16,7 @@ Usage:
 
 import argparse
 import re
-import sqlite3
 import time
-from pathlib import Path
 
 import requests
 from bs4 import BeautifulSoup
@@ -29,7 +27,6 @@ from db import already_stored
 import db
 import wayback
 
-DB_PATH = Path(__file__).parent / "pressroom.db"
 PREFIX = "http://pressde.terratec.net:80/"
 SOURCE = "terratec_pressde"
 
@@ -101,8 +98,7 @@ def parse_snapshot(html: str) -> dict:
 
 
 def scrape(limit: int = None) -> None:
-    conn = sqlite3.connect(DB_PATH)
-    db.init_db(conn)
+    conn = db.connect()
     session = requests.Session()
 
     print(f"[{SOURCE}] Listing archived articles under {PREFIX}", flush=True)

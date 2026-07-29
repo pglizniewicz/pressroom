@@ -49,7 +49,6 @@ Usage:
 import argparse
 import re
 import sqlite3
-from pathlib import Path
 from urllib.parse import urljoin
 
 import requests
@@ -60,7 +59,6 @@ from db import stored_detail_id
 import db
 import wayback
 
-DB_PATH = Path(__file__).parent / "pressroom.db"
 SOURCE = "maudio_com_news"
 
 LISTING_PAGES = [
@@ -157,8 +155,7 @@ def discover_listing(conn: sqlite3.Connection) -> list:
 
 
 def scrape(limit: int = None) -> None:
-    conn = sqlite3.connect(DB_PATH)
-    db.init_db(conn)
+    conn = db.connect()
     session = requests.Session()
 
     entries = discover_listing(conn)

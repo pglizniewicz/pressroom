@@ -47,8 +47,6 @@ Usage:
 
 import argparse
 import re
-import sqlite3
-from pathlib import Path
 from urllib.parse import urljoin
 
 import requests
@@ -59,7 +57,6 @@ from db import already_stored
 import db
 import wayback
 
-DB_PATH = Path(__file__).parent / "pressroom.db"
 
 DOMAINS = {
     "midiman_net_media_pr": "http://www.midiman.net/index.php?do=media.media_pr",
@@ -149,8 +146,7 @@ def extract_entries(html: bytes, base_url: str, timestamp: str = None) -> list:
 
 
 def scrape_domain(source: str, listing_url: str, limit: int = None) -> None:
-    conn = sqlite3.connect(DB_PATH)
-    db.init_db(conn)
+    conn = db.connect()
     session = requests.Session()
 
     print(f"[{source}] Listing historical captures of {listing_url}", flush=True)

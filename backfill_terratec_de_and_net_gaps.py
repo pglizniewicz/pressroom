@@ -22,7 +22,6 @@ Usage:
 import re
 import sqlite3
 import time
-from pathlib import Path
 
 import requests
 from bs4 import BeautifulSoup
@@ -34,7 +33,6 @@ import db
 from scrape_terratec import parse_snapshot as parse_net_snapshot
 import wayback
 
-DB_PATH = Path(__file__).parent / "pressroom.db"
 
 INDEX_PAGES = [
     ("http://www.terratec.de/presse/", "terratec_de",
@@ -104,8 +102,7 @@ def already_have_net_filenames(conn: sqlite3.Connection) -> set:
 
 
 def backfill() -> None:
-    conn = sqlite3.connect(DB_PATH)
-    db.init_db(conn)
+    conn = db.connect()
     session = requests.Session()
 
     all_entries = {}  # url -> entry dict (title, date, url, source)

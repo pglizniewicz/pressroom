@@ -8,9 +8,7 @@ Usage:
   python backfill_terratec_de_full_dir.py
 """
 
-import sqlite3
 import time
-from pathlib import Path
 
 import requests
 
@@ -20,7 +18,6 @@ import db
 from backfill_terratec_de_and_net_gaps import parse_de_snapshot
 import wayback
 
-DB_PATH = Path(__file__).parent / "pressroom.db"
 SOURCE = "terratec_de"
 
 URLS = [
@@ -51,8 +48,7 @@ URLS = [
 
 
 def backfill() -> None:
-    conn = sqlite3.connect(DB_PATH)
-    db.init_db(conn)
+    conn = db.connect()
     session = requests.Session()
 
     new_count = 0
