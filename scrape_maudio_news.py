@@ -56,6 +56,7 @@ from bs4 import BeautifulSoup
 
 from db import stored_detail_id
 from dates import iso_date
+from encoding import decode_html
 import db
 from progress import Stats
 import wayback
@@ -83,7 +84,10 @@ def _extract_date(text: str) -> str:
 
 
 def parse_listing_page(content: bytes, base_url: str) -> list:
-    soup = BeautifulSoup(content, "html.parser")
+    # These captures are valid utf-8, so decode_html is currently a no-op here
+    # - it's used anyway so a single stray cp1252 byte can't silently hand the
+    # whole page to chardet. See encoding.py.
+    soup = BeautifulSoup(decode_html(content), "html.parser")
     entries = []
     for li in soup.select("ul.large-block-grid-1 li"):
         a = li.select_one("p strong a.link")
@@ -114,7 +118,7 @@ def parse_listing_page(content: bytes, base_url: str) -> list:
 
 
 def parse_detail(content: bytes) -> dict:
-    soup = BeautifulSoup(content, "html.parser")
+    soup = BeautifulSoup(decode_html(content), "html.parser")
     container = soup.select_one("div.theme-page")
     if not container:
         return {}
@@ -184,12 +188,15 @@ def scrape(limit: int = None) -> None:
             conn.commit()
             continue
 
-        if existing == "teaser":
-            stats.skipped()
-            continue
-
+        # Ordered before the teaser check on purpose: a failed probe is not a
+        # verdict, so an already-stored teaser must be reported `uncertain`
+        # (a rerun will retry it) rather than `skipped` ("nothing to do").
         if not confirmed:
             stats.uncertain()
+            continue
+
+        if existing == "teaser":
+            stats.skipped()
             continue
 
         if e["teaser"]:

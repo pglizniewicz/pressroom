@@ -143,7 +143,11 @@ def fetch_snapshot(conn: sqlite3.Connection, session: requests.Session, url: str
 
     bs4_encoding = None
     try:
-        bs4_encoding = BeautifulSoup(content, "html.parser").original_encoding
+        # Only sniff text. On a PDF or Word attachment the answer would be
+        # meaningless anyway, and UnicodeDammit prints "Some characters could
+        # not be decoded..." straight into the middle of the progress markers.
+        if not content[:8].startswith((b"%PDF", b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1")):
+            bs4_encoding = BeautifulSoup(content, "html.parser").original_encoding
     except Exception:
         pass
 

@@ -58,6 +58,7 @@ from bs4 import BeautifulSoup
 
 from db import stored_detail_id
 from dates import iso_date
+from encoding import decode_html
 import db
 from progress import Stats
 import wayback
@@ -76,7 +77,11 @@ DATE_TITLE_RE = re.compile(r"^([A-Za-z]+ \d{1,2},\s*\d{4})\s*-\s*(.+)$")
 
 
 def extract_entries(html: bytes, base_url: str, timestamp: str = None) -> list:
-    soup = BeautifulSoup(html, "html.parser")
+    # decode_html, not raw bytes: these pages declare utf-8 and are utf-8
+    # except for a few Word-pasted cp1252 bytes, which used to make bs4 fall
+    # back to chardet and decode the whole file as windows-1250/1258. See
+    # encoding.py.
+    soup = BeautifulSoup(decode_html(html), "html.parser")
     entries = []
     for span in soup.find_all("span", class_="boldtext"):
         a = span.find("a", href=True)
@@ -105,7 +110,7 @@ def rank(entry: dict):
 
 
 def parse_detail(html: bytes) -> dict:
-    soup = BeautifulSoup(html, "html.parser")
+    soup = BeautifulSoup(decode_html(html), "html.parser")
     title_td = soup.select_one("td.boldtextgray")
     body_p = soup.select_one("p.normaltext")
 
@@ -169,11 +174,15 @@ def scrape(limit: int = None, prefix_crawl: bool = True) -> None:
     if prefix_crawl:
         extra_ids = discover_prefix_ids() - set(id_to_key)
 
-    stats = Stats(SOURCE)
-
     work = list(best.items())
+    extra_ids_list = sorted(extra_ids)
     if limit:
         work = work[:limit]
+        extra_ids_list = extra_ids_list[:limit]
+
+    # Both work lists are sized before Stats so the heartbeat's percentage and
+    # ETA span the whole run, not just the listing loop below.
+    stats = Stats(SOURCE, total=len(work) + len(extra_ids_list))
 
     for (date, title), e in work:
         m = ID_HREF_RE.search(e["href"])
@@ -200,12 +209,17 @@ def scrape(limit: int = None, prefix_crawl: bool = True) -> None:
             conn.commit()
             continue
 
-        if existing == "teaser":
-            stats.skipped()
-            continue
-
+        # Before the teaser check, not after: a probe that failed on the
+        # network is not a verdict on this row. Reporting an already-stored
+        # teaser as `skipped` here would file a retryable failure under
+        # "already as good as it gets", hiding exactly the rows a rerun exists
+        # to pick up.
         if not confirmed:
             stats.uncertain()
+            continue
+
+        if existing == "teaser":
+            stats.skipped()
             continue
 
         if e["teaser"]:
@@ -214,10 +228,6 @@ def scrape(limit: int = None, prefix_crawl: bool = True) -> None:
             stats.teaser()
         else:
             stats.dead()
-
-    extra_ids_list = sorted(extra_ids)
-    if limit:
-        extra_ids_list = extra_ids_list[:limit]
 
     for hexid in extra_ids_list:
         url = DETAIL_URL_TMPL.format(hexid)

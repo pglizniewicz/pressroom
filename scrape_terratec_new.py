@@ -166,7 +166,7 @@ def scrape_lang(lang: str, limit: int = None) -> None:
         prefix_urls = prefix_urls[:limit]
     print(f"[{source}] {len(prefix_urls)} individually-archived article candidates", flush=True)
 
-    stats = Stats(source)
+    stats = Stats(source, total=len(prefix_urls))
 
     for url in prefix_urls:
         if already_stored(conn, url):

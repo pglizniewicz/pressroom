@@ -137,7 +137,7 @@ def scrape_domain(source: str, listing_url: str, limit: int = None) -> None:
 
     print(f"\n[{source}] {len(best)} distinct release entries found across all captures", flush=True)
 
-    stats = Stats(source)
+    stats = Stats(source, total=len(best))
     for (title, date), e in best.items():
         url = e["url"]
         if already_stored(conn, url):

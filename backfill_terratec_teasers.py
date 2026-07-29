@@ -175,7 +175,7 @@ def backfill() -> None:
 
     for (prefix, source), teasers in all_teasers.items():
         print(f"\n[{source}] {len(teasers)} teaser sids to check", flush=True)
-        stats = Stats(source)
+        stats = Stats(source, total=len(teasers))
 
         for sid, (teaser_date, teaser_title, teaser_text) in teasers.items():
             article_url = f"{prefix}modules.php?op=modload&name=News&file=article&sid={sid}"
@@ -201,12 +201,15 @@ def backfill() -> None:
                 conn.commit()
                 continue
 
-            if existing == "teaser":
-                stats.skipped()
-                continue
-
+            # Ordered before the teaser check on purpose: a failed probe is not
+            # a verdict, so an already-stored teaser must be reported
+            # `uncertain` (a rerun retries it) rather than `skipped`.
             if not confirmed:
                 stats.uncertain()
+                continue
+
+            if existing == "teaser":
+                stats.skipped()
                 continue
 
             if teaser_text:

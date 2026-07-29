@@ -9,10 +9,11 @@ in-house system (self-identified in an HTML comment as built by "Hydra
 Media Labs"), reached via a index.php?do=<section>.<action> front controller.
 Same overall shape as pressdb.php though: one ever-growing listing page per
 domain, no pagination, no per-release detail page - the title just links
-straight out to an external .doc/.pdf under /images/en/press_releases/,
-which this repo doesn't fetch or extract text from (a future backfill,
-mirroring backfill_midiman_pressdb_pdfs.py, could add that - would also need
-a DOC-to-text tool since roughly 2/3 of these links are .doc, not .pdf).
+straight out to an external .doc/.pdf under /images/en/press_releases/, which
+this scraper does not follow - so the rows it stores hold only the listing
+teaser, averaging ~150 characters. Recovering the real text from those
+attachments (roughly 2/3 .doc, 1/3 .pdf) is
+backfill_midiman_attachments.py's job.
 
 Two markup templates exist across time on the SAME endpoint (both are tried
 on every fetched capture - whichever matches yields entries, the other
@@ -53,6 +54,7 @@ from bs4 import BeautifulSoup
 
 from db import already_stored
 from dates import iso_date
+from encoding import decode_html
 import db
 from progress import Stats
 import wayback
@@ -131,7 +133,10 @@ def extract_entries_template_b(soup: BeautifulSoup, base_url: str) -> list:
 
 
 def extract_entries(html: bytes, base_url: str, timestamp: str = None) -> list:
-    soup = BeautifulSoup(html, "html.parser")
+    # decode_html rather than letting bs4 sniff: verified a no-op on every
+    # currently cached capture, but two of them are already not valid utf-8,
+    # so the chardet fallback is one stray byte away. See encoding.py.
+    soup = BeautifulSoup(decode_html(html), "html.parser")
     entries = extract_entries_template_a(soup, base_url) + extract_entries_template_b(soup, base_url)
     for e in entries:
         e["detail_id"] = timestamp
@@ -154,7 +159,7 @@ def scrape_domain(source: str, listing_url: str, limit: int = None) -> None:
 
     print(f"\n[{source}] {len(best)} distinct release entries found across all captures", flush=True)
 
-    stats = Stats(source)
+    stats = Stats(source, total=len(best))
     for (title, date), e in best.items():
         url = e["url"]
         if already_stored(conn, url):

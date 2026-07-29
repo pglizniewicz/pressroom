@@ -115,7 +115,7 @@ def scrape_portal(source: str, prefix: str, limit: int = None) -> None:
         urls = urls[:limit]
     print(f"[{source}] {len(urls)} candidate articles", flush=True)
 
-    stats = Stats(source)
+    stats = Stats(source, total=len(urls))
 
     for url in urls:
         if already_stored(conn, url):
