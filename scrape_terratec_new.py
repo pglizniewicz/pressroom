@@ -150,8 +150,16 @@ def scrape_lang(lang: str, limit: int = None) -> None:
     # prone to Wayback's transient rate-limiting, so write incrementally
     # (already_stored dedup) so a rerun resumes instead of redoing everything.
     print(f"\n[{source}] Listing archived articles under {cfg['prefix']}", flush=True)
+    # Not fatal, unlike the single-phase scrapers: step 1 already collected
+    # entries that step 3 stores, so losing the prefix crawl must not discard
+    # them - degrade to prefix-crawl-free and keep going.
+    try:
+        snapshots = wayback.list_snapshots_by_prefix(cfg["prefix"])
+    except Exception as e:
+        print(f"  ERROR listing articles: {e}\n  continuing with listing-page results only")
+        snapshots = []
     prefix_urls = [
-        normalize_url(e["original"]) for e in wayback.list_snapshots_by_prefix(cfg["prefix"])
+        normalize_url(e["original"]) for e in snapshots
         if ARTICLE_FILE_RE.search(e["original"].split("?", 1)[0])
     ]
     if limit:

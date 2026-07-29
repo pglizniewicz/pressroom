@@ -60,7 +60,7 @@ def scrape(limit: int = None) -> None:
     session = requests.Session()
 
     print(f"[{SOURCE}] Listing archived pages under {PREFIX}", flush=True)
-    snapshots = [s for s in wayback.list_snapshots_by_prefix(PREFIX) if is_html_page(s["original"])]
+    snapshots = [s for s in wayback.list_snapshots_or_exit(PREFIX) if is_html_page(s["original"])]
     if limit:
         snapshots = snapshots[:limit]
     print(f"[{SOURCE}] {len(snapshots)} candidate press pages", flush=True)

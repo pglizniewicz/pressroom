@@ -45,7 +45,7 @@ END_MARKERS = ["Links!", "Related links"]
 def list_articles() -> list:
     """Dedup by sid: mode/order/thold don't affect content, first-seen wins."""
     by_sid = {}
-    for entry in wayback.list_snapshots_by_prefix(PREFIX):
+    for entry in wayback.list_snapshots_or_exit(PREFIX):
         url = entry["original"]
         if "name=News" not in url or "file=article" not in url:
             continue

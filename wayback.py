@@ -69,6 +69,24 @@ def list_snapshots_by_prefix(prefix_url: str, limit: int = 10000, retries: int =
     return [dict(zip(header, row)) for row in data]
 
 
+def list_snapshots_or_exit(prefix_url: str, **kwargs) -> list:
+    """list_snapshots_by_prefix, but a failure after its retries ends the run
+    with a one-line message instead of a urllib3 traceback.
+
+    For the scrapers whose entire work list comes from this one call: there is
+    nothing to degrade to, and exiting non-zero is the honest signal (returning
+    an empty list would print "0 candidates" and exit 0, which reads as
+    success to anything wrapping the script).
+    """
+    try:
+        return list_snapshots_by_prefix(prefix_url, **kwargs)
+    except Exception as e:
+        raise SystemExit(
+            f"Could not list archived pages under {prefix_url}: {e}\n"
+            "archive.org is unreachable or rate-limiting - try again later."
+        )
+
+
 def list_all_captures(exact_url: str, retries: int = 3) -> list:
     """Return every historical HTTP-200 capture timestamp of one exact URL
     (no collapsing), for sites where the page's own content changes over

@@ -86,7 +86,18 @@ def scrape() -> None:
 
     all_entries = []
     for page in PAGES:
-        content = wayback.fetch_snapshot(conn, session, page["wayback_url"], timeout=20)
+        # Both pages are required: the cross-language dedup below compares the
+        # German page against the English one, so a partial fetch can't be
+        # salvaged - bail with a message rather than a traceback or, worse, an
+        # IndexError further down.
+        try:
+            content = wayback.fetch_snapshot(conn, session, page["wayback_url"], timeout=20)
+        except Exception as e:
+            raise SystemExit(
+                f"Could not fetch {page['wayback_url']}: {e}\n"
+                "Both the German and English page are needed for the "
+                "cross-language dedup - try again later."
+            )
         entries = extract_entries(content.decode("cp1252", errors="replace"), page)
         print(f"[{page['lang']}] {len(entries)} entries found", flush=True)
         all_entries.append((page, entries))

@@ -109,7 +109,13 @@ def backfill() -> None:
     all_entries = {}  # url -> entry dict (title, date, url, source)
     for base_url, source, wayback_url in INDEX_PAGES:
         print(f"Fetching {wayback_url}", flush=True)
-        content = wayback.fetch_snapshot(conn, session, wayback_url, timeout=20)
+        # Losing one of the five index pages just means fewer candidates, so
+        # warn and carry on rather than aborting the whole backfill.
+        try:
+            content = wayback.fetch_snapshot(conn, session, wayback_url, timeout=20)
+        except Exception as e:
+            print(f"  ERROR fetching index page: {e}")
+            continue
         for e in extract_links(content, base_url):
             e["source"] = source
             all_entries.setdefault(e["url"], e)

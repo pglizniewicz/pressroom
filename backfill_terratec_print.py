@@ -42,7 +42,7 @@ def stored_sids(conn: sqlite3.Connection, source: str) -> set:
 
 def missing_print_sids(prefix: str, have: set) -> list:
     sids = set()
-    for entry in wayback.list_snapshots_by_prefix(prefix):
+    for entry in wayback.list_snapshots_or_exit(prefix):
         url = entry["original"]
         if "/print.php" not in url:
             continue
