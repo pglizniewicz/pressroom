@@ -9,7 +9,7 @@ Usage:
 """
 
 
-from common import make_arg_parser, scrape
+from q4 import make_arg_parser, scrape
 from db import DB_PATH
 
 LIST_URL = "https://www.intc.com/news-events/press-releases"

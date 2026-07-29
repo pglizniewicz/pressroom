@@ -25,7 +25,7 @@ import requests
 from bs4 import BeautifulSoup
 from dateutil import parser as du
 
-from common import SLEEP
+from fetch import SLEEP
 from db import already_stored
 import db
 import wayback

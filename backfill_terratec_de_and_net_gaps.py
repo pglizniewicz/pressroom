@@ -27,7 +27,7 @@ import requests
 from bs4 import BeautifulSoup
 from dateutil import parser as du
 
-from common import SLEEP
+from fetch import SLEEP
 from db import already_stored
 import db
 from scrape_terratec import parse_snapshot as parse_net_snapshot

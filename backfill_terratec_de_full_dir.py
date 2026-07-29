@@ -12,7 +12,7 @@ import time
 
 import requests
 
-from common import SLEEP
+from fetch import SLEEP
 from db import already_stored
 import db
 from backfill_terratec_de_and_net_gaps import parse_de_snapshot

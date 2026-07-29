@@ -1,6 +1,16 @@
 #!/usr/bin/env python3
-"""Shared scraper logic for Q4 IR platform press release sites (intc.com, ir.amd.com, …),
-plus the HTTP constants every scraper uses. Database access lives in db.py."""
+"""Scraper for press rooms running the Q4 Inc. investor-relations platform.
+
+Q4 hosts IR sites for many public companies on one shared template, so a
+single scraper covers all of them - currently intc.com (scrape_intel.py) and
+ir.amd.com (scrape_amd.py), which is why those two files are barely more than
+a URL plus a call to scrape() here.
+
+Nothing else in this repo uses this module: every other source is a
+one-of-a-kind dead site with its own bespoke parser. (This file used to be
+called common.py, which was misleading - only its HTTP constants were common,
+and those now live in fetch.py.)
+"""
 
 import argparse
 import re
@@ -11,11 +21,7 @@ import requests
 from bs4 import BeautifulSoup
 
 import db
-
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:120.0) Gecko/20100101 Firefox/120.0"
-}
-SLEEP = 1.5
+from fetch import HEADERS, SLEEP
 
 
 def get_total_pages(session: requests.Session, list_url: str) -> int:

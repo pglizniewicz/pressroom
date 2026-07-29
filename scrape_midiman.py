@@ -52,7 +52,7 @@ from urllib.parse import urljoin
 import requests
 from bs4 import BeautifulSoup
 
-from common import SLEEP
+from fetch import SLEEP
 from db import already_stored
 import db
 import wayback

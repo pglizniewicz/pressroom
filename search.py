@@ -13,7 +13,7 @@ import contextlib
 import sqlite3
 
 # db.py is stdlib-only precisely so this dependency-free script can share the
-# schema knowledge; importing common.py instead would drag in requests/bs4.
+# schema knowledge - unlike fetch.py's siblings, it drags in no requests/bs4.
 from db import DB_PATH
 
 # snippet()'s column ordinal 1 is `body` - positional, per the fts5(title, body)

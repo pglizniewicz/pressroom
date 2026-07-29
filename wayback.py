@@ -19,7 +19,7 @@ import time
 import requests
 from bs4 import BeautifulSoup
 
-from common import HEADERS, SLEEP as CONTENT_SLEEP
+from fetch import HEADERS, SLEEP as CONTENT_SLEEP
 
 TIMEMAP_URL = "https://web.archive.org/web/timemap/json"
 SPARKLINE_URL = "https://web.archive.org/__wb/sparkline"

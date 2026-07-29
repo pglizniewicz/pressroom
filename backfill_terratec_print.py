@@ -20,7 +20,7 @@ import requests
 from bs4 import BeautifulSoup
 from dateutil import parser as du
 
-from common import SLEEP
+from fetch import SLEEP
 import db
 import wayback
 
