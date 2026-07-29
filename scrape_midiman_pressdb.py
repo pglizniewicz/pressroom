@@ -53,7 +53,8 @@ import requests
 from bs4 import BeautifulSoup
 from dateutil import parser as du
 
-from common import already_stored, init_db
+from db import already_stored
+import db
 import wayback
 
 DB_PATH = Path(__file__).parent / "pressroom.db"
@@ -117,7 +118,7 @@ def extract_entries(html: bytes, base_url: str, timestamp: str = None) -> list:
 
 def scrape_domain(source: str, listing_url: str, limit: int = None) -> None:
     conn = sqlite3.connect(DB_PATH)
-    init_db(conn)
+    db.init_db(conn)
     session = requests.Session()
 
     print(f"[{source}] Listing historical captures of {listing_url}", flush=True)
@@ -149,14 +150,12 @@ def scrape_domain(source: str, listing_url: str, limit: int = None) -> None:
         if already_stored(conn, url):
             skip_count += 1
             continue
-        conn.execute(
-            "INSERT OR IGNORE INTO releases (source, detail_id, title, date, url, body) VALUES (?,?,?,?,?,?)",
-            (source, e["detail_id"], title, date, url, e["body"]),
-        )
-        new_count += 1
+        if db.store_release(conn, source, url, title=title, date=date,
+                            body=e["body"], detail_id=e["detail_id"], commit=False):
+            new_count += 1
     conn.commit()
 
-    total = conn.execute("SELECT count(*) FROM releases WHERE source = ?", (source,)).fetchone()[0]
+    total = db.source_total(conn, source)
     print(f"[{source}] Added {new_count} new, skipped {skip_count} existing. Total [{source}] in DB: {total}")
     conn.close()
 

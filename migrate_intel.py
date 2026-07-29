@@ -10,7 +10,7 @@ Safe to run multiple times — uses INSERT OR IGNORE.
 import sqlite3
 from pathlib import Path
 
-from common import init_db
+import db
 
 SRC = Path(__file__).parent.parent / "intel-pressroom" / "pressroom.db"
 DST = Path(__file__).parent / "pressroom.db"
@@ -23,18 +23,16 @@ def main() -> None:
 
     src = sqlite3.connect(SRC)
     dst = sqlite3.connect(DST)
-    init_db(dst)
+    db.init_db(dst)
 
     rows = src.execute("SELECT detail_id, title, date, url, body FROM releases").fetchall()
     print(f"Migrating {len(rows)} Intel releases…")
 
     inserted = 0
     for detail_id, title, date, url, body in rows:
-        cur = dst.execute(
-            "INSERT OR IGNORE INTO releases (source, detail_id, title, date, url, body) VALUES (?,?,?,?,?,?)",
-            ("intel", detail_id, title, date, url, body),
-        )
-        inserted += cur.rowcount
+        if db.store_release(dst, "intel", url, title=title, date=date, body=body,
+                            detail_id=detail_id, commit=False):
+            inserted += 1
 
     dst.commit()
     src.close()

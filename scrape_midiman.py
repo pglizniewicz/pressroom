@@ -54,7 +54,9 @@ from urllib.parse import urljoin
 import requests
 from bs4 import BeautifulSoup
 
-from common import SLEEP, already_stored, init_db
+from common import SLEEP
+from db import already_stored
+import db
 import wayback
 
 DB_PATH = Path(__file__).parent / "pressroom.db"
@@ -175,7 +177,7 @@ def parse_snapshot(html: str) -> dict:
 
 def scrape(limit: int = None, prefix_crawl: bool = True) -> None:
     conn = sqlite3.connect(DB_PATH)
-    init_db(conn)
+    db.init_db(conn)
     session = requests.Session()
 
     candidates = {}  # (source, url) -> title
@@ -247,17 +249,14 @@ def scrape(limit: int = None, prefix_crawl: bool = True) -> None:
 
         title = parsed["title"] or item["title"]
 
-        conn.execute(
-            "INSERT OR IGNORE INTO releases (source, detail_id, title, date, url, body) VALUES (?,?,?,?,?,?)",
-            (source, timestamp, title, parsed["date"], url, parsed["body"]),
-        )
-        conn.commit()
-        c["new"] += 1
-        print("+", end="", flush=True)
+        if db.store_release(conn, source, url, title=title, date=parsed["date"],
+                            body=parsed["body"], detail_id=timestamp):
+            c["new"] += 1
+            print("+", end="", flush=True)
 
     print()
     for source, c in counts.items():
-        total_in_db = conn.execute("SELECT count(*) FROM releases WHERE source = ?", (source,)).fetchone()[0]
+        total_in_db = db.source_total(conn, source)
         print(
             f"[{source}] Added {c['new']} new, skipped {c['skip']} existing, "
             f"{c['dead']} never archived successfully. Total [{source}] in DB: {total_in_db}"

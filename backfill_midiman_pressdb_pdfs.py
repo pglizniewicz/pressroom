@@ -50,7 +50,7 @@ from pathlib import Path
 
 import requests
 
-from common import init_db
+import db
 import wayback
 
 DB_PATH = Path(__file__).parent / "pressroom.db"
@@ -84,7 +84,7 @@ def extract_pdf_text(pdf_bytes: bytes) -> str:
 
 def backfill_source(source: str, limit: int = None) -> None:
     conn = sqlite3.connect(DB_PATH)
-    init_db(conn)
+    db.init_db(conn)
     session = requests.Session()
 
     rows = conn.execute(
@@ -127,11 +127,7 @@ def backfill_source(source: str, limit: int = None) -> None:
             print(".", end="", flush=True)
             continue
 
-        conn.execute(
-            "UPDATE releases SET body = ? WHERE source = ? AND url = ?",
-            (text, source, url),
-        )
-        conn.commit()
+        db.upgrade_release(conn, url, body=text)
         updated += 1
         print("+", end="", flush=True)
 

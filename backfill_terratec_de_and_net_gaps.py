@@ -28,7 +28,9 @@ import requests
 from bs4 import BeautifulSoup
 from dateutil import parser as du
 
-from common import SLEEP, already_stored, init_db
+from common import SLEEP
+from db import already_stored
+import db
 from scrape_terratec import parse_snapshot as parse_net_snapshot
 import wayback
 
@@ -98,15 +100,12 @@ def parse_de_snapshot(html: str) -> dict:
 
 
 def already_have_net_filenames(conn: sqlite3.Connection) -> set:
-    names = set()
-    for (url,) in conn.execute("SELECT url FROM releases WHERE source = 'terratec'"):
-        names.add(url.rsplit("/", 1)[-1].lower())
-    return names
+    return {url.rsplit("/", 1)[-1].lower() for url in db.source_urls(conn, "terratec")}
 
 
 def backfill() -> None:
     conn = sqlite3.connect(DB_PATH)
-    init_db(conn)
+    db.init_db(conn)
     session = requests.Session()
 
     all_entries = {}  # url -> entry dict (title, date, url, source)
@@ -146,13 +145,10 @@ def backfill() -> None:
             continue
 
         if not found:
-            conn.execute(
-                "INSERT OR IGNORE INTO releases (source, detail_id, title, date, url, body) VALUES (?,?,?,?,?,?)",
-                (e["source"], "stub", e["title"], e["date"], e["url"], ""),
-            )
+            db.store_release(conn, e["source"], e["url"], title=e["title"],
+                             date=e["date"], detail_id="stub")
             stub_count += 1
             print("s", end="", flush=True)
-            conn.commit()
             continue
 
         snapshot_url, timestamp = found
@@ -165,16 +161,13 @@ def backfill() -> None:
 
         title = parsed["title"] or e["title"]
         date = parsed["date"] or e["date"]
-        conn.execute(
-            "INSERT OR IGNORE INTO releases (source, detail_id, title, date, url, body) VALUES (?,?,?,?,?,?)",
-            (e["source"], timestamp, title, date, e["url"], parsed["body"]),
-        )
+        db.store_release(conn, e["source"], e["url"], title=title, date=date,
+                         body=parsed["body"], detail_id=timestamp)
         new_count += 1
-        conn.commit()
         print("+", end="", flush=True)
 
     for source in ("terratec", "terratec_de"):
-        total = conn.execute("SELECT count(*) FROM releases WHERE source = ?", (source,)).fetchone()[0]
+        total = db.source_total(conn, source)
         print(f"\n[{source}] total in DB: {total}")
 
     print(f"\nAdded {new_count} full articles, {stub_count} title-only stubs.")

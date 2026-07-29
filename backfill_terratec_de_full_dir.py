@@ -14,7 +14,9 @@ from pathlib import Path
 
 import requests
 
-from common import SLEEP, already_stored, init_db
+from common import SLEEP
+from db import already_stored
+import db
 from backfill_terratec_de_and_net_gaps import parse_de_snapshot
 import wayback
 
@@ -50,7 +52,7 @@ URLS = [
 
 def backfill() -> None:
     conn = sqlite3.connect(DB_PATH)
-    init_db(conn)
+    db.init_db(conn)
     session = requests.Session()
 
     new_count = 0
@@ -80,15 +82,12 @@ def backfill() -> None:
             print(f"\n  ERROR fetching {snapshot_url}: {e}")
             continue
 
-        conn.execute(
-            "INSERT OR IGNORE INTO releases (source, detail_id, title, date, url, body) VALUES (?,?,?,?,?,?)",
-            (SOURCE, timestamp, parsed["title"], parsed["date"], url, parsed["body"]),
-        )
-        conn.commit()
-        new_count += 1
-        print("+", end="", flush=True)
+        if db.store_release(conn, SOURCE, url, title=parsed["title"],
+                            date=parsed["date"], body=parsed["body"], detail_id=timestamp):
+            new_count += 1
+            print("+", end="", flush=True)
 
-    total = conn.execute("SELECT count(*) FROM releases WHERE source = ?", (SOURCE,)).fetchone()[0]
+    total = db.source_total(conn, SOURCE)
     print(f"\nAdded {new_count} new, {dead_count} never archived successfully. Total [{SOURCE}] in DB: {total}")
     conn.close()
 

@@ -56,7 +56,8 @@ import requests
 from bs4 import BeautifulSoup
 from dateutil import parser as du
 
-from common import init_db, stored_detail_id
+from db import stored_detail_id
+import db
 import wayback
 
 DB_PATH = Path(__file__).parent / "pressroom.db"
@@ -157,7 +158,7 @@ def discover_listing(conn: sqlite3.Connection) -> list:
 
 def scrape(limit: int = None) -> None:
     conn = sqlite3.connect(DB_PATH)
-    init_db(conn)
+    db.init_db(conn)
     session = requests.Session()
 
     entries = discover_listing(conn)
@@ -185,17 +186,13 @@ def scrape(limit: int = None) -> None:
             title = parsed.get("title") or e["title"]
             date = parsed.get("date") or e["date"]
             if existing == "teaser":
-                conn.execute(
-                    "UPDATE releases SET detail_id = ?, title = ?, date = ?, body = ? WHERE url = ?",
-                    (parsed["detail_id"], title, date, parsed["body"], url),
-                )
+                db.upgrade_release(conn, url, detail_id=parsed["detail_id"], title=title,
+                                   date=date, body=parsed["body"], commit=False)
                 upgraded_count += 1
                 print("U", end="", flush=True)
             else:
-                conn.execute(
-                    "INSERT OR IGNORE INTO releases (source, detail_id, title, date, url, body) VALUES (?,?,?,?,?,?)",
-                    (SOURCE, parsed["detail_id"], title, date, url, parsed["body"]),
-                )
+                db.store_release(conn, SOURCE, url, title=title, date=date,
+                                 body=parsed["body"], detail_id=parsed["detail_id"], commit=False)
                 new_count += 1
                 print("+", end="", flush=True)
             conn.commit()
@@ -212,18 +209,15 @@ def scrape(limit: int = None) -> None:
             continue
 
         if e["teaser"]:
-            conn.execute(
-                "INSERT OR IGNORE INTO releases (source, detail_id, title, date, url, body) VALUES (?,?,?,?,?,?)",
-                (SOURCE, "teaser", e["title"], e["date"], url, e["teaser"]),
-            )
-            conn.commit()
+            db.store_release(conn, SOURCE, url, title=e["title"], date=e["date"],
+                             body=e["teaser"], detail_id="teaser")
             teaser_only_count += 1
             print("t", end="", flush=True)
         else:
             dead_count += 1
             print("d", end="", flush=True)
 
-    total = conn.execute("SELECT count(*) FROM releases WHERE source = ?", (SOURCE,)).fetchone()[0]
+    total = db.source_total(conn, SOURCE)
     print(
         f"\n[{SOURCE}] Added {new_count} new, upgraded {upgraded_count} teaser(s) to full text "
         f"({teaser_only_count} new teaser-only), skipped {skip_count} existing/uncertain, "

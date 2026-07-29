@@ -27,7 +27,9 @@ import requests
 from bs4 import BeautifulSoup
 from dateutil import parser as du
 
-from common import HEADERS, SLEEP, already_stored, init_db
+from common import HEADERS, SLEEP
+from db import already_stored
+import db
 
 DB_PATH = Path(__file__).parent / "pressroom.db"
 BASE_URL = "https://www.globenewswire.com"
@@ -76,7 +78,7 @@ def fetch_body(session: requests.Session, url: str) -> str:
 
 def scrape(pages: int = None) -> None:
     conn = sqlite3.connect(DB_PATH)
-    init_db(conn)
+    db.init_db(conn)
     session = requests.Session()
 
     print(f"[{SOURCE}] Scraping GlobeNewswire Creative Labs, Inc. archive", flush=True)
@@ -114,18 +116,15 @@ def scrape(pages: int = None) -> None:
                 body = ""
             time.sleep(SLEEP)
 
-            conn.execute(
-                "INSERT OR IGNORE INTO releases (source, detail_id, title, date, url, body) VALUES (?,?,?,?,?,?)",
-                (SOURCE, item["detail_id"], item["title"], item["date"], item["url"], body),
-            )
-            conn.commit()
-            new_count += 1
-            print("+", end="", flush=True)
+            if db.store_release(conn, SOURCE, item["url"], title=item["title"],
+                                date=item["date"], body=body, detail_id=item["detail_id"]):
+                new_count += 1
+                print("+", end="", flush=True)
 
         print()
         page += 1
 
-    total_in_db = conn.execute("SELECT count(*) FROM releases WHERE source = ?", (SOURCE,)).fetchone()[0]
+    total_in_db = db.source_total(conn, SOURCE)
     print(f"\nDone. Added {new_count} new, skipped {skip_count} existing. Total [{SOURCE}] in DB: {total_in_db}")
     conn.close()
 

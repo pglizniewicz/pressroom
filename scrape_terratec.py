@@ -18,7 +18,9 @@ import requests
 from bs4 import BeautifulSoup
 from dateutil import parser as du
 
-from common import SLEEP, already_stored, init_db
+from common import SLEEP
+from db import already_stored
+import db
 import wayback
 
 DB_PATH = Path(__file__).parent / "pressroom.db"
@@ -57,7 +59,7 @@ def parse_snapshot(html: str) -> dict:
 
 def scrape(limit: int = None) -> None:
     conn = sqlite3.connect(DB_PATH)
-    init_db(conn)
+    db.init_db(conn)
     session = requests.Session()
 
     print(f"[{SOURCE}] Listing archived pages under {PREFIX}", flush=True)
@@ -96,15 +98,12 @@ def scrape(limit: int = None) -> None:
             print(f"\n  ERROR fetching {snapshot_url}: {e}")
             continue
 
-        conn.execute(
-            "INSERT OR IGNORE INTO releases (source, detail_id, title, date, url, body) VALUES (?,?,?,?,?,?)",
-            (SOURCE, timestamp, parsed["title"], parsed["date"], url, parsed["body"]),
-        )
-        conn.commit()
-        new_count += 1
-        print("+", end="", flush=True)
+        if db.store_release(conn, SOURCE, url, title=parsed["title"],
+                            date=parsed["date"], body=parsed["body"], detail_id=timestamp):
+            new_count += 1
+            print("+", end="", flush=True)
 
-    total_in_db = conn.execute("SELECT count(*) FROM releases WHERE source = ?", (SOURCE,)).fetchone()[0]
+    total_in_db = db.source_total(conn, SOURCE)
     print(
         f"\nDone. Added {new_count} new, skipped {skip_count} existing, "
         f"{dead_count} never archived successfully. Total [{SOURCE}] in DB: {total_in_db}"

@@ -18,7 +18,7 @@ import requests
 from bs4 import BeautifulSoup
 from dateutil import parser as du
 
-from common import init_db
+import db
 import wayback
 
 DB_PATH = Path(__file__).parent / "pressroom.db"
@@ -85,7 +85,7 @@ def extract_entries(html: str, page: dict) -> list:
 
 def scrape() -> None:
     conn = sqlite3.connect(DB_PATH)
-    init_db(conn)
+    db.init_db(conn)
     session = requests.Session()
 
     all_entries = []
@@ -111,21 +111,17 @@ def scrape() -> None:
         if e["date"] in english_dates:
             skipped_de += 1
             continue
-        conn.execute(
-            "INSERT OR IGNORE INTO releases (source, detail_id, title, date, url, body) VALUES (?,?,?,?,?,?)",
-            (SOURCE, de_page["timestamp"], "", e["date"], e["url"], e["body"]),
-        )
-        new_count += 1
+        if db.store_release(conn, SOURCE, e["url"], date=e["date"], body=e["body"],
+                            detail_id=de_page["timestamp"], commit=False):
+            new_count += 1
 
     for e in en_entries:
-        conn.execute(
-            "INSERT OR IGNORE INTO releases (source, detail_id, title, date, url, body) VALUES (?,?,?,?,?,?)",
-            (SOURCE, en_page["timestamp"], "", e["date"], e["url"], e["body"]),
-        )
-        new_count += 1
+        if db.store_release(conn, SOURCE, e["url"], date=e["date"], body=e["body"],
+                            detail_id=en_page["timestamp"], commit=False):
+            new_count += 1
 
     conn.commit()
-    total = conn.execute("SELECT count(*) FROM releases WHERE source = ?", (SOURCE,)).fetchone()[0]
+    total = db.source_total(conn, SOURCE)
     print(f"\nInserted {new_count} rows ({skipped_de} German duplicates of English entries skipped). Total: {total}")
     conn.close()
 

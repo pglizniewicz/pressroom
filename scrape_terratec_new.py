@@ -27,7 +27,9 @@ import requests
 from bs4 import BeautifulSoup
 from dateutil import parser as du
 
-from common import SLEEP, already_stored, init_db
+from common import SLEEP
+from db import already_stored
+import db
 import wayback
 
 DB_PATH = Path(__file__).parent / "pressroom.db"
@@ -125,7 +127,7 @@ def scrape_lang(lang: str, limit: int = None) -> None:
     cfg = LANGS[lang]
     source = cfg["source"]
     conn = sqlite3.connect(DB_PATH)
-    init_db(conn)
+    db.init_db(conn)
     session = requests.Session()
 
     best = {}  # url -> {title, date, body, detail_id}
@@ -195,11 +197,8 @@ def scrape_lang(lang: str, limit: int = None) -> None:
             print("d", end="", flush=True)
             continue
 
-        conn.execute(
-            "INSERT OR IGNORE INTO releases (source, detail_id, title, date, url, body) VALUES (?,?,?,?,?,?)",
-            (source, detail_id if body else "stub", title, date, url, body),
-        )
-        conn.commit()
+        db.store_release(conn, source, url, title=title, date=date, body=body,
+                         detail_id=detail_id if body else "stub")
         if body:
             new_count += 1
             print("+", end="", flush=True)
@@ -211,17 +210,15 @@ def scrape_lang(lang: str, limit: int = None) -> None:
     for url, e in best.items():
         if already_stored(conn, url):
             continue
-        conn.execute(
-            "INSERT OR IGNORE INTO releases (source, detail_id, title, date, url, body) VALUES (?,?,?,?,?,?)",
-            (source, e["detail_id"] if e["body"] else "stub", e["title"], e["date"], url, e["body"]),
-        )
+        db.store_release(conn, source, url, title=e["title"], date=e["date"], body=e["body"],
+                         detail_id=e["detail_id"] if e["body"] else "stub", commit=False)
         if e["body"]:
             new_count += 1
         else:
             stub_count += 1
     conn.commit()
 
-    total = conn.execute("SELECT count(*) FROM releases WHERE source = ?", (source,)).fetchone()[0]
+    total = db.source_total(conn, source)
     print(
         f"\n[{source}] Added {new_count} full articles, {stub_count} title-only stubs. "
         f"Total in DB: {total}"

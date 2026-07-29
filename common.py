@@ -12,9 +12,6 @@ import requests
 from bs4 import BeautifulSoup
 
 import db
-# Re-exported for scrapers that still import these from common; they now live
-# in db.py. TODO: drop once every caller imports them from db directly.
-from db import already_stored, init_db, stored_detail_id  # noqa: F401
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:120.0) Gecko/20100101 Firefox/120.0"
@@ -108,7 +105,7 @@ def scrape(
     base_url = re.match(r"(https?://[^/]+)", list_url).group(1)
 
     conn = sqlite3.connect(db_path)
-    init_db(conn)
+    db.init_db(conn)
     session = requests.Session()
 
     print("Detecting total page count...", flush=True)
@@ -134,7 +131,7 @@ def scrape(
         time.sleep(SLEEP)
 
         for item in items:
-            if already_stored(conn, item["url"]):
+            if db.already_stored(conn, item["url"]):
                 skip_count += 1
                 print(".", end="", flush=True)
                 continue

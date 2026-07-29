@@ -21,7 +21,8 @@ import requests
 from bs4 import BeautifulSoup
 from dateutil import parser as du
 
-from common import SLEEP, init_db
+from common import SLEEP
+import db
 import wayback
 
 DB_PATH = Path(__file__).parent / "pressroom.db"
@@ -36,12 +37,8 @@ TITLE_RE = re.compile(r"(\d{2}\.\d{2}\.\d{4})\s*-\s*(.+)")
 
 
 def stored_sids(conn: sqlite3.Connection, source: str) -> set:
-    sids = set()
-    for (url,) in conn.execute("SELECT url FROM releases WHERE source = ?", (source,)):
-        m = SID_RE.search(url)
-        if m:
-            sids.add(int(m.group(1)))
-    return sids
+    return {int(m.group(1)) for url in db.source_urls(conn, source)
+            if (m := SID_RE.search(url))}
 
 
 def missing_print_sids(prefix: str, have: set) -> list:
@@ -81,7 +78,7 @@ def parse_print_snapshot(html: str) -> dict:
 
 def backfill(prefix: str, source: str, limit: int = None) -> None:
     conn = sqlite3.connect(DB_PATH)
-    init_db(conn)
+    db.init_db(conn)
     session = requests.Session()
 
     have = stored_sids(conn, source)
@@ -115,15 +112,12 @@ def backfill(prefix: str, source: str, limit: int = None) -> None:
             print(f"\n  ERROR fetching {snapshot_url}: {e}")
             continue
 
-        conn.execute(
-            "INSERT OR IGNORE INTO releases (source, detail_id, title, date, url, body) VALUES (?,?,?,?,?,?)",
-            (source, timestamp, parsed["title"], parsed["date"], print_url, parsed["body"]),
-        )
-        conn.commit()
-        new_count += 1
-        print("+", end="", flush=True)
+        if db.store_release(conn, source, print_url, title=parsed["title"],
+                            date=parsed["date"], body=parsed["body"], detail_id=timestamp):
+            new_count += 1
+            print("+", end="", flush=True)
 
-    total_in_db = conn.execute("SELECT count(*) FROM releases WHERE source = ?", (source,)).fetchone()[0]
+    total_in_db = db.source_total(conn, source)
     print(
         f"\n[{source}] Backfilled {new_count} via print.php, {dead_count} never archived successfully. "
         f"Total in DB: {total_in_db}"

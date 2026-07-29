@@ -24,7 +24,8 @@ import requests
 from bs4 import BeautifulSoup
 from dateutil import parser as du
 
-from common import init_db, stored_detail_id
+from db import stored_detail_id
+import db
 import wayback
 
 DB_PATH = Path(__file__).parent / "pressroom.db"
@@ -168,7 +169,7 @@ def parse_print_snapshot(html: str) -> dict:
 
 def backfill() -> None:
     conn = sqlite3.connect(DB_PATH)
-    init_db(conn)
+    db.init_db(conn)
     session = requests.Session()
 
     all_teasers = {}  # source -> {sid: (date, title, teaser)}
@@ -205,17 +206,15 @@ def backfill() -> None:
             if recovered:
                 timestamp, parsed = recovered
                 if existing == "teaser":
-                    conn.execute(
-                        "UPDATE releases SET detail_id = ?, title = ?, date = ?, body = ? WHERE url = ?",
-                        (timestamp, parsed["title"], parsed["date"], parsed["body"], article_url),
-                    )
+                    db.upgrade_release(conn, article_url, detail_id=timestamp,
+                                       title=parsed["title"], date=parsed["date"],
+                                       body=parsed["body"], commit=False)
                     upgraded += 1
                     print("U", end="", flush=True)
                 else:
-                    conn.execute(
-                        "INSERT OR IGNORE INTO releases (source, detail_id, title, date, url, body) VALUES (?,?,?,?,?,?)",
-                        (source, timestamp, parsed["title"], parsed["date"], article_url, parsed["body"]),
-                    )
+                    db.store_release(conn, source, article_url, title=parsed["title"],
+                                     date=parsed["date"], body=parsed["body"],
+                                     detail_id=timestamp, commit=False)
                     full_recovered += 1
                     print("+", end="", flush=True)
                 conn.commit()
@@ -232,11 +231,8 @@ def backfill() -> None:
                 continue
 
             if teaser_text:
-                conn.execute(
-                    "INSERT OR IGNORE INTO releases (source, detail_id, title, date, url, body) VALUES (?,?,?,?,?,?)",
-                    (source, "teaser", teaser_title, teaser_date, article_url, teaser_text),
-                )
-                conn.commit()
+                db.store_release(conn, source, article_url, title=teaser_title,
+                                 date=teaser_date, body=teaser_text, detail_id="teaser")
                 teaser_only += 1
                 print("t", end="", flush=True)
             else:

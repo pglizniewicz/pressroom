@@ -58,7 +58,8 @@ import requests
 from bs4 import BeautifulSoup
 from dateutil import parser as du
 
-from common import init_db, stored_detail_id
+from db import stored_detail_id
+import db
 import wayback
 
 DB_PATH = Path(__file__).parent / "pressroom.db"
@@ -162,7 +163,7 @@ def discover_prefix_ids() -> set:
 
 def scrape(limit: int = None, prefix_crawl: bool = True) -> None:
     conn = sqlite3.connect(DB_PATH)
-    init_db(conn)
+    db.init_db(conn)
     session = requests.Session()
 
     best = discover_listing_best(conn, limit=limit)
@@ -201,17 +202,15 @@ def scrape(limit: int = None, prefix_crawl: bool = True) -> None:
 
         if parsed.get("body"):
             if existing == "teaser":
-                conn.execute(
-                    "UPDATE releases SET detail_id = ?, body = ? WHERE url = ?",
-                    (parsed["detail_id"], parsed["body"], url),
-                )
+                # No title=/date=: the listing page's values are better than
+                # the detail page's, so only the body is upgraded.
+                db.upgrade_release(conn, url, detail_id=parsed["detail_id"],
+                                   body=parsed["body"], commit=False)
                 upgraded_count += 1
                 print("U", end="", flush=True)
             else:
-                conn.execute(
-                    "INSERT OR IGNORE INTO releases (source, detail_id, title, date, url, body) VALUES (?,?,?,?,?,?)",
-                    (SOURCE, parsed["detail_id"], title, date, url, parsed["body"]),
-                )
+                db.store_release(conn, SOURCE, url, title=title, date=date,
+                                 body=parsed["body"], detail_id=parsed["detail_id"], commit=False)
                 new_count += 1
                 print("+", end="", flush=True)
             conn.commit()
@@ -228,11 +227,8 @@ def scrape(limit: int = None, prefix_crawl: bool = True) -> None:
             continue
 
         if e["teaser"]:
-            conn.execute(
-                "INSERT OR IGNORE INTO releases (source, detail_id, title, date, url, body) VALUES (?,?,?,?,?,?)",
-                (SOURCE, "teaser", title, date, url, e["teaser"]),
-            )
-            conn.commit()
+            db.store_release(conn, SOURCE, url, title=title, date=date,
+                             body=e["teaser"], detail_id="teaser")
             teaser_only_count += 1
             print("t", end="", flush=True)
         else:
@@ -263,15 +259,12 @@ def scrape(limit: int = None, prefix_crawl: bool = True) -> None:
             continue
 
         date = title_to_date.get(parsed["title"], "")
-        conn.execute(
-            "INSERT OR IGNORE INTO releases (source, detail_id, title, date, url, body) VALUES (?,?,?,?,?,?)",
-            (SOURCE, parsed["detail_id"], parsed["title"], date, url, parsed["body"]),
-        )
-        conn.commit()
+        db.store_release(conn, SOURCE, url, title=parsed["title"], date=date,
+                         body=parsed["body"], detail_id=parsed["detail_id"])
         new_count += 1
         print("+", end="", flush=True)
 
-    total = conn.execute("SELECT count(*) FROM releases WHERE source = ?", (SOURCE,)).fetchone()[0]
+    total = db.source_total(conn, SOURCE)
     print(
         f"\n[{SOURCE}] Added {new_count} new, upgraded {upgraded_count} teaser(s) to full text "
         f"({teaser_only_count} new teaser-only), skipped {skip_count} existing/uncertain, "

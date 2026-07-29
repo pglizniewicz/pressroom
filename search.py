@@ -9,10 +9,25 @@ Usage:
 """
 
 import argparse
+import contextlib
 import sqlite3
-from pathlib import Path
 
-DB_PATH = Path(__file__).parent / "pressroom.db"
+# db.py is stdlib-only precisely so this dependency-free script can share the
+# schema knowledge; importing common.py instead would drag in requests/bs4.
+from db import DB_PATH
+
+# snippet()'s column ordinal 1 is `body` - positional, per the fts5(title, body)
+# declaration in db.py. Read-only: never calls init_db, so it never migrates.
+_SQL = """
+    SELECT r.source, r.date, r.title, r.url, r.body,
+           snippet(releases_fts, 1, '>>>', '<<<', '…', 24) AS excerpt
+    FROM releases_fts
+    JOIN releases r ON releases_fts.rowid = r.id
+    WHERE releases_fts MATCH ?
+      {source_clause}
+    ORDER BY bm25(releases_fts)
+    LIMIT ?
+"""
 
 
 def search(query: str, sources: list = None, limit: int = 8, full: bool = False) -> None:
@@ -20,61 +35,40 @@ def search(query: str, sources: list = None, limit: int = 8, full: bool = False)
         print(f"Database not found at {DB_PATH}. Run scrape_intel.py or scrape_amd.py first.")
         return
 
-    conn = sqlite3.connect(DB_PATH)
-
     if sources:
         placeholders = ",".join("?" * len(sources))
-        sql = f"""
-            SELECT r.source, r.date, r.title, r.url,
-                   snippet(releases_fts, 1, '>>>', '<<<', '…', 24) AS excerpt
-            FROM releases_fts
-            JOIN releases r ON releases_fts.rowid = r.id
-            WHERE releases_fts MATCH ?
-              AND r.source IN ({placeholders})
-            ORDER BY bm25(releases_fts)
-            LIMIT ?
-        """
+        sql = _SQL.format(source_clause=f"AND r.source IN ({placeholders})")
         params = [query] + sources + [limit]
     else:
-        sql = """
-            SELECT r.source, r.date, r.title, r.url,
-                   snippet(releases_fts, 1, '>>>', '<<<', '…', 24) AS excerpt
-            FROM releases_fts
-            JOIN releases r ON releases_fts.rowid = r.id
-            WHERE releases_fts MATCH ?
-            ORDER BY bm25(releases_fts)
-            LIMIT ?
-        """
+        sql = _SQL.format(source_clause="")
         params = [query, limit]
 
-    try:
-        rows = conn.execute(sql, params).fetchall()
-    except sqlite3.OperationalError as e:
-        print(f"Query error: {e}")
-        print("Tip: use quoted phrases, AND/OR/NOT, or prefix* for wildcards")
-        conn.close()
-        return
+    with contextlib.closing(sqlite3.connect(DB_PATH)) as conn:
+        try:
+            rows = conn.execute(sql, params).fetchall()
+        except sqlite3.OperationalError as e:
+            print(f"Query error: {e}")
+            if "no such table" in str(e):
+                print("Tip: the database has no search index yet - run any scraper once to build it")
+            else:
+                print("Tip: use quoted phrases, AND/OR/NOT, or prefix* for wildcards")
+            return
 
-    if not rows:
-        print(f"No results for: {query}")
-        conn.close()
-        return
+        if not rows:
+            print(f"No results for: {query}")
+            return
 
-    source_label = f"  source={','.join(sources)}" if sources else ""
-    print(f"Results for: {query!r}{source_label}  ({len(rows)} shown)\n")
-    for src, date, title, url, excerpt in rows:
-        print(f"[{src}][{date}] {title}")
-        print(f"  {url}")
-        print(f"  …{excerpt}…")
-        print()
+        source_label = f"  source={','.join(sources)}" if sources else ""
+        print(f"Results for: {query!r}{source_label}  ({len(rows)} shown)\n")
+        for src, date, title, url, body, excerpt in rows:
+            print(f"[{src}][{date}] {title}")
+            print(f"  {url}")
+            print(f"  …{excerpt}…")
+            print()
 
-        if full:
-            body = conn.execute("SELECT body FROM releases WHERE url = ?", (url,)).fetchone()
-            if body:
-                print(body[0][:1000])
+            if full and body:
+                print(body[:1000])
                 print("---")
-
-    conn.close()
 
 
 def main() -> None:
