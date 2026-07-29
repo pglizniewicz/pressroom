@@ -65,7 +65,6 @@ def fetch_body(session: requests.Session, url: str) -> str:
 
 
 def scrape(from_year: int = FIRST_YEAR, to_year: int = None) -> None:
-    import datetime
     current_year = to_year or int(time.strftime("%Y"))
 
     conn = db.connect()
