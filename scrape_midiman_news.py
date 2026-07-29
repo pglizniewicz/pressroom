@@ -12,7 +12,7 @@ media_pr though - each listed item has its own archived HTML detail page
 external .doc/.pdf link-out, so full text is recoverable directly here with
 no follow-up backfill needed (unlike scrape_midiman_media_pr.py).
 
-Two-tier discovery, same idiom as scrape_terratec_pressde.py/
+Two-tier discovery, same idiom as scrape_terratec_portal.py/
 backfill_terratec_teasers.py:
   1. Sample every historical capture of the listing page (both the bare
      do=media.news and its &show=all variant) to build a (date, title) ->

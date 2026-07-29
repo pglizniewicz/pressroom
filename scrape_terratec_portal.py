@@ -1,16 +1,24 @@
 #!/usr/bin/env python3
-"""Scraper for TerraTec's second dead press room, the PHP-Nuke "Presse @
-TerraTec" portal (pressen.terratec.net) -> unified pressroom.db, sourced
-entirely from Wayback Machine snapshots since the live site no longer exists.
+"""Scraper for TerraTec's "Presse @ TerraTec" PHP-Nuke portals ->
+unified pressroom.db, sourced entirely from Wayback Machine snapshots since
+neither site exists any more.
 
-This substantially overlaps in content with the older static
-terratec.net/press/pressemit/ archive (source="terratec"), but uses an
-unrelated URL scheme so the two can't share a dedup key. Kept as a distinct
-source, same as creative/creative_gnw.
+The same PHP-Nuke install ran twice, once per language:
+  - pressen.terratec.net (English) -> source terratec_pressen
+  - pressde.terratec.net (German)  -> source terratec_pressde
+Identical markup, identical URL scheme, so one parser covers both and this
+script does both portals per run - the same shape as scrape_midiman_pressdb.py
+and scrape_midiman_media_pr.py, which likewise cover several instances of one
+system. (These were two near-identical files until the shared parser drifted:
+the German copy grew a fix the English copy never got, see END_MARKERS.)
+
+Content likely overlaps with the older static terratec.net/press/pressemit/
+archive, but the URL schemes are unrelated so they can't share a dedup key.
+Kept as distinct sources, same as creative/creative_gnw.
 
 Usage:
-  python scrape_terratec_pressen.py             # scrape every archived article
-  python scrape_terratec_pressen.py --limit 5   # only process the first 5 (testing)
+  python scrape_terratec_portal.py             # both portals, every archived article
+  python scrape_terratec_portal.py --limit 5   # only the first 5 per portal (testing)
 """
 
 import argparse
@@ -27,18 +35,27 @@ import db
 from progress import Stats
 import wayback
 
-PREFIX = "http://pressen.terratec.net:80/"
-SOURCE = "terratec_pressen"
+PORTALS = {
+    "terratec_pressen": "http://pressen.terratec.net:80/",
+    "terratec_pressde": "http://pressde.terratec.net:80/",
+}
 
 SID_RE = re.compile(r"sid=(\d+)(?:&|$)")
 TITLE_TAG_RE = re.compile(r"(\d{2}\.\d{2}\.\d{4})\s*-\s*(.+?)\s*::\s*Press")
 TITLE_TAG_MONTH_RE = re.compile(r"([A-Za-z]+\s+\d{4})\s*-\s*(.+?)\s*::\s*Press")
 
+# The sidebar box after the article body isn't labeled consistently across
+# captures ("Links!" in German templates, "Related links" seen on the English
+# portal's markup bleeding through some snapshots) - cut at whichever comes
+# first. Both portals need both markers, which is exactly what the two
+# separate copies of this scraper used to get wrong.
+END_MARKERS = ["Links!", "Related links"]
 
-def list_articles() -> list:
+
+def list_articles(prefix: str) -> list:
     """Dedup by sid: mode/order/thold don't affect content, first-seen wins."""
     by_sid = {}
-    for entry in wayback.list_snapshots_or_exit(PREFIX):
+    for entry in wayback.list_snapshots_or_exit(prefix):
         url = entry["original"]
         if "name=News" not in url or "file=article" not in url:
             continue
@@ -48,6 +65,15 @@ def list_articles() -> list:
         sid = int(m.group(1))
         by_sid.setdefault(sid, url)
     return [by_sid[sid] for sid in sorted(by_sid)]
+
+
+def _cut_at_first_marker(text: str) -> str:
+    cut = len(text)
+    for marker in END_MARKERS:
+        idx = text.find(marker)
+        if idx != -1:
+            cut = min(cut, idx)
+    return text[:cut].strip()
 
 
 def parse_snapshot(html: str) -> dict:
@@ -74,22 +100,22 @@ def parse_snapshot(html: str) -> dict:
         heading = f"{date_str} - {title}"
         text = soup.get_text(" ", strip=True)
         parts = text.split(heading)
-        body = parts[-1].split("Related links")[0].strip() if len(parts) > 1 else text
+        body = _cut_at_first_marker(parts[-1]) if len(parts) > 1 else text
 
     return {"title": title, "date": date, "body": body}
 
 
-def scrape(limit: int = None) -> None:
+def scrape_portal(source: str, prefix: str, limit: int = None) -> None:
     conn = db.connect()
     session = requests.Session()
 
-    print(f"[{SOURCE}] Listing archived articles under {PREFIX}", flush=True)
-    urls = list_articles()
+    print(f"[{source}] Listing archived articles under {prefix}", flush=True)
+    urls = list_articles(prefix)
     if limit:
         urls = urls[:limit]
-    print(f"[{SOURCE}] {len(urls)} candidate articles", flush=True)
+    print(f"[{source}] {len(urls)} candidate articles", flush=True)
 
-    stats = Stats(SOURCE)
+    stats = Stats(source)
 
     for url in urls:
         if already_stored(conn, url):
@@ -116,7 +142,7 @@ def scrape(limit: int = None) -> None:
             stats.uncertain()
             continue
 
-        if db.store_release(conn, SOURCE, url, title=parsed["title"],
+        if db.store_release(conn, source, url, title=parsed["title"],
                             date=parsed["date"], body=parsed["body"], detail_id=timestamp):
             stats.added()
 
@@ -124,8 +150,15 @@ def scrape(limit: int = None) -> None:
     conn.close()
 
 
+def scrape(limit: int = None) -> None:
+    for source, prefix in PORTALS.items():
+        scrape_portal(source, prefix, limit=limit)
+
+
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Scrape TerraTec (pressen portal) press releases via the Wayback Machine")
-    parser.add_argument("--limit", type=int, default=None, help="Only process the first N candidate articles")
+    parser = argparse.ArgumentParser(
+        description="Scrape TerraTec's Presse @ TerraTec portals (English + German) via the Wayback Machine")
+    parser.add_argument("--limit", type=int, default=None,
+                        help="Only process the first N candidate articles per portal")
     args = parser.parse_args()
     scrape(limit=args.limit)
