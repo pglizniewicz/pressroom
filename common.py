@@ -40,12 +40,36 @@ def init_db(conn: sqlite3.Connection) -> None:
             INSERT INTO releases_fts(rowid, title, body)
             VALUES (new.id, new.title, new.body);
         END;
+
+        CREATE TABLE IF NOT EXISTS wayback_cache (
+            url                TEXT PRIMARY KEY,
+            content            BLOB NOT NULL,
+            id_content_type    TEXT,
+            fw_guessed_charset TEXT,
+            bs4_encoding       TEXT
+        );
     """)
+    conn.commit()
+
+    # wayback_cache may already exist from before these diagnostic columns
+    # were added (SQLite has no "ADD COLUMN IF NOT EXISTS") - add them if missing.
+    existing_cols = {row[1] for row in conn.execute("PRAGMA table_info(wayback_cache)").fetchall()}
+    for col in ("id_content_type", "fw_guessed_charset", "bs4_encoding"):
+        if col not in existing_cols:
+            conn.execute(f"ALTER TABLE wayback_cache ADD COLUMN {col} TEXT")
     conn.commit()
 
 
 def already_stored(conn: sqlite3.Connection, url: str) -> bool:
     return conn.execute("SELECT 1 FROM releases WHERE url = ?", (url,)).fetchone() is not None
+
+
+def stored_detail_id(conn: sqlite3.Connection, url: str):
+    """None if no row exists for `url`, else its detail_id - lets a caller
+    tell a fully-recovered row apart from a fallback (e.g. detail_id=="teaser"
+    or "stub") that's still worth retrying to upgrade on a future run."""
+    row = conn.execute("SELECT detail_id FROM releases WHERE url = ?", (url,)).fetchone()
+    return row[0] if row else None
 
 
 def get_total_pages(session: requests.Session, list_url: str) -> int:
