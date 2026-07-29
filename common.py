@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Shared scraper logic for Q4 IR platform press release sites (intc.com, ir.amd.com, …)."""
+"""Shared scraper logic for Q4 IR platform press release sites (intc.com, ir.amd.com, …),
+plus the HTTP constants every scraper uses. Database access lives in db.py."""
 
 import argparse
 import re
@@ -10,66 +11,15 @@ from pathlib import Path
 import requests
 from bs4 import BeautifulSoup
 
+import db
+# Re-exported for scrapers that still import these from common; they now live
+# in db.py. TODO: drop once every caller imports them from db directly.
+from db import already_stored, init_db, stored_detail_id  # noqa: F401
+
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:120.0) Gecko/20100101 Firefox/120.0"
 }
 SLEEP = 1.5
-
-
-def init_db(conn: sqlite3.Connection) -> None:
-    conn.executescript("""
-        CREATE TABLE IF NOT EXISTS releases (
-            id        INTEGER PRIMARY KEY AUTOINCREMENT,
-            source    TEXT NOT NULL,
-            detail_id TEXT,
-            title     TEXT,
-            date      TEXT,
-            url       TEXT UNIQUE,
-            body      TEXT
-        );
-
-        CREATE VIRTUAL TABLE IF NOT EXISTS releases_fts USING fts5(
-            title, body,
-            content='releases',
-            content_rowid='id',
-            tokenize='unicode61'
-        );
-
-        CREATE TRIGGER IF NOT EXISTS releases_ai
-        AFTER INSERT ON releases BEGIN
-            INSERT INTO releases_fts(rowid, title, body)
-            VALUES (new.id, new.title, new.body);
-        END;
-
-        CREATE TABLE IF NOT EXISTS wayback_cache (
-            url                TEXT PRIMARY KEY,
-            content            BLOB NOT NULL,
-            id_content_type    TEXT,
-            fw_guessed_charset TEXT,
-            bs4_encoding       TEXT
-        );
-    """)
-    conn.commit()
-
-    # wayback_cache may already exist from before these diagnostic columns
-    # were added (SQLite has no "ADD COLUMN IF NOT EXISTS") - add them if missing.
-    existing_cols = {row[1] for row in conn.execute("PRAGMA table_info(wayback_cache)").fetchall()}
-    for col in ("id_content_type", "fw_guessed_charset", "bs4_encoding"):
-        if col not in existing_cols:
-            conn.execute(f"ALTER TABLE wayback_cache ADD COLUMN {col} TEXT")
-    conn.commit()
-
-
-def already_stored(conn: sqlite3.Connection, url: str) -> bool:
-    return conn.execute("SELECT 1 FROM releases WHERE url = ?", (url,)).fetchone() is not None
-
-
-def stored_detail_id(conn: sqlite3.Connection, url: str):
-    """None if no row exists for `url`, else its detail_id - lets a caller
-    tell a fully-recovered row apart from a fallback (e.g. detail_id=="teaser"
-    or "stub") that's still worth retrying to upgrade on a future run."""
-    row = conn.execute("SELECT detail_id FROM releases WHERE url = ?", (url,)).fetchone()
-    return row[0] if row else None
 
 
 def get_total_pages(session: requests.Session, list_url: str) -> int:
@@ -196,17 +146,14 @@ def scrape(
                 body = ""
             time.sleep(SLEEP)
 
-            conn.execute(
-                "INSERT OR IGNORE INTO releases (source, detail_id, title, date, url, body) VALUES (?,?,?,?,?,?)",
-                (source, item["detail_id"], item["title"], item["date"], item["url"], body),
-            )
-            conn.commit()
-            new_count += 1
-            print("+", end="", flush=True)
+            if db.store_release(conn, source, item["url"], title=item["title"],
+                                date=item["date"], body=body, detail_id=item["detail_id"]):
+                new_count += 1
+                print("+", end="", flush=True)
 
         print()
 
-    total_in_db = conn.execute("SELECT count(*) FROM releases WHERE source = ?", (source,)).fetchone()[0]
+    total_in_db = db.source_total(conn, source)
     print(f"\nDone. Added {new_count} new, skipped {skip_count} existing. Total [{source}] in DB: {total_in_db}")
     conn.close()
 
