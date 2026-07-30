@@ -207,6 +207,20 @@ def stored_detail_id(conn: sqlite3.Connection, url: str):
     return row[0] if row else None
 
 
+def stored_body_length(conn: sqlite3.Connection, url: str):
+    """None if no row exists for `url`, else the length of its body.
+
+    The way to tell a teaser-grade row from a fully recovered one when
+    stored_detail_id() cannot: the pressdb and media_pr scrapers put the
+    *listing* capture's timestamp in detail_id even when the body they stored is
+    only that listing's blurb, so a timestamp there says nothing about whether
+    the real text was ever fetched. Length does.
+    """
+    row = conn.execute("SELECT length(COALESCE(body, '')) FROM releases WHERE url = ?",
+                       (url,)).fetchone()
+    return row[0] if row else None
+
+
 def source_total(conn: sqlite3.Connection, source: str) -> int:
     """Row count for one source - the figure every scraper's summary prints."""
     return conn.execute("SELECT count(*) FROM releases WHERE source = ?", (source,)).fetchone()[0]

@@ -7,12 +7,17 @@ Different system/era from the earlier scrape_midiman.py (which covers the
 2001 static GoLive pages under .../html/press/*.htm) - pressdb.php is a PHP
 script that dumps the ENTIRE press-release history as one long page, one
 <table width="780" ...> block per release (date + linked title + one-line
-teaser). There is no per-release static page on this site: the linked title
-almost always points to an external PDF (which this repo doesn't extract
-text from - no PDF parsing exists anywhere here) and occasionally a
-/news/php/*.php page (not fetched by this script either - a future backfill
-script could add full-text extraction for that handful of entries). So the
-`body` stored here is only the short listing teaser, not the full release.
+teaser). The linked title points either at an external PDF or at one of the
+site's own HTML detail pages (presstemp.php?ID=... or /news/php/<name>.php).
+Both are followed for full text, from different places: the PDFs by
+backfill_midiman_attachments.py, the HTML detail pages by this script. Only
+when neither yields anything does a row keep the short listing teaser as its
+body.
+
+That split is recent. This scraper originally stored teasers and nothing else,
+on the reasoning that a PDF was unextractable and the HTML pages could be
+followed "later" - and later never came, leaving 40 rows sitting at ~150
+characters each with their full text archived and reachable the whole time.
 
 Since every capture is a full re-dump of everything published up to that
 date, `wayback.list_all_captures` is used to sample every historical
@@ -22,10 +27,15 @@ rather than by their resolved target URL: the site's own template changed
 over the years, retargeting the same release's title link from its own
 presstemp.php detail page (early captures) straight to the PDF (later
 captures) - deduping by URL alone would store the same release twice. When
-both a detail-page URL and a PDF URL are seen for the same (title, date),
-the detail-page URL wins (it's a potential future full-text source; a PDF
-never will be here), then the longest teaser - same `best`-dict idiom as
+both a detail-page URL and a PDF URL are seen for the same (title, date), the
+detail-page URL wins: both are recoverable, but the HTML page gives clean text
+where whole-document PDF extraction interleaves the running header/footer
+mid-body. Then the longest teaser - same `best`-dict idiom as
 scrape_terratec_new.py, just keyed differently.
+
+Rerunnable against rows it already stored: a row is retried whenever its
+stored body is still teaser-length, since detail_id cannot distinguish those
+here (it holds the *listing* capture's timestamp).
 
 Source tags are per-domain (midiman_net_pressdb / midiman_com_pressdb), same
 policy as scrape_midiman.py and consistent with the terratec_pressde /
@@ -50,8 +60,8 @@ from urllib.parse import urljoin
 import requests
 from bs4 import BeautifulSoup
 
-from db import already_stored
 from dates import iso_date
+from encoding import decode_html
 import db
 from progress import Stats
 import wayback
@@ -63,6 +73,42 @@ DOMAINS = {
 }
 
 ABS_URL_RE = re.compile(r"https?://")
+
+# A stored body longer than this has had its real text recovered; anything
+# shorter is still just the listing blurb, so it is worth another attempt. The
+# longest teaser these listings produce is 864 characters.
+#
+# Deliberately duplicated from backfill_midiman_attachments.py rather than
+# imported: a scraper importing a constant from a backfill would invert the
+# dependency. Same corpus, same rationale - change both together.
+RECOVERED_LENGTH = 900
+
+# Attachments are somebody else's job (backfill_midiman_attachments.py); this
+# scraper only follows its own HTML detail pages.
+ATTACHMENT_EXTS = (".pdf", ".doc")
+
+
+def is_html_detail(url: str) -> bool:
+    return not url.lower().split("?", 1)[0].endswith(ATTACHMENT_EXTS)
+
+
+def parse_detail(html: bytes) -> dict:
+    """Full text of a presstemp.php / news/php/<name>.php detail page.
+
+    Takes the whole document's text rather than hunting for a container: these
+    pages are bare templated or Word-exported documents with no site navigation
+    at all (measured: 12-70 characters of chrome against 2.2-7.8 KB of release),
+    and the Word ones vary between MsoBodyText, MsoBlockText and span.normal
+    wrappers, so any single selector would miss some. Same approach as
+    scrape_midiman.py's 2001-era GoLive pages.
+
+    Only the body is returned. The listing already gave a better title and a
+    date, and the detail page carries no date of its own in a parseable place.
+    """
+    soup = BeautifulSoup(decode_html(html), "html.parser")
+    for tag in soup.find_all(["title", "script", "style"]):
+        tag.decompose()
+    return {"body": " ".join(soup.get_text(" ", strip=True).split())}
 
 
 def extract_entries(html: bytes, base_url: str, timestamp: str = None) -> list:
@@ -118,13 +164,14 @@ def scrape_domain(source: str, listing_url: str, limit: int = None) -> None:
     print(f"[{source}] Listing historical captures of {listing_url}", flush=True)
     entries = wayback.sample_all_captures(conn, session, listing_url, extract_entries, limit=limit)
 
-    # Keyed by (title, date) rather than url: the same release's title link
-    # was retargeted over the years (early captures point at the site's own
+    # Keyed by (title, date) rather than url: the same release's title link was
+    # retargeted over the years (early captures point at the site's own
     # presstemp.php detail page, later captures link the PDF directly) - one
-    # release would otherwise show up as two rows. Prefer whichever URL is
-    # NOT a bare PDF (an HTML detail page can potentially be fetched for full
-    # text later; a PDF link is a dead end for this repo, which does no PDF
-    # extraction), then the longest teaser seen.
+    # release would otherwise show up as two rows. Prefer the HTML detail page
+    # over a bare PDF: both are recoverable now, but the HTML page yields clean
+    # text, while whole-document PDF extraction interleaves the running
+    # header/footer mid-body (see backfill_midiman_attachments.py). Then prefer
+    # the longest teaser seen.
     def rank(entry):
         return (0 if entry["url"].lower().endswith(".pdf") else 1, len(entry["body"]))
 
@@ -140,12 +187,39 @@ def scrape_domain(source: str, listing_url: str, limit: int = None) -> None:
     stats = Stats(source, total=len(best))
     for (title, date), e in best.items():
         url = e["url"]
-        if already_stored(conn, url):
+        stored_len = db.stored_body_length(conn, url)
+        if stored_len is not None and stored_len >= RECOVERED_LENGTH:
             stats.skipped()
             continue
-        if db.store_release(conn, source, url, title=title, date=date,
-                            body=e["body"], detail_id=e["detail_id"], commit=False):
-            stats.added()
+
+        # Only HTML detail pages are followed here. A .pdf/.doc URL is an
+        # attachment and belongs to backfill_midiman_attachments.py, which
+        # already knows how to extract it.
+        parsed, confirmed = ({}, True)
+        if is_html_detail(url):
+            parsed, confirmed = wayback.fetch_detail_snapshot(conn, session, url, parse_detail)
+        body = parsed.get("body") or ""
+
+        if stored_len is None:
+            if not body and not confirmed:
+                stats.uncertain()
+                continue
+            # detail_id records where the body actually came from: the detail
+            # capture when we recovered one, otherwise the listing capture the
+            # teaser was read from.
+            db.store_release(conn, source, url, title=title, date=date,
+                             body=body or e["body"],
+                             detail_id=parsed.get("detail_id") or e["detail_id"],
+                             commit=False)
+            stats.added() if body else stats.teaser()
+        elif body and len(body) > stored_len:
+            db.upgrade_release(conn, url, body=body,
+                               detail_id=parsed.get("detail_id"), commit=False)
+            stats.upgraded()
+        elif not confirmed:
+            stats.uncertain()
+        else:
+            stats.skipped()
     conn.commit()
 
     stats.summary(conn)
