@@ -25,6 +25,12 @@ a modern site answering 200 for it years later. get_latest_working_snapshot
 cannot tell; fetch_first_matching_snapshot can, given a caller-supplied
 validity check, by trying progressively older captures instead of stopping at
 the newest.
+
+Every HTTP attempt against archive.org - a CDX query or a content fetch - is
+logged to db's wayback_calls table via db.record_wayback_call. This exists so
+a question like "is CDX_TIMEOUT well-tuned?" can be answered from a query over
+real traffic instead of a handful of manual curl calls in one session, which
+is how CDX_TIMEOUT ended up tuned twice on thin evidence before this existed.
 """
 
 import sqlite3
@@ -33,6 +39,7 @@ import time
 import requests
 from bs4 import BeautifulSoup
 
+import db
 from fetch import HEADERS, SLEEP as CONTENT_SLEEP
 import progress
 
@@ -87,6 +94,38 @@ def snapshot_url(timestamp: str, original_url: str) -> str:
     return f"https://web.archive.org/web/{timestamp}id_/{original_url}"
 
 
+# Lazy, module-owned connection used only to log wayback_calls rows. Not
+# threaded in from callers: get_latest_working_snapshot and friends are called
+# from a dozen-plus sites with no db connection in scope (it is a pure
+# function of a url), and stats logging is a diagnostic side channel that
+# shouldn't force every one of those call sites to thread one through just for
+# this. A second sqlite3.Connection to the same file is safe here: this repo
+# is single-threaded and sequential, so two connections never write at the
+# same instant.
+_stats_conn = None
+
+
+def _stats_connection() -> sqlite3.Connection:
+    global _stats_conn
+    if _stats_conn is None:
+        _stats_conn = db.connect()
+    return _stats_conn
+
+
+def _classify_error(e: requests.exceptions.RequestException) -> str:
+    """A wayback_calls `outcome` string for a failed request - the HTTP status
+    if the server answered at all, else what kind of connection failure it was.
+    """
+    status = getattr(getattr(e, "response", None), "status_code", None)
+    if status is not None:
+        return str(status)
+    if isinstance(e, requests.exceptions.Timeout):
+        return "timeout"
+    if isinstance(e, requests.exceptions.ConnectionError):
+        return "connection_error"
+    return "other"
+
+
 def _service_cooldown() -> None:
     """Wait out a cooldown armed by an earlier 503, if one is still running."""
     remaining = _cooldown_until - time.monotonic()
@@ -94,25 +133,38 @@ def _service_cooldown() -> None:
         time.sleep(remaining)
 
 
-def _cdx(retries: int = 3, timeout: int = CDX_TIMEOUT, **params) -> list:
+def _cdx(retries: int = 3, timeout: int = CDX_TIMEOUT, kind: str = "cdx_probe", **params) -> list:
     """One CDX query -> a list of row dicts (the header row becomes the keys).
 
     Failures are not all the same and are not treated the same: a refused or
     timed-out connection is worth retrying shortly, while an HTTP 503 means the
     service itself is overloaded and arms SERVICE_COOLDOWN for every caller.
+
+    `kind` is passed explicitly by the caller ("cdx_probe" vs "cdx_bulk") for
+    the wayback_calls log, rather than inferred from the `timeout` value: a
+    future change to CDX_BULK_TIMEOUT's number shouldn't silently break which
+    bucket a call gets logged under.
     """
     global _cooldown_until
 
     params.setdefault("output", "json")
     waited_out_service = False
+    stats_conn = _stats_connection()
 
     for attempt in range(retries):
         _service_cooldown()
+        t0 = time.monotonic()
         try:
             r = requests.get(CDX_URL, params=params, headers=HEADERS, timeout=timeout)
             r.raise_for_status()
+            db.record_wayback_call(stats_conn, kind=kind, url=params.get("url"),
+                                   attempt=attempt, timeout_budget=timeout,
+                                   outcome="ok", duration=time.monotonic() - t0)
             break
         except requests.exceptions.RequestException as e:
+            db.record_wayback_call(stats_conn, kind=kind, url=params.get("url"),
+                                   attempt=attempt, timeout_budget=timeout,
+                                   outcome=_classify_error(e), duration=time.monotonic() - t0)
             if attempt == retries - 1:
                 raise
             status = getattr(getattr(e, "response", None), "status_code", None)
@@ -149,6 +201,7 @@ def list_snapshots_by_prefix(prefix_url: str, limit: int = 10000, retries: int =
     return _cdx(
         retries=retries,
         timeout=CDX_BULK_TIMEOUT,
+        kind="cdx_bulk",
         url=prefix_url,
         matchType="prefix",
         collapse="urlkey",
@@ -181,7 +234,7 @@ def list_all_captures(exact_url: str, retries: int = 3) -> list:
     (no collapsing), for sites where the page's own content changes over
     time and a single "latest" snapshot would miss older revisions.
     """
-    rows = _cdx(retries=retries, timeout=CDX_BULK_TIMEOUT, url=exact_url,
+    rows = _cdx(retries=retries, timeout=CDX_BULK_TIMEOUT, kind="cdx_bulk", url=exact_url,
                 filter="statuscode:200", fl="timestamp", limit=1000)
     return sorted({row["timestamp"] for row in rows})
 
@@ -210,8 +263,17 @@ def fetch_snapshot(conn: sqlite3.Connection, session: requests.Session, url: str
     if row:
         return row[0]
 
-    r = session.get(url, headers=HEADERS, timeout=timeout)
-    r.raise_for_status()
+    t0 = time.monotonic()
+    try:
+        r = session.get(url, headers=HEADERS, timeout=timeout)
+        r.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        db.record_wayback_call(conn, kind="content", url=url, attempt=0,
+                               timeout_budget=timeout, outcome=_classify_error(e),
+                               duration=time.monotonic() - t0)
+        raise
+    db.record_wayback_call(conn, kind="content", url=url, attempt=0, timeout_budget=timeout,
+                           outcome="ok", duration=time.monotonic() - t0)
     content = r.content
 
     id_content_type = r.headers.get("Content-Type")

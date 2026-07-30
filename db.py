@@ -11,6 +11,7 @@ shape. The point is that each statement exists exactly once.
 """
 
 import sqlite3
+import time
 from pathlib import Path
 
 DB_PATH = Path(__file__).parent / "pressroom.db"
@@ -48,6 +49,23 @@ _SCHEMA_SQL = """
         id_content_type    TEXT,
         fw_guessed_charset TEXT,
         bs4_encoding       TEXT
+    );
+
+    -- One row per HTTP attempt against archive.org - a CDX query or a content
+    -- fetch - purely for later analysis (latency distributions, how often and
+    -- when 503s cluster, whether a timeout constant is well-tuned). Never
+    -- read by any scraper; see wayback.record_wayback_call's docstring for
+    -- why this exists instead of judging archive.org's behavior from a
+    -- handful of manual curl calls in one session.
+    CREATE TABLE IF NOT EXISTS wayback_calls (
+        id             INTEGER PRIMARY KEY AUTOINCREMENT,
+        ts             REAL NOT NULL,  -- time.time() when the attempt started
+        kind           TEXT NOT NULL,  -- 'cdx_probe' | 'cdx_bulk' | 'content'
+        url            TEXT,
+        attempt        INTEGER NOT NULL,  -- 0-based, within one call's retry loop
+        timeout_budget REAL NOT NULL,
+        outcome        TEXT NOT NULL,  -- 'ok' | '503' | '429' | 'timeout' | 'connection_error' | 'other'
+        duration       REAL NOT NULL   -- seconds this one attempt took
     );
 """
 
@@ -197,6 +215,28 @@ def already_stored(conn: sqlite3.Connection, url: str) -> bool:
     stored_detail_id(...) is not None - a row whose detail_id is NULL exists
     but yields None there."""
     return conn.execute("SELECT 1 FROM releases WHERE url = ?", (url,)).fetchone() is not None
+
+
+def record_wayback_call(conn: sqlite3.Connection, *, kind: str, url: str, attempt: int,
+                        timeout_budget: float, outcome: str, duration: float) -> None:
+    """Append one row to wayback_calls - a single HTTP attempt against
+    archive.org, whatever it resulted in.
+
+    Best-effort and silent on failure by design, same as the encoding
+    diagnostics in wayback.fetch_snapshot: this is a side channel for later
+    analysis, and must never be able to break an actual scrape (e.g. if the
+    schema migration hasn't run yet against an older db.connect() call held
+    open across a code update).
+    """
+    try:
+        conn.execute(
+            "INSERT INTO wayback_calls (ts, kind, url, attempt, timeout_budget, outcome, duration) "
+            "VALUES (?,?,?,?,?,?,?)",
+            (time.time(), kind, url, attempt, timeout_budget, outcome, duration),
+        )
+        conn.commit()
+    except Exception:
+        pass
 
 
 def stored_detail_id(conn: sqlite3.Connection, url: str):

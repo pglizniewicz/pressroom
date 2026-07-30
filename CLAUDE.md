@@ -132,6 +132,14 @@ knowing which script produced it.
 snapshot's raw bytes are cached in the DB (not on disk — auxiliary data belongs
 in the database). Reparsing is free; treat refetching as a mistake.
 
+**Every HTTP attempt against archive.org is logged to `wayback_calls`** (one
+row per attempt: `kind` — `cdx_probe`/`cdx_bulk`/`content` —, `url`, `attempt`,
+`timeout_budget`, `outcome`, `duration`). Before tuning a `wayback.py` timeout
+or sleep constant from a handful of manual `curl` calls, query this table
+instead — that's the mistake that got `CDX_TIMEOUT` tuned twice on thin
+evidence before this existed. Best-effort and silent on failure, same as
+`wayback_cache`'s encoding-diagnostic columns.
+
 ## Working here
 
 - **After any refactor that renames or removes a module-level name, sweep every
