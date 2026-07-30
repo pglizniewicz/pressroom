@@ -134,6 +134,13 @@ in the database). Reparsing is free; treat refetching as a mistake.
 
 ## Working here
 
+- **After any refactor that renames or removes a module-level name, sweep every
+  module's import**, not just the file you edited:
+  `python3 -c "import importlib,pathlib; [importlib.import_module(p.stem) for p in pathlib.Path('.').glob('*.py')]"`.
+  These are ~29 flat modules that import each other by name, there are no tests,
+  and grep is not enough — renaming `DETAIL_URL_TMPL` in one scraper silently
+  broke a repair script that imported it, and it was committed that way. The
+  same class of break has happened more than once.
 - `pressroom.db` is gitignored, along with `pressroom.db.bak`. `'rebuild'` and
   bulk updates aren't reversible — copy the DB before one.
 - archive.org intermittently refuses connections. A run full of `?` markers is

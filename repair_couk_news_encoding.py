@@ -26,9 +26,12 @@ Usage:
 import argparse
 
 import db
-from scrape_midiman_news import (
-    DETAIL_URL_TMPL, ID_HREF_RE, SOURCE, extract_entries, rank,
-)
+from scrape_midiman_news import DOMAINS, ID_HREF_RE, detail_url, extract_entries, rank
+
+# This repair is specific to the co.uk listing captures, so it names that one
+# source rather than following the scraper across all four domains it now covers.
+SOURCE = "midiman_couk_news"
+BASE = DOMAINS[SOURCE]
 
 # The cached listing captures this rebuilds from. Both the bare listing and its
 # &show=all variant, matching LISTING_URLS in the scraper.
@@ -50,7 +53,7 @@ def correct_entries(conn) -> dict:
         original = snap_url.split("id_/", 1)[1]
         for e in extract_entries(content, original):
             m = ID_HREF_RE.search(e["href"])
-            url = DETAIL_URL_TMPL.format(m.group(1)) if m else e["href"]
+            url = detail_url(BASE, m.group(1)) if m else e["href"]
             cur = by_url.get(url)
             if cur is None or rank(e) > rank(cur):
                 by_url[url] = e

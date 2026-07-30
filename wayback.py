@@ -29,29 +29,104 @@ from fetch import HEADERS, SLEEP as CONTENT_SLEEP
 import progress
 
 CDX_URL = "https://web.archive.org/cdx/search/cdx"
+
+# Pause after a CDX query. archive.org's metadata endpoint - not content
+# delivery - is what fails on us: across five long runs, 88 of 96 network errors
+# were on /cdx/search/cdx (25 explicit HTTP 503s, 29 TCP-level refusals, the
+# rest timeouts) against 8 on /web/<timestamp>id_/.
+#
+# Raising this to 3.5 was tried and measurably made things worse: the error rate
+# per row went 10% -> 32% and throughput fell to ~0.5 rows/min. The reason is
+# that these 503s are the service being globally overloaded, not per-client
+# rate limiting keyed to our cadence - so waiting longer between our own
+# requests buys no goodwill, it only keeps us inside the bad window longer.
+# What the experiment did reveal is where the time actually went: ~120s per row,
+# of which our sleeps were at most 10s and the rest was request timeouts.
 SLEEP = 1.0
+
+# Base for the retry backoff after a connection-level CDX failure (-> 5s, 10s).
+# Kept separate from SLEEP on purpose: one is how polite we are when things
+# work, the other is how long we wait when they don't, and tying the second to
+# the first meant every increase in politeness silently inflated retry waits.
+RETRY_BACKOFF = 5.0
+
+# HTTP 503 is not "retry me", it is "the service is overloaded" - and since the
+# overload is global, the next row would hit it too. So a 503 arms one cooldown
+# shared by the whole run instead of each row serving its own multi-minute
+# sentence: the first caller announces and waits it out, and any caller that
+# arrives during it waits only the remainder.
+SERVICE_COOLDOWN = 120.0
+_cooldown_until = 0.0
+
+# Request timeouts, split because a single-row probe and a several-hundred-row
+# prefix query are not the same request - the bulk budget is the actual gain
+# here, since those queries legitimately run long.
+#
+# The probe timeout is NOT a useful lever and was measured rather than guessed.
+# Lowering it to 10s, then 25s, both turned slow successes into failures: CDX's
+# latency for one and the same query shape swung between 0.7s and over 25s
+# within minutes (15.5s, then a 503, then 19.8s, then two consecutive runs past
+# 25s), with no value separating "doomed" from "slow but fine". If anything the
+# evidence points the other way - many of the read timeouts in earlier logs were
+# the 30s budget firing on requests that might have completed - so raising this
+# would trade wall-clock for fewer `uncertain` rows. Left at the original 30
+# pending that call.
+CDX_TIMEOUT = 30
+CDX_BULK_TIMEOUT = 60
 
 
 def snapshot_url(timestamp: str, original_url: str) -> str:
     return f"https://web.archive.org/web/{timestamp}id_/{original_url}"
 
 
-def _cdx(retries: int = 3, **params) -> list:
+def _service_cooldown() -> None:
+    """Wait out a cooldown armed by an earlier 503, if one is still running."""
+    remaining = _cooldown_until - time.monotonic()
+    if remaining > 0:
+        time.sleep(remaining)
+
+
+def _cdx(retries: int = 3, timeout: int = CDX_TIMEOUT, **params) -> list:
     """One CDX query -> a list of row dicts (the header row becomes the keys).
 
-    archive.org's connection-level rate limiting is frequent enough that a
-    bare cold-start easily hits it, so retry a few times before giving up.
+    Failures are not all the same and are not treated the same: a refused or
+    timed-out connection is worth retrying shortly, while an HTTP 503 means the
+    service itself is overloaded and arms SERVICE_COOLDOWN for every caller.
     """
+    global _cooldown_until
+
     params.setdefault("output", "json")
+    waited_out_service = False
+
     for attempt in range(retries):
+        _service_cooldown()
         try:
-            r = requests.get(CDX_URL, params=params, headers=HEADERS, timeout=30)
+            r = requests.get(CDX_URL, params=params, headers=HEADERS, timeout=timeout)
             r.raise_for_status()
             break
-        except requests.exceptions.RequestException:
+        except requests.exceptions.RequestException as e:
             if attempt == retries - 1:
                 raise
-            time.sleep(SLEEP * (attempt + 1) * 5)
+            status = getattr(getattr(e, "response", None), "status_code", None)
+            if status in (503, 429):
+                # One long wait per call, not one per remaining attempt: if the
+                # service is still overloaded after a full cooldown, grinding
+                # here would cost every row several minutes to no purpose. Give
+                # up instead and let the caller record it `uncertain` - a rerun
+                # picks it up once archive.org is healthy, which is what the
+                # uncertain/dead distinction is for.
+                if waited_out_service:
+                    raise
+                waited_out_service = True
+                # Announced, not silent: a multi-minute stall with no
+                # explanation is exactly what the progress heartbeat exists to
+                # prevent.
+                print(f"\n  CDX returned {status}; pausing {SERVICE_COOLDOWN:.0f}s "
+                      "for the service to recover", flush=True)
+                _cooldown_until = time.monotonic() + SERVICE_COOLDOWN
+                _service_cooldown()
+            else:
+                time.sleep(RETRY_BACKOFF * (attempt + 1))
     rows = r.json()
     if not rows:
         return []
@@ -65,6 +140,7 @@ def list_snapshots_by_prefix(prefix_url: str, limit: int = 10000, retries: int =
     """
     return _cdx(
         retries=retries,
+        timeout=CDX_BULK_TIMEOUT,
         url=prefix_url,
         matchType="prefix",
         collapse="urlkey",
@@ -97,8 +173,8 @@ def list_all_captures(exact_url: str, retries: int = 3) -> list:
     (no collapsing), for sites where the page's own content changes over
     time and a single "latest" snapshot would miss older revisions.
     """
-    rows = _cdx(retries=retries, url=exact_url, filter="statuscode:200",
-                fl="timestamp", limit=1000)
+    rows = _cdx(retries=retries, timeout=CDX_BULK_TIMEOUT, url=exact_url,
+                filter="statuscode:200", fl="timestamp", limit=1000)
     return sorted({row["timestamp"] for row in rows})
 
 
@@ -202,9 +278,12 @@ def fetch_detail_snapshot(conn: sqlite3.Connection, session: requests.Session, u
     network hiccup (caller must not commit anything this run, so the item
     stays open to a full retry next time instead of getting stuck forever).
 
-    A probe failure backs off SLEEP*2 before returning, matching the older
-    per-scraper convention this consolidates (several earlier fetch_detail()
-    copies had silently dropped this pause).
+    A probe failure backs off fetch.SLEEP*2 before returning, matching the
+    older per-scraper convention this consolidates (several earlier
+    fetch_detail() copies had silently dropped this pause). Note that is the
+    *content* interval, not this module's CDX one - unchanged when SLEEP was
+    raised, since the extra patience was aimed at the endpoint doing the
+    rate-limiting.
     """
     try:
         found = get_latest_working_snapshot(url)
