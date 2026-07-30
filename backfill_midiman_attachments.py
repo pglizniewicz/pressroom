@@ -42,6 +42,27 @@ whose type isn't recognised is reported and counted `uncertain`, never `dead` -
 we are holding the bytes, so it is a missing parser rather than a missing
 capture, and a later run should retry it.
 
+CDX's statuscode:200 filter is necessary but not sufficient: it proves
+archive.org got an answer, not that the answer was the attachment. Two
+confirmed shapes of that gap, both served as HTTP 200 and both recurring:
+the origin server's own soft-404 (a genuine 380-byte Apache "509 Bandwidth
+Limit Exceeded" page, for one 2003-era PDF path), and, for a path whose real
+file is long gone, a modern redesigned m-audio.com answering 200 for it in
+2024. Fetching is therefore done through
+wayback.fetch_first_matching_snapshot, which walks captures of each domain
+candidate newest-to-oldest and keeps going until is_attachment() confirms one
+is a real pdf/doc, up to WALKBACK_ATTEMPTS - not
+wayback.get_latest_working_snapshot, which would stop at the first (newest)
+capture regardless of what it actually was.
+
+In practice, among the URLs still unrecovered when this was added, essentially
+every one had zero or exactly one HTTP-200 capture ever - so the walk-back's
+concrete win here is turning those single-poisoned-capture URLs from
+perpetually `uncertain` (indistinguishable from a network hiccup, retried
+every run) into a correctly `dead` verdict once every capture has genuinely
+been tried. The mechanism is general, not tuned to that outcome: a URL that
+does have an older, unpoisoned capture is exactly what it is for.
+
 Attachments are often archived under only one of the three mirror domains (a
 midiman.com URL 404s while the identical midiman.net or m-audio.com copy of the
 same release is archived), so domain_variants() tries the siblings before
@@ -100,6 +121,31 @@ ATTACHMENT_SQL = """
 # that a previous run left `uncertain`.
 RECOVERED_LENGTH = 900
 
+# How many historical captures wayback.fetch_first_matching_snapshot will walk
+# back through per domain candidate before giving up on a URL. Caps the cost of
+# a URL that was never archived as a real file - most of them have 0 or 1
+# HTTP-200 capture ever, so 6 comfortably covers the rare one with more without
+# turning a single dead URL into dozens of requests.
+WALKBACK_ATTEMPTS = 6
+
+PDF_MAGIC = b"%PDF"
+# OLE2 compound document header - the real Word 97-2003 container.
+OLE2_MAGIC = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
+
+
+def is_attachment(content: bytes) -> bool:
+    """True if `content`'s magic bytes are a type extract_text can pull real
+    text from. Drives fetch_first_matching_snapshot's walk-back: a capture
+    that is HTML (a soft-404) or anything else fails this, so the walk-back
+    tries an older capture instead of settling for a wrong-typed page.
+
+    Checked on the raw bytes, not by calling extract_text and looking at
+    `kind` - that would run pdftotext/antiword just to classify, then run it
+    again to actually extract.
+    """
+    head = content[:8]
+    return head.startswith(PDF_MAGIC) or head.startswith(OLE2_MAGIC)
+
 
 def domain_variants(url: str) -> list:
     """`url` first, then the same path on each of the other mirror domains."""
@@ -129,10 +175,9 @@ def extract_text(content: bytes) -> tuple:
     """
     head = content[:8]
 
-    if head.startswith(b"%PDF"):
+    if head.startswith(PDF_MAGIC):
         return _run(["pdftotext", "-layout", "-", "-"], content), "pdf"
-    # OLE2 compound document - the real Word 97-2003 container.
-    if head.startswith(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"):
+    if head.startswith(OLE2_MAGIC):
         return _run(["antiword", "-m", "UTF-8.txt", "-"], content), "doc"
     if content.lstrip()[:5].lower() == b"{\\rtf":
         # antiword refuses RTF and there is no unrtf in this environment;
@@ -174,32 +219,37 @@ def backfill_source(source: str, limit: int = None, only_short: bool = False) ->
 
     for url, old_body in rows:
         text = ""
-        # A network error is not evidence that the attachment was never
-        # archived, so track it separately - otherwise a run with no
-        # connectivity would report every row as a confirmed dead end.
+        # A network error - or a search capped before trying every capture -
+        # is not evidence that the attachment was never archived, so track it
+        # separately. Otherwise a run with no connectivity, or a URL with more
+        # captures than WALKBACK_ATTEMPTS, would report a confirmed dead end.
         uncertain = False
 
         for candidate in domain_variants(url):
-            try:
-                found = wayback.get_latest_working_snapshot(candidate)
-            except Exception as e:
-                print(f"\n  ERROR probing snapshots for {candidate}: {e}")
-                uncertain = True
-                continue
-            if not found:
-                continue
-            snapshot_url, _timestamp = found
-            try:
-                content = wayback.fetch_snapshot(conn, session, snapshot_url, timeout=30)
-            except Exception as e:
-                print(f"\n  ERROR fetching {snapshot_url}: {e}")
-                uncertain = True
+            # Walks newest-to-oldest through every archived capture of
+            # `candidate`, not just the newest: CDX's statuscode:200 filter
+            # only proves archive.org got an HTTP 200, not that it was the
+            # attachment - a real "509 Bandwidth Limit Exceeded" page and a
+            # 2024 capture of the modern site both turned up served as 200 for
+            # a 2003-era attachment path. is_attachment rejects those and the
+            # walk-back tries the next-older capture instead of giving up.
+            content, _ts, confirmed = wayback.fetch_first_matching_snapshot(
+                conn, session, candidate, is_attachment,
+                max_attempts=WALKBACK_ATTEMPTS, timeout=30)
+
+            if content is None:
+                if not confirmed:
+                    uncertain = True
                 continue
 
             text, kind = extract_text(content)
             text = normalize(text)
             if not text:
-                print(f"\n  no text from {kind}: {snapshot_url}")
+                # is_attachment already confirmed this is a real pdf/doc, so a
+                # failure here is the extractor choking on it (encrypted,
+                # corrupt), not a wrong-typed capture - still a parser gap
+                # worth another try, not a verified absence.
+                print(f"\n  {kind} extractor produced no text for {candidate}")
                 uncertain = True
             else:
                 break

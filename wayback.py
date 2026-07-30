@@ -17,6 +17,14 @@ and cost three requests per URL. CDX answers the same question in one, and
 was verified to give identical timestamps on every stored row it was
 compared against, including the awkward cases (newest captures are 404s;
 only one capture exists; the newest servable capture is a revisit record).
+
+HTTP 200 is necessary but not sufficient, though: it only proves archive.org
+got an answer, not that the answer was the file being asked for. A capture can
+be the origin server's own soft-404 served as 200, or - for a long-dead path -
+a modern site answering 200 for it years later. get_latest_working_snapshot
+cannot tell; fetch_first_matching_snapshot can, given a caller-supplied
+validity check, by trying progressively older captures instead of stopping at
+the newest.
 """
 
 import sqlite3
@@ -304,6 +312,71 @@ def fetch_detail_snapshot(conn: sqlite3.Connection, session: requests.Session, u
         parsed["detail_id"] = ts
         return parsed, True
     return {}, True
+
+
+def fetch_first_matching_snapshot(conn: sqlite3.Connection, session: requests.Session,
+                                  url: str, is_valid, max_attempts: int = 6,
+                                  timeout: int = 20):
+    """Try archived captures of `url` newest-first, returning the first whose
+    bytes satisfy `is_valid(content)`.
+
+    Exists because CDX's statuscode:200 filter only proves the server answered
+    200, not that it served the file being asked for. Two confirmed shapes of
+    that gap: the origin server's own soft-404 served as HTTP 200 (a 380-byte
+    "509 Bandwidth Limit Exceeded" page, in one case), and - for a URL whose
+    real file is long gone - a modern, redesigned site answering 200 for the
+    old path years later. get_latest_working_snapshot stops at the first
+    (newest) such capture and never looks further.
+
+    Also replaces get_latest_working_snapshot for callers that adopt this: it
+    is built on list_all_captures, which already returns every HTTP-200
+    timestamp including the newest, so no separate probe call is needed.
+
+    Returns (content, timestamp, confirmed) - the same (thing, confirmed)
+    contract as fetch_detail_snapshot. `confirmed` is True only when the
+    non-match can be trusted: every historical capture was tried (at most
+    `max_attempts`, newest first) and none validated, with no network error
+    along the way. A search capped by max_attempts, or interrupted by a fetch
+    or listing failure, returns confirmed=False instead - the caller must not
+    treat that as a verified absence, since an untried older capture (or the
+    one that errored) might have been the real file. What was tried is always
+    logged, so a capped search is never mistaken for an exhaustive one.
+
+    `is_valid` is caller-supplied on purpose - e.g. magic-byte sniffing for a
+    PDF/DOC attachment - so this module stays ignorant of what any particular
+    caller is looking for.
+    """
+    try:
+        timestamps = list_all_captures(url)
+    except Exception as e:
+        print(f"\n  ERROR listing captures for {url}: {e}")
+        return None, None, False
+
+    if not timestamps:
+        return None, None, True  # never had any HTTP-200 capture at all
+
+    newest_first = list(reversed(timestamps))
+    exhaustive = len(newest_first) <= max_attempts
+    candidates = newest_first[:max_attempts]
+
+    had_error = False
+    tried = []
+    for ts in candidates:
+        snap_url = snapshot_url(ts, url)
+        try:
+            content = fetch_snapshot(conn, session, snap_url, timeout=timeout)
+        except Exception as e:
+            print(f"\n  ERROR fetching {snap_url}: {e}")
+            had_error = True
+            tried.append(f"{ts}:error")
+            continue
+        if is_valid(content):
+            return content, ts, True
+        tried.append(f"{ts}:no-match")
+
+    scope = "all" if exhaustive else f"newest {max_attempts} of {len(timestamps)}"
+    print(f"\n  no matching capture for {url} - tried {scope}: {', '.join(tried)}")
+    return None, None, exhaustive and not had_error
 
 
 def get_latest_working_snapshot(original_url: str):
