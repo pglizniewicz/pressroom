@@ -1,51 +1,69 @@
 #!/usr/bin/env python3
-"""Scraper for Midiman/M-Audio's UK site "News" section
-(midiman.co.uk/index.php?do=media.news, detail pages at
-index.php?do=media.new&ID=<32-hex>) -> unified pressroom.db, sourced
-entirely from Wayback Machine snapshots.
+"""Scraper for the Midiman/M-Audio "News" section (index.php?do=media.news,
+detail pages at index.php?do=media.new&ID=...) across all four domains that
+ran it -> unified pressroom.db, sourced entirely from Wayback snapshots.
 
-Same "Hydra Media Labs" CMS era as scrape_midiman_media_pr.py, but a
-different section of the site: midiman.co.uk apparently never got a formal
-"Press Releases" section, only this "News" one. Structurally richer than
-media_pr though - each listed item has its own archived HTML detail page
-(do=media.new&ID=<hex>) containing the FULL article body, not just an
-external .doc/.pdf link-out, so full text is recoverable directly here with
-no follow-up backfill needed (unlike scrape_midiman_media_pr.py).
+Same "Hydra Media Labs" CMS as scrape_midiman_media_pr.py, different section.
+Structurally richer than media_pr: each item has its own archived HTML detail
+page carrying the FULL article, not an external .doc/.pdf link-out, so no
+attachment backfill is needed here.
 
-Two-tier discovery, same idiom as scrape_terratec_portal.py/
-backfill_terratec_teasers.py:
-  1. Sample every historical capture of the listing page (both the bare
-     do=media.news and its &show=all variant) to build a (date, title) ->
-     {href, teaser} map - listing entries carry a date and teaser the
-     detail page itself doesn't.
-  2. For each entry whose href is a recoverable ID=<hex> link, try to fetch
-     its own detail-page capture for the full body, falling back to the
-     listing teaser if the detail page was never archived.
-  3. Bonus discovery (default on, --no-prefix-crawl to disable): prefix-crawl
-     do=media.new&ID= directly - it was archived far more densely (114
-     distinct IDs) than the handful of listing captures ever link to, same
-     "the folder was crawled independently of the index snapshots" idiom as
-     scrape_midiman.py's PREFIX_CRAWL_ROOTS. These prefix-only IDs have no
-     listing metadata, so their date is recovered by matching the detail
-     page's own title against the listing-derived map (best-effort; left
-     blank if no match, a genuine gap, same convention as the Arcadia-
-     dateline gap in scrape_midiman.py).
+This covered only midiman.co.uk at first, on the assumption that the other
+domains' equivalents were out of scope. They are not - m-audio.com alone has
+379 distinct archived detail IDs against co.uk's 114, and none of them had
+ever been fetched.
 
-Confirmed quirk, same shape as scrape_midiman_pressdb.py's title-link-
-retargeting bug: some &show=all captures link an article via the recoverable
-do=media.new&ID=<hex> scheme, others (later captures) via a
-news/en_us-<N>.html scheme confirmed to have zero Wayback captures ever -
-a dead end. Deduped by (date, title), preferring whichever variant carries
-a recoverable ID.
+FOUR templates, two per tier. Every capture is fed all of them; whichever era
+a capture belongs to yields something and the rest yield nothing, so nothing
+has to know which era it is looking at (same idiom as media_pr's two):
 
-Locale variants (&setlocale=en_gb/en_us/fr_fr/... exist in Wayback) and
-midiman.net's own, much larger media.new/media.news sections are out of
-scope for this pass - not requested.
+  listing, pre-redesign  <span class="boldtext">, "Date - Title" in the anchor
+  listing, Avid era      <div id="short-news"> + #news-title/#news-short-content
+  detail,  pre-redesign  td.boldtextgray title; body in p.normaltext on
+                         co.uk but td.normaltext on the other three domains
+  detail,  Avid era      div#news-page-title (span.redtext headline +
+                         span.greytext subtitle) and div#news-content
+
+The ID scheme changed with the redesign too: 32-hex through ~2007, plain
+integers afterwards, and the ID spaces are per-domain (the same integer is a
+different article on a different domain, or nothing at all).
+
+Two-tier discovery, same idiom as scrape_terratec_portal.py:
+  1. Sample every historical capture of the listing (bare do=media.news and
+     its &show=all variant) into a (date, title) -> {href, teaser} map -
+     listing entries carry a date and teaser the detail page does not.
+  2. Fetch each entry whose href carries a recoverable ID, falling back to the
+     listing teaser when the detail page was never archived.
+  3. Prefix-crawl do=media.new&ID= (default on, --no-prefix-crawl to disable).
+     The detail pages were crawled far more densely than the few listing
+     captures ever link to, and on these three added domains that is where
+     essentially all the content comes from - see the dead-end note below.
+     Prefix-only IDs have no listing metadata, so their date is recovered by
+     matching the detail page's own title against the listing map; left blank
+     when there is no match, a genuine gap rather than a parse failure.
+
+Confirmed dead end, and the reason step 3 carries the weight: later captures
+link articles as news/en_us-<N>.html, a scheme with zero Wayback captures on
+any domain, ever. The Avid-era listings link that way exclusively - even
+midiman.net's own listing points at m-audio.com/news/en_us-1930.html - so
+those listings are usable for date/title/teaser metadata but not for reaching
+the article. Deduped by (date, title), preferring whichever variant carries a
+recoverable ID.
+
+Listing captures are sampled, never resolved through
+get_latest_working_snapshot: by 2019 do=media.news answered HTTP 200 with
+m-audio.com's modern home page, so the newest working capture is not a listing
+at all.
+
+Out of scope: locale variants (&setlocale=en_gb/fr_fr/...) and the separate
+m-audio.jp domain, both of which exist in Wayback and are most likely
+translations or duplicates of what is already covered here.
 
 Usage:
-  python scrape_midiman_news.py                    # everything
-  python scrape_midiman_news.py --limit 5          # cap listing entries and prefix-crawl IDs (testing)
-  python scrape_midiman_news.py --no-prefix-crawl   # skip the ID= prefix-crawl bonus discovery
+  python scrape_midiman_news.py                       # all four domains
+  python scrape_midiman_news.py --limit 5             # cap captures/IDs (testing)
+  python scrape_midiman_news.py --no-prefix-crawl     # listing-derived entries only
+  python scrape_midiman_news.py --source maudio_com_media_news
 """
 
 import argparse
@@ -63,25 +81,43 @@ import db
 from progress import Stats
 import wayback
 
-SOURCE = "midiman_couk_news"
+# source tag -> that domain's index.php front controller.
+#
+# The tags for the three added domains follow the CMS action they come from
+# (do=media.news -> _media_news), matching how scrape_midiman_media_pr.py names
+# do=media.media_pr -> _media_pr. midiman_couk_news predates that convention
+# and keeps its tag rather than rewriting the source of 114 existing rows.
+# maudio_com_news is NOT reused here: that tag belongs to the unrelated modern
+# m-audio.com/news blog (scrape_maudio_news.py, 2014-2019).
+DOMAINS = {
+    "midiman_couk_news": "http://www.midiman.co.uk/index.php",
+    "midiman_net_media_news": "http://www.midiman.net/index.php",
+    "midiman_com_media_news": "http://www.midiman.com/index.php",
+    "maudio_com_media_news": "http://www.m-audio.com/index.php",
+}
 
-LISTING_URLS = [
-    "http://www.midiman.co.uk/index.php?do=media.news",
-    "http://www.midiman.co.uk/index.php?do=media.news&show=all",
-]
-DETAIL_URL_TMPL = "http://www.midiman.co.uk/index.php?do=media.new&ID={}"
-DETAIL_PREFIX = "http://www.midiman.co.uk/index.php?do=media.new&ID="
-
-ID_HREF_RE = re.compile(r"ID=([0-9a-f]{32})")
+# Both ID schemes the CMS used: 32-hex through ~2007, plain integers after the
+# Avid-era redesign. Anchored on `ID=` and terminated so a hex ID can't be
+# partly matched as a numeric one.
+ID_HREF_RE = re.compile(r"ID=([0-9a-f]{32}|\d+)\b")
 DATE_TITLE_RE = re.compile(r"^([A-Za-z]+ \d{1,2},\s*\d{4})\s*-\s*(.+)$")
 
 
-def extract_entries(html: bytes, base_url: str, timestamp: str = None) -> list:
-    # decode_html, not raw bytes: these pages declare utf-8 and are utf-8
-    # except for a few Word-pasted cp1252 bytes, which used to make bs4 fall
-    # back to chardet and decode the whole file as windows-1250/1258. See
-    # encoding.py.
-    soup = BeautifulSoup(decode_html(html), "html.parser")
+def listing_urls(base: str) -> list:
+    return [f"{base}?do=media.news", f"{base}?do=media.news&show=all"]
+
+
+def detail_url(base: str, hexid: str) -> str:
+    return f"{base}?do=media.new&ID={hexid}"
+
+
+def detail_prefix(base: str) -> str:
+    return f"{base}?do=media.new&ID="
+
+
+def _entries_boldtext(soup: BeautifulSoup, base_url: str) -> list:
+    """Pre-redesign listing: <span class="boldtext"> per item, "Date - Title"
+    in the anchor, teaser in a following <span class="normaltext">."""
     entries = []
     for span in soup.find_all("span", class_="boldtext"):
         a = span.find("a", href=True)
@@ -91,8 +127,6 @@ def extract_entries(html: bytes, base_url: str, timestamp: str = None) -> list:
         if not m:
             continue
         date_str, title = m.groups()
-        date = iso_date(date_str)
-        href = urljoin(base_url, a["href"])
 
         teaser = ""
         br = span.find_next_sibling("br")
@@ -101,36 +135,119 @@ def extract_entries(html: bytes, base_url: str, timestamp: str = None) -> list:
             if teaser_span:
                 teaser = teaser_span.get_text(" ", strip=True)
 
-        entries.append({"date": date, "title": title.strip(), "href": href, "teaser": teaser})
+        entries.append({"date": iso_date(date_str), "title": title.strip(),
+                        "href": urljoin(base_url, a["href"]), "teaser": teaser})
     return entries
+
+
+def _entries_short_news(soup: BeautifulSoup, base_url: str) -> list:
+    """Avid-era listing: <div id="short-news"> per item, with #news-title and
+    #news-short-content.
+
+    scrape_midiman_media_pr.py parses the same container, but deliberately not
+    the same way and the two are not shared: there, #news-title holds the date
+    in its own <strong> and the title in the anchor. Here both hold the single
+    string "Date - Title", so it goes through DATE_TITLE_RE instead - feeding
+    this markup to that parser would glue the date onto every title.
+    """
+    entries = []
+    for div in soup.find_all("div", id="short-news"):
+        title_div = div.find("div", id="news-title")
+        if not title_div:
+            continue
+        a = title_div.find("a", href=True)
+        if not a:
+            continue
+        m = DATE_TITLE_RE.match(title_div.get_text(" ", strip=True))
+        if not m:
+            continue
+        date_str, title = m.groups()
+
+        content_div = div.find("div", id="news-short-content")
+        teaser = content_div.get_text(" ", strip=True) if content_div else ""
+
+        entries.append({"date": iso_date(date_str), "title": title.strip(),
+                        "href": urljoin(base_url, a["href"]), "teaser": teaser})
+    return entries
+
+
+def extract_entries(html: bytes, base_url: str, timestamp: str = None) -> list:
+    # decode_html, not raw bytes: these pages declare utf-8 and are utf-8
+    # except for a few Word-pasted cp1252 bytes, which used to make bs4 fall
+    # back to chardet and decode the whole file as windows-1250/1258. See
+    # encoding.py.
+    soup = BeautifulSoup(decode_html(html), "html.parser")
+    # Both templates are tried on every capture: whichever era the capture
+    # belongs to yields entries and the other yields none, so there is no need
+    # to know which is which up front - same idiom as
+    # scrape_midiman_media_pr.py's two templates.
+    return _entries_boldtext(soup, base_url) + _entries_short_news(soup, base_url)
 
 
 def rank(entry: dict):
     return (1 if ID_HREF_RE.search(entry["href"]) else 0, len(entry["teaser"]))
 
 
-def parse_detail(html: bytes) -> dict:
-    soup = BeautifulSoup(decode_html(html), "html.parser")
+def _detail_boldtextgray(soup: BeautifulSoup) -> dict:
+    """Pre-redesign detail page. The body cell is <p class="normaltext"> on
+    midiman.co.uk but <td class="normaltext"> on the other three domains -
+    same CMS, different table markup, so accept either."""
     title_td = soup.select_one("td.boldtextgray")
-    body_p = soup.select_one("p.normaltext")
+    if not title_td:
+        return {}
+    # The title cell also carries the teaser in a nested span; drop it so the
+    # title doesn't absorb it.
+    teaser_span = title_td.find("span", class_="normaltext")
+    if teaser_span:
+        teaser_span.decompose()
+
+    body_el = soup.select_one("p.normaltext") or soup.select_one("td.normaltext")
+    return {
+        "title": title_td.get_text(" ", strip=True),
+        "body": body_el.get_text(" ", strip=True) if body_el else "",
+    }
+
+
+def _detail_news_page(soup: BeautifulSoup) -> dict:
+    """Avid-era detail page: <div id="news-page-title"> holds the headline in
+    span.redtext and a one-line subtitle in span.greytext; the release itself
+    is in <div id="news-content">."""
+    title_div = soup.find("div", id="news-page-title")
+    content_div = soup.find("div", id="news-content")
+    if not title_div and not content_div:
+        return {}
 
     title = ""
-    if title_td:
-        teaser_span = title_td.find("span", class_="normaltext")
-        if teaser_span:
-            teaser_span.decompose()
-        title = title_td.get_text(" ", strip=True)
+    if title_div:
+        headline = title_div.find("span", class_="redtext")
+        title = (headline or title_div).get_text(" ", strip=True)
 
-    body = body_p.get_text(" ", strip=True) if body_p else ""
-    return {"title": title, "body": body}
+    return {
+        "title": title,
+        "body": content_div.get_text(" ", strip=True) if content_div else "",
+    }
 
 
-def discover_listing_best(conn: sqlite3.Connection, limit: int = None) -> dict:
+def parse_detail(html: bytes) -> dict:
+    soup = BeautifulSoup(decode_html(html), "html.parser")
+    for template in (_detail_boldtextgray, _detail_news_page):
+        parsed = template(soup)
+        if parsed.get("body"):
+            return parsed
+    return {"title": "", "body": ""}
+
+
+def discover_listing_best(conn: sqlite3.Connection, source: str, base: str,
+                          limit: int = None) -> dict:
     session = requests.Session()
     best = {}  # (date, title) -> {href, teaser}
 
-    for listing_url in LISTING_URLS:
-        print(f"[{SOURCE}] Listing historical captures of {listing_url}", flush=True)
+    for listing_url in listing_urls(base):
+        print(f"[{source}] Listing historical captures of {listing_url}", flush=True)
+        # sample_all_captures, never get_latest_working_snapshot: by 2019 this
+        # URL answered HTTP 200 with m-audio.com's modern home page, so the
+        # newest working capture is not a listing at all. Sampling every
+        # capture means the genuine older ones are parsed regardless.
         entries = wayback.sample_all_captures(conn, session, listing_url, extract_entries, limit=limit)
         for e in entries:
             key = (e["date"], e["title"])
@@ -138,14 +255,15 @@ def discover_listing_best(conn: sqlite3.Connection, limit: int = None) -> dict:
             if cur is None or rank(e) > rank(cur):
                 best[key] = {"href": e["href"], "teaser": e["teaser"]}
 
-    print(f"\n[{SOURCE}] {len(best)} distinct listing entries found across all captures", flush=True)
+    print(f"\n[{source}] {len(best)} distinct listing entries found across all captures", flush=True)
     return best
 
 
-def discover_prefix_ids() -> set:
-    print(f"[{SOURCE}] Listing archived pages under {DETAIL_PREFIX}", flush=True)
+def discover_prefix_ids(source: str, base: str) -> set:
+    prefix = detail_prefix(base)
+    print(f"[{source}] Listing archived pages under {prefix}", flush=True)
     try:
-        snapshots = wayback.list_snapshots_by_prefix(DETAIL_PREFIX)
+        snapshots = wayback.list_snapshots_by_prefix(prefix)
     except Exception as e:
         print(f"  ERROR listing prefix: {e}")
         return set()
@@ -154,15 +272,16 @@ def discover_prefix_ids() -> set:
         m = ID_HREF_RE.search(entry["original"])
         if m:
             ids.add(m.group(1))
-    print(f"[{SOURCE}] {len(ids)} distinct archived detail-page IDs found", flush=True)
+    print(f"[{source}] {len(ids)} distinct archived detail-page IDs found", flush=True)
     return ids
 
 
-def scrape(limit: int = None, prefix_crawl: bool = True) -> None:
+def scrape_domain(source: str, base: str, limit: int = None,
+                  prefix_crawl: bool = True) -> None:
     conn = db.connect()
     session = requests.Session()
 
-    best = discover_listing_best(conn, limit=limit)
+    best = discover_listing_best(conn, source, base, limit=limit)
     id_to_key = {}
     for key, e in best.items():
         m = ID_HREF_RE.search(e["href"])
@@ -172,7 +291,7 @@ def scrape(limit: int = None, prefix_crawl: bool = True) -> None:
 
     extra_ids = set()
     if prefix_crawl:
-        extra_ids = discover_prefix_ids() - set(id_to_key)
+        extra_ids = discover_prefix_ids(source, base) - set(id_to_key)
 
     work = list(best.items())
     extra_ids_list = sorted(extra_ids)
@@ -182,11 +301,11 @@ def scrape(limit: int = None, prefix_crawl: bool = True) -> None:
 
     # Both work lists are sized before Stats so the heartbeat's percentage and
     # ETA span the whole run, not just the listing loop below.
-    stats = Stats(SOURCE, total=len(work) + len(extra_ids_list))
+    stats = Stats(source, total=len(work) + len(extra_ids_list))
 
     for (date, title), e in work:
         m = ID_HREF_RE.search(e["href"])
-        url = DETAIL_URL_TMPL.format(m.group(1)) if m else e["href"]
+        url = detail_url(base, m.group(1)) if m else e["href"]
 
         existing = stored_detail_id(conn, url)
         if existing is not None and existing != "teaser":
@@ -203,7 +322,7 @@ def scrape(limit: int = None, prefix_crawl: bool = True) -> None:
                                    body=parsed["body"], commit=False)
                 stats.upgraded()
             else:
-                db.store_release(conn, SOURCE, url, title=title, date=date,
+                db.store_release(conn, source, url, title=title, date=date,
                                  body=parsed["body"], detail_id=parsed["detail_id"], commit=False)
                 stats.added()
             conn.commit()
@@ -223,14 +342,14 @@ def scrape(limit: int = None, prefix_crawl: bool = True) -> None:
             continue
 
         if e["teaser"]:
-            db.store_release(conn, SOURCE, url, title=title, date=date,
+            db.store_release(conn, source, url, title=title, date=date,
                              body=e["teaser"], detail_id="teaser")
             stats.teaser()
         else:
             stats.dead()
 
     for hexid in extra_ids_list:
-        url = DETAIL_URL_TMPL.format(hexid)
+        url = detail_url(base, hexid)
 
         existing = stored_detail_id(conn, url)
         if existing is not None:
@@ -246,7 +365,7 @@ def scrape(limit: int = None, prefix_crawl: bool = True) -> None:
             continue
 
         date = title_to_date.get(parsed["title"], "")
-        db.store_release(conn, SOURCE, url, title=parsed["title"], date=date,
+        db.store_release(conn, source, url, title=parsed["title"], date=date,
                          body=parsed["body"], detail_id=parsed["detail_id"])
         stats.added()
 
@@ -254,9 +373,19 @@ def scrape(limit: int = None, prefix_crawl: bool = True) -> None:
     conn.close()
 
 
+def scrape(limit: int = None, prefix_crawl: bool = True, sources: list = None) -> None:
+    for source in sources or DOMAINS:
+        scrape_domain(source, DOMAINS[source], limit=limit, prefix_crawl=prefix_crawl)
+
+
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Scrape Midiman/M-Audio UK 'News' section via the Wayback Machine")
-    parser.add_argument("--limit", type=int, default=None, help="Cap listing captures sampled and prefix-crawl IDs processed (testing)")
-    parser.add_argument("--no-prefix-crawl", dest="prefix_crawl", action="store_false", help="Skip the ID= prefix-crawl bonus discovery")
+    parser = argparse.ArgumentParser(
+        description="Scrape the Midiman/M-Audio 'News' section (do=media.news) via the Wayback Machine")
+    parser.add_argument("--limit", type=int, default=None,
+                        help="Cap listing captures sampled and prefix-crawl IDs processed (testing)")
+    parser.add_argument("--no-prefix-crawl", dest="prefix_crawl", action="store_false",
+                        help="Skip the ID= prefix-crawl discovery")
+    parser.add_argument("--source", action="append", choices=sorted(DOMAINS),
+                        help="Only this source; repeatable (default: all four domains)")
     args = parser.parse_args()
-    scrape(limit=args.limit, prefix_crawl=args.prefix_crawl)
+    scrape(limit=args.limit, prefix_crawl=args.prefix_crawl, sources=args.source)
