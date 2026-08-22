@@ -2,4 +2,25 @@
 name = "pressroom"
 version = "0.1.0"
 requires-python = ">=3.14"
-dependencies = []
+
+# These three are what every scraper needs. This list said `[]` for a long
+# time while the code imported all of them, so a fresh checkout only worked on
+# a machine that happened to have Fedora's python3-requests RPMs installed.
+dependencies = [
+    "requests",
+    "beautifulsoup4",
+    "python-dateutil",
+]
+
+[project.optional-dependencies]
+# One source, one dependency. GlobeNewswire sits behind Akamai Bot Manager,
+# which drops requests/urllib3 on the TLS fingerprint - see
+# scrape_globenewswire_creative.make_session. curl_cffi is imported lazily
+# inside that function, so the other ~29 modules import and run fine without
+# it; only this source breaks, and it breaks with a plain ImportError.
+#
+# It is an extra rather than a base dependency because it ships a patched
+# libcurl in its wheel, and this repo's readers (db.py, search.py, serve.py)
+# are deliberately dependency-free. The documented install line includes it
+# anyway, so the normal path is not missing anything.
+globenewswire = ["curl_cffi"]
