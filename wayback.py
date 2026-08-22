@@ -241,7 +241,7 @@ def list_all_captures(exact_url: str, retries: int = 3) -> list:
 
 def fetch_snapshot(conn: sqlite3.Connection, session: requests.Session, url: str, timeout: int = 20) -> bytes:
     """Fetch a Wayback snapshot URL's raw bytes (HTML or PDF), transparently
-    caching them in the wayback_cache table on first fetch. A cache hit
+    caching them in the page_cache table on first fetch. A cache hit
     skips both the network call and the rate-limit sleep - only a real
     fetch needs to be polite to archive.org.
 
@@ -259,7 +259,7 @@ def fetch_snapshot(conn: sqlite3.Connection, session: requests.Session, url: str
     Best-effort only - any failure here is swallowed so it never affects the
     primary fetch.
     """
-    row = conn.execute("SELECT content FROM wayback_cache WHERE url = ?", (url,)).fetchone()
+    row = conn.execute("SELECT content FROM page_cache WHERE url = ?", (url,)).fetchone()
     if row:
         return row[0]
 
@@ -298,7 +298,7 @@ def fetch_snapshot(conn: sqlite3.Connection, session: requests.Session, url: str
         pass
 
     conn.execute(
-        "INSERT OR IGNORE INTO wayback_cache (url, content, id_content_type, fw_guessed_charset, bs4_encoding) "
+        "INSERT OR IGNORE INTO page_cache (url, content, id_content_type, fw_guessed_charset, bs4_encoding) "
         "VALUES (?, ?, ?, ?, ?)",
         (url, content, id_content_type, fw_guessed_charset, bs4_encoding),
     )

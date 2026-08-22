@@ -14,7 +14,7 @@ import sqlite3
 
 # db.py is stdlib-only precisely so this dependency-free script can share the
 # schema knowledge - unlike fetch.py's siblings, it drags in no requests/bs4.
-from db import DB_PATH
+from db import DB_PATH, connect_ro
 
 # snippet()'s column ordinal 1 is `body` - positional, per the fts5(title, body)
 # declaration in db.py. Read-only: never calls init_db, so it never migrates.
@@ -43,7 +43,7 @@ def search(query: str, sources: list = None, limit: int = 8, full: bool = False)
         sql = _SQL.format(source_clause="")
         params = [query, limit]
 
-    with contextlib.closing(sqlite3.connect(DB_PATH)) as conn:
+    with contextlib.closing(connect_ro()) as conn:
         try:
             rows = conn.execute(sql, params).fetchall()
         except sqlite3.OperationalError as e:

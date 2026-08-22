@@ -7,7 +7,7 @@ cp1252 bytes in a footer sentence - enough to make chardet decode the whole
 file as windows-1250/1258, so 14 stored titles and 11 teaser bodies came out
 as e.g. "Academyâ€™s" instead of "Academy's".
 
-Runs entirely from wayback_cache - the original bytes were never lost, so this
+Runs entirely from page_cache - the original bytes were never lost, so this
 needs no network and cannot be affected by archive.org being down. Rows are
 matched by url (ASCII, so unaffected by the bug); only values that actually
 differ are written.
@@ -36,7 +36,7 @@ BASE = DOMAINS[SOURCE]
 # The cached listing captures this rebuilds from. Both the bare listing and its
 # &show=all variant, matching LISTING_URLS in the scraper.
 CACHED_LISTINGS_SQL = """
-    SELECT url, content FROM wayback_cache
+    SELECT url, content FROM page_cache
      WHERE url LIKE '%midiman.co.uk%do=media.news%'
 """
 
