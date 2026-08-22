@@ -63,7 +63,7 @@ predates that change and falls back to preformatted text — both paths have to
 keep working while the re-scrape runs.
 
 - [body-rich] `/#r/4967` at 1280px: the body renders real elements — a `ul` with `li` children and several `p` — not one text block
-- [body-plain] `/#r/3573` at 1280px: this row has no `body_html`; its body is a single `p.body--text` and the computed `white-space` is `pre-wrap`
+- [body-plain] `/#r/6267` at 1280px: this row has no `body_html`; its body is a single `p.body--text`, the computed `white-space` is `pre-wrap`, and there is no `.body--rich`. Fixture moved off #3573 on 2026-08-22 — that row was the flat GlobeNewswire release this work started from, and it has since been recovered, so it no longer exercises the fallback. Any `midiman_net_media_news` row will do; those teasers are confirmed unrecoverable and will stay plain
 - [body-sanitized] `/#r/4967`: inside `.body--rich` there is no `script`, no `style`, no element carrying a `class`, `style` or `on*` attribute, and no `a[href^="javascript:"]`
 - [body-img] `/#r/5009` at 1280px: the `img` is built from the stored `src` verbatim, carries `loading="lazy"` and `referrerpolicy="no-referrer"`, and — the source site being dead — is replaced on load failure by a `.img-missing` caption naming the address. An image declaring 1–2 px in either dimension is removed instead of captioned; none currently survive pruning, so that branch is not observable in the corpus
 - [body-table] `/#r/5010` at 1280px: the two-column photo table inside `.body--rich` scrolls inside its own box — the document itself has no horizontal scroll
