@@ -19,6 +19,7 @@ from fetch import SLEEP
 from db import already_stored
 from dates import iso_date
 import db
+import richtext
 from progress import Stats
 import wayback
 
@@ -32,9 +33,27 @@ def is_html_page(original_url: str) -> bool:
     return original_url.lower().split("?", 1)[0].endswith((".htm", ".html"))
 
 
-def parse_snapshot(html: str) -> dict:
-    soup = BeautifulSoup(html, "html.parser")
+def parse_snapshot(content: bytes) -> dict:
+    # from_encoding, not decode_html: these 2002 pages declare no charset at
+    # all and are wholly pre-UTF-8, so the bytes are cp1252 - and in prose full
+    # of German accents two adjacent high bytes can coincidentally form a valid
+    # UTF-8 sequence that decode_html would honour. Left to sniff, bs4 read
+    # them as ISO-8859-1 and stored the cp1252 punctuation range as C1 control
+    # characters (20 rows, undone by repair_encoding.py).
+    soup = BeautifulSoup(content, "html.parser", from_encoding="cp1252")
     text = soup.get_text(" ", strip=True)
+    # Body from the DOM, date from the flat text. These pages are one big
+    # layout table, and the article's table is the one carrying the most text -
+    # see richtext.densest for why that beats a width= selector here. The flat
+    # text stays for DATE_RE, which scans the whole page including the
+    # header where the date actually sits.
+    body, body_html = richtext.extract(richtext.densest(soup, "table", border="0"))
+    if not body:
+        # No layout table, or one with nothing in it: a handful of these
+        # captures are 290-byte "page moved" stubs. Fall back to the flat text
+        # rather than to nothing - an empty body_html means "not converted",
+        # an empty body would mean the row was wiped.
+        body, body_html = text, None
 
     date = ""
     m = DATE_RE.search(text)
@@ -49,7 +68,7 @@ def parse_snapshot(html: str) -> dict:
                 title = bold_tags[i + 1].get_text(strip=True)
             break
 
-    return {"title": title, "date": date, "body": text}
+    return {"title": title, "date": date, "body": body, "body_html": body_html}
 
 
 def scrape(limit: int = None) -> None:
@@ -91,7 +110,8 @@ def scrape(limit: int = None) -> None:
             continue
 
         if db.store_release(conn, SOURCE, url, title=parsed["title"],
-                            date=parsed["date"], body=parsed["body"], detail_id=timestamp):
+                            date=parsed["date"], body=parsed["body"],
+                            body_html=parsed["body_html"], detail_id=timestamp):
             stats.added()
 
     stats.summary(conn)

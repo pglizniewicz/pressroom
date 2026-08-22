@@ -55,6 +55,7 @@ from bs4 import BeautifulSoup
 from fetch import SLEEP
 from db import already_stored
 import db
+import richtext
 from progress import Stats
 import wayback
 
@@ -143,11 +144,25 @@ def is_supported_page(url: str) -> bool:
     return url.lower().split("?", 1)[0].endswith((".htm", ".html"))
 
 
-def parse_snapshot(html: str) -> dict:
-    soup = BeautifulSoup(html, "html.parser")
+def parse_snapshot(content: bytes) -> dict:
+    # cp1252, stated: these are 2001-era GoLive pages, which CLAUDE.md names
+    # as the case where decode_html is wrong - in prose full of accents two
+    # adjacent high bytes can coincidentally form a valid UTF-8 sequence.
+    soup = BeautifulSoup(content, "html.parser", from_encoding="cp1252")
     for tag in soup.find_all(["title", "script", "style"]):
         tag.decompose()
+
+    # Flat text, kept ON PURPOSE and only for the two detections below. Unlike
+    # every other parser here, this one derives the *title* by slicing the flat
+    # text at the dateline, so it cannot simply be replaced by the DOM pass.
     text = soup.get_text(" ", strip=True)
+
+    # The body does come from the DOM now. Calibration over every cached
+    # capture of these two domains put the whole document's coverage of the
+    # previously stored body at 1.00: a 2001 GoLive press page carries no nav
+    # to exclude, which is why whole-page extraction was right all along and
+    # only the *flattening* was wrong.
+    body, body_html = richtext.extract(soup)
 
     date = ""
     m = DATE_PAREN_RE.search(text)
@@ -170,7 +185,7 @@ def parse_snapshot(html: str) -> dict:
             candidate = candidate[:half].strip()
         title = candidate
 
-    return {"title": title, "date": date, "body": text}
+    return {"title": title, "date": date, "body": body, "body_html": body_html}
 
 
 def scrape(limit: int = None, prefix_crawl: bool = True) -> None:
@@ -247,7 +262,8 @@ def scrape(limit: int = None, prefix_crawl: bool = True) -> None:
         title = parsed["title"] or item["title"]
 
         if db.store_release(conn, source, url, title=title, date=parsed["date"],
-                            body=parsed["body"], detail_id=timestamp):
+                            body=parsed["body"], body_html=parsed["body_html"],
+                            detail_id=timestamp):
             s.added()
 
     for s in stats.values():

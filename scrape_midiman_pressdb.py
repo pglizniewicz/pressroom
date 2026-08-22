@@ -63,6 +63,7 @@ from bs4 import BeautifulSoup
 from dates import iso_date
 from encoding import decode_html
 import db
+import richtext
 from progress import Stats
 import wayback
 
@@ -108,7 +109,8 @@ def parse_detail(html: bytes) -> dict:
     soup = BeautifulSoup(decode_html(html), "html.parser")
     for tag in soup.find_all(["title", "script", "style"]):
         tag.decompose()
-    return {"body": " ".join(soup.get_text(" ", strip=True).split())}
+    body, body_html = richtext.extract(soup)
+    return {"body": body, "body_html": body_html}
 
 
 def extract_entries(html: bytes, base_url: str, timestamp: str = None) -> list:
@@ -147,12 +149,14 @@ def extract_entries(html: bytes, base_url: str, timestamp: str = None) -> list:
 
         table = bold_td.find_parent("table")
         body = ""
+        body_html = ""
         if table:
             body_td = table.find("td", class_="normal")
             if body_td:
-                body = body_td.get_text(" ", strip=True)
+                body, body_html = richtext.extract(body_td)
 
-        entries.append({"title": title, "date": date, "url": url, "body": body, "detail_id": timestamp})
+        entries.append({"title": title, "date": date, "url": url, "body": body,
+                        "body_html": body_html, "detail_id": timestamp})
 
     return entries
 
@@ -180,7 +184,8 @@ def scrape_domain(source: str, listing_url: str, limit: int = None) -> None:
         key = (e["title"], e["date"])
         cur = best.get(key)
         if cur is None or rank(e) > rank(cur):
-            best[key] = {"url": e["url"], "body": e["body"], "detail_id": e["detail_id"]}
+            best[key] = {"url": e["url"], "body": e["body"],
+                         "body_html": e["body_html"], "detail_id": e["detail_id"]}
 
     print(f"\n[{source}] {len(best)} distinct release entries found across all captures", flush=True)
 
@@ -209,11 +214,14 @@ def scrape_domain(source: str, listing_url: str, limit: int = None) -> None:
             # teaser was read from.
             db.store_release(conn, source, url, title=title, date=date,
                              body=body or e["body"],
+                             body_html=(parsed.get("body_html") if body
+                                        else e["body_html"]) or None,
                              detail_id=parsed.get("detail_id") or e["detail_id"],
                              commit=False)
             stats.added() if body else stats.teaser()
         elif body and len(body) > stored_len:
             db.upgrade_release(conn, url, body=body,
+                               body_html=parsed.get("body_html") or None,
                                detail_id=parsed.get("detail_id"), commit=False)
             stats.upgraded()
         elif not confirmed:

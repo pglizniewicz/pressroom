@@ -22,6 +22,7 @@ from bs4 import BeautifulSoup
 from fetch import SLEEP
 from dates import iso_date
 import db
+import richtext
 from progress import Stats
 import wayback
 
@@ -52,13 +53,18 @@ def missing_print_sids(prefix: str, have: set) -> list:
     return sorted(sids - have)
 
 
-def parse_print_snapshot(html: str) -> dict:
-    soup = BeautifulSoup(html, "html.parser")
+def parse_print_snapshot(content: bytes) -> dict:
+    # cp1252 stated, never sniffed: these pages predate UTF-8 and declare no
+    # charset, so left to guess bs4 read them as ISO-8859-1 and stored the
+    # cp1252 punctuation range as C1 control characters (see
+    # repair_encoding.py, which had to undo exactly that).
+    soup = BeautifulSoup(content, "html.parser", from_encoding="cp1252")
     title_tag = soup.select_one("font.print-title")
 
     title = ""
     date = ""
     body = ""
+    body_html = ""
     if title_tag:
         m = TITLE_RE.match(title_tag.get_text(strip=True))
         if m:
@@ -67,9 +73,9 @@ def parse_print_snapshot(html: str) -> dict:
 
         body_tag = soup.select_one("font.print-normal")
         if body_tag:
-            body = body_tag.get_text(" ", strip=True)
+            body, body_html = richtext.extract(body_tag)
 
-    return {"title": title, "date": date, "body": body}
+    return {"title": title, "date": date, "body": body, "body_html": body_html}
 
 
 def backfill(prefix: str, source: str, limit: int = None) -> None:
@@ -108,7 +114,8 @@ def backfill(prefix: str, source: str, limit: int = None) -> None:
             continue
 
         if db.store_release(conn, source, print_url, title=parsed["title"],
-                            date=parsed["date"], body=parsed["body"], detail_id=timestamp):
+                            date=parsed["date"], body=parsed["body"],
+                            body_html=parsed["body_html"], detail_id=timestamp):
             stats.added()
 
     stats.summary(conn)

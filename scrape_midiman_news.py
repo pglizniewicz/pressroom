@@ -78,6 +78,7 @@ from db import stored_detail_id
 from dates import iso_date
 from encoding import decode_html
 import db
+import richtext
 from progress import Stats
 import wayback
 
@@ -128,15 +129,16 @@ def _entries_boldtext(soup: BeautifulSoup, base_url: str) -> list:
             continue
         date_str, title = m.groups()
 
-        teaser = ""
+        teaser = teaser_html = ""
         br = span.find_next_sibling("br")
         if br:
             teaser_span = br.find_next_sibling("span", class_="normaltext")
             if teaser_span:
-                teaser = teaser_span.get_text(" ", strip=True)
+                teaser, teaser_html = richtext.extract(teaser_span)
 
         entries.append({"date": iso_date(date_str), "title": title.strip(),
-                        "href": urljoin(base_url, a["href"]), "teaser": teaser})
+                        "href": urljoin(base_url, a["href"]),
+                        "teaser": teaser, "teaser_html": teaser_html})
     return entries
 
 
@@ -164,10 +166,11 @@ def _entries_short_news(soup: BeautifulSoup, base_url: str) -> list:
         date_str, title = m.groups()
 
         content_div = div.find("div", id="news-short-content")
-        teaser = content_div.get_text(" ", strip=True) if content_div else ""
+        teaser, teaser_html = richtext.extract(content_div)
 
         entries.append({"date": iso_date(date_str), "title": title.strip(),
-                        "href": urljoin(base_url, a["href"]), "teaser": teaser})
+                        "href": urljoin(base_url, a["href"]),
+                        "teaser": teaser, "teaser_html": teaser_html})
     return entries
 
 
@@ -202,9 +205,10 @@ def _detail_boldtextgray(soup: BeautifulSoup) -> dict:
         teaser_span.decompose()
 
     body_el = soup.select_one("p.normaltext") or soup.select_one("td.normaltext")
+    body, body_html = richtext.extract(body_el)
     return {
         "title": title_td.get_text(" ", strip=True),
-        "body": body_el.get_text(" ", strip=True) if body_el else "",
+        "body": body, "body_html": body_html,
     }
 
 
@@ -222,10 +226,8 @@ def _detail_news_page(soup: BeautifulSoup) -> dict:
         headline = title_div.find("span", class_="redtext")
         title = (headline or title_div).get_text(" ", strip=True)
 
-    return {
-        "title": title,
-        "body": content_div.get_text(" ", strip=True) if content_div else "",
-    }
+    body, body_html = richtext.extract(content_div)
+    return {"title": title, "body": body, "body_html": body_html}
 
 
 def parse_detail(html: bytes) -> dict:
@@ -234,7 +236,7 @@ def parse_detail(html: bytes) -> dict:
         parsed = template(soup)
         if parsed.get("body"):
             return parsed
-    return {"title": "", "body": ""}
+    return {"title": "", "body": "", "body_html": ""}
 
 
 def discover_listing_best(conn: sqlite3.Connection, source: str, base: str,
@@ -319,11 +321,13 @@ def scrape_domain(source: str, base: str, limit: int = None,
                 # No title=/date=: the listing page's values are better than
                 # the detail page's, so only the body is upgraded.
                 db.upgrade_release(conn, url, detail_id=parsed["detail_id"],
-                                   body=parsed["body"], commit=False)
+                                   body=parsed["body"], body_html=parsed["body_html"],
+                                   commit=False)
                 stats.upgraded()
             else:
                 db.store_release(conn, source, url, title=title, date=date,
-                                 body=parsed["body"], detail_id=parsed["detail_id"], commit=False)
+                                 body=parsed["body"], body_html=parsed["body_html"],
+                                 detail_id=parsed["detail_id"], commit=False)
                 stats.added()
             conn.commit()
             continue
@@ -343,7 +347,8 @@ def scrape_domain(source: str, base: str, limit: int = None,
 
         if e["teaser"]:
             db.store_release(conn, source, url, title=title, date=date,
-                             body=e["teaser"], detail_id="teaser")
+                             body=e["teaser"], body_html=e["teaser_html"] or None,
+                             detail_id="teaser")
             stats.teaser()
         else:
             stats.dead()
@@ -366,7 +371,8 @@ def scrape_domain(source: str, base: str, limit: int = None,
 
         date = title_to_date.get(parsed["title"], "")
         db.store_release(conn, source, url, title=parsed["title"], date=date,
-                         body=parsed["body"], detail_id=parsed["detail_id"])
+                         body=parsed["body"], body_html=parsed["body_html"],
+                         detail_id=parsed["detail_id"])
         stats.added()
 
     stats.summary(conn)

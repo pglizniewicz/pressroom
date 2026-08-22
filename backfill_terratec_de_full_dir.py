@@ -80,7 +80,8 @@ def backfill() -> None:
             continue
 
         if db.store_release(conn, SOURCE, url, title=parsed["title"],
-                            date=parsed["date"], body=parsed["body"], detail_id=timestamp):
+                            date=parsed["date"], body=parsed["body"],
+                            body_html=parsed["body_html"], detail_id=timestamp):
             stats.added()
 
     stats.summary(conn)

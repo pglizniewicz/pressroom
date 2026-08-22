@@ -24,13 +24,39 @@ import time
 import requests
 from bs4 import BeautifulSoup
 
-from fetch import HEADERS, SLEEP
+from encoding import decode_html
+from fetch import HEADERS, SLEEP, fetch_cached
+import richtext
 from db import already_stored
 from dates import iso_date
 import db
 from progress import Stats
 
+def make_session():
+    """A session GlobeNewswire will actually answer.
+
+    Akamai Bot Manager started dropping plain requests/urllib3 in 2026: DNS
+    and the TLS handshake both succeed, then an HTTP/1.1 request gets no
+    response at all (read timeout) and HTTP/2 gets an immediate RST_STREAM.
+    Extra browser headers change nothing - the block is on the TLS/HTTP2
+    fingerprint, not the User-Agent - and all 53 rows of this source failed
+    that way on 2026-08-21.
+
+    curl_cffi is libcurl with browser fingerprints (the maintained
+    lexiforest/curl-impersonate fork), and its Session is API-compatible with
+    requests.Session for everything fetch_cached and this module use. Imported
+    here rather than in fetch.py so the other scrapers keep working on a bare
+    system Python with no such dependency.
+
+    The impersonation profile is a moving target: when this starts timing out
+    again, bump curl_cffi and try a newer profile before blaming the parser.
+    """
+    from curl_cffi import requests as impersonating
+    return impersonating.Session(impersonate=IMPERSONATE)
+
+
 BASE_URL = "https://www.globenewswire.com"
+IMPERSONATE = "chrome"
 LIST_URL = f"{BASE_URL}/en/search/organization/Creative%2520Labs%CE%B4%2520Inc%C2%A7"
 SOURCE = "creative_gnw"
 
@@ -38,7 +64,9 @@ SOURCE = "creative_gnw"
 def parse_list_page(session: requests.Session, page: int) -> list:
     r = session.get(LIST_URL, headers=HEADERS, params={"page": page}, timeout=15)
     r.raise_for_status()
-    soup = BeautifulSoup(r.text, "html.parser")
+    # decode_html(r.content), never r.text - the convention holds for live
+    # sites too: requests guesses ISO-8859-1 when the header omits a charset.
+    soup = BeautifulSoup(decode_html(r.content), "html.parser")
 
     items = []
     for li in soup.select("li.row"):
@@ -61,19 +89,24 @@ def parse_list_page(session: requests.Session, page: int) -> list:
     return items
 
 
-def fetch_body(session: requests.Session, url: str) -> str:
-    r = session.get(url, headers=HEADERS, timeout=20)
-    r.raise_for_status()
-    soup = BeautifulSoup(r.text, "html.parser")
+def fetch_body(conn, session: requests.Session, url: str) -> tuple:
+    """(body, body_html) for one release, or ("", "") if the article container
+    is missing. Goes through fetch_cached, so a reparse costs no request.
+
+    decode_html(bytes), never r.text - the convention holds for live sites too:
+    requests guesses ISO-8859-1 when the header omits a charset.
+    """
+    content = fetch_cached(conn, session, url)
+    soup = BeautifulSoup(decode_html(content), "html.parser")
     body = soup.select_one("div.main-body-container.article-body")
     if not body:
-        return ""
-    return body.get_text(" ", strip=True)
+        return "", ""
+    return richtext.extract(body)
 
 
 def scrape(pages: int = None) -> None:
     conn = db.connect()
-    session = requests.Session()
+    session = make_session()
 
     print(f"[{SOURCE}] Scraping GlobeNewswire Creative Labs, Inc. archive", flush=True)
 
@@ -102,14 +135,14 @@ def scrape(pages: int = None) -> None:
                 continue
 
             try:
-                body = fetch_body(session, item["url"])
+                body, body_html = fetch_body(conn, session, item["url"])
             except Exception as e:
                 print(f"\n    ERROR fetching {item['url']}: {e}")
-                body = ""
-            time.sleep(SLEEP)
+                body, body_html = "", ""
 
             if db.store_release(conn, SOURCE, item["url"], title=item["title"],
-                                date=item["date"], body=body, detail_id=item["detail_id"]):
+                                date=item["date"], body=body, body_html=body_html,
+                                detail_id=item["detail_id"]):
                 stats.added()
 
         print()

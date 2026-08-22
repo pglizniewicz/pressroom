@@ -18,7 +18,9 @@ import time
 import requests
 from bs4 import BeautifulSoup
 
-from fetch import HEADERS, SLEEP
+from encoding import decode_html
+from fetch import HEADERS, SLEEP, fetch_cached
+import richtext
 from db import already_stored
 import db
 from progress import Stats
@@ -32,7 +34,10 @@ FIRST_YEAR = 1999
 def parse_list_page(session: requests.Session, year: int) -> list:
     r = session.get(LIST_URL, headers=HEADERS, params={"year": year}, timeout=15)
     r.raise_for_status()
-    soup = BeautifulSoup(r.text, "html.parser")
+    # decode_html(r.content), never r.text: this page claims UTF-8, but requests
+    # falls back to ISO-8859-1 whenever the header omits the charset, which
+    # stored 174 bullet characters (cp1252 0x95) as C1 controls across 23 rows.
+    soup = BeautifulSoup(decode_html(r.content), "html.parser")
 
     items = []
     for li in soup.select("ul.prListing li"):
@@ -55,14 +60,15 @@ def parse_list_page(session: requests.Session, year: int) -> list:
     return items
 
 
-def fetch_body(session: requests.Session, url: str) -> str:
-    r = session.get(url, headers=HEADERS, timeout=20)
-    r.raise_for_status()
-    soup = BeautifulSoup(r.text, "html.parser")
+def fetch_body(conn, session: requests.Session, url: str) -> tuple:
+    """(body, body_html) for one release, or ("", "") if the content column is
+    missing. Goes through fetch_cached, so a reparse costs no request."""
+    content = fetch_cached(conn, session, url)
+    soup = BeautifulSoup(decode_html(content), "html.parser")
     col = soup.select_one("div.corporate-content div.col-sm-8")
     if not col:
-        return ""
-    return col.get_text(" ", strip=True)
+        return "", ""
+    return richtext.extract(col)
 
 
 def scrape(from_year: int = FIRST_YEAR, to_year: int = None) -> None:
@@ -91,14 +97,14 @@ def scrape(from_year: int = FIRST_YEAR, to_year: int = None) -> None:
                 continue
 
             try:
-                body = fetch_body(session, item["url"])
+                body, body_html = fetch_body(conn, session, item["url"])
             except Exception as e:
                 print(f"\n    ERROR fetching {item['url']}: {e}")
-                body = ""
-            time.sleep(SLEEP)
+                body, body_html = "", ""
 
             if db.store_release(conn, SOURCE, item["url"], title=item["title"],
-                                date=item["date"], body=body, detail_id=item["detail_id"]):
+                                date=item["date"], body=body, body_html=body_html,
+                                detail_id=item["detail_id"]):
                 stats.added()
 
         print()

@@ -28,8 +28,10 @@ from dateutil import parser as du
 from fetch import SLEEP
 from db import already_stored
 import db
+import richtext
 from progress import Stats
 import wayback
+from encoding import decode_html
 
 
 LANGS = {
@@ -82,14 +84,39 @@ def parse_month_year(title: str):
     return year, rest.strip()
 
 
-def extract_entries(html: str, base_url: str = None, timestamp: str = None) -> list:
+def parse_detail(content: bytes) -> dict:
+    """One article page -> {title, date, body, body_html}, for
+    backfill_body_html's CACHED_PARSERS.
+
+    extract_entries already handles an individual article page (one <h2>, no
+    div.block wrapper) as well as a listing; this just unwraps the single
+    entry, taking the longest if a capture happens to carry several. Returns
+    an empty body when there is no heading at all, which the caller reads as
+    "this parser does not cover this capture".
+    """
+    entries = [e for e in extract_entries(content) if e.get("body_html")]
+    if not entries:
+        return {"title": "", "date": "", "body": "", "body_html": None}
+    best = max(entries, key=lambda e: len(e["body"]))
+    return {"title": best["title"], "date": best["date"],
+            "body": best["body"], "body_html": best["body_html"]}
+
+
+def extract_entries(content: bytes, base_url: str = None, timestamp: str = None) -> list:
     """Every <h2>Month YYYY - Title</h2> heading on the page, each paired
     with its containing block's link and body text. Works for both listing
     pages (many headings, each in its own div.block) and individual article
     pages (one heading, no div.block wrapper). `base_url` is unused (this
     page's own links are already absolute) - the 3-arg shape matches
-    wayback.sample_all_captures' parse_fn contract."""
-    soup = BeautifulSoup(html, "html.parser")
+    wayback.sample_all_captures' parse_fn contract.
+
+    Takes bytes and decodes them here through encoding.decode_html: these pages
+    declare charset=utf-8 and are valid UTF-8, and handing the bytes to
+    BeautifulSoup instead let chardet guess - it picked cp1252 on some captures
+    and cp1258 (Vietnamese) on others, which is how 25 rows ended up storing
+    'FÃ¼hrungsduo' and 'FĂ¼r'. repair_encoding.py undid that; this is why it
+    cannot come back."""
+    soup = BeautifulSoup(decode_html(content), "html.parser")
     entries = []
 
     for h2 in soup.find_all("h2"):
@@ -114,9 +141,10 @@ def extract_entries(html: str, base_url: str = None, timestamp: str = None) -> l
         for p in work.find_all("p"):
             if p.find("a", class_="arrow"):
                 p.decompose()
-        body = work.get_text(" ", strip=True)
+        body, body_html = richtext.extract(work)
 
-        entries.append({"url": url, "title": title, "date": date, "body": body, "detail_id": timestamp})
+        entries.append({"url": url, "title": title, "date": date, "body": body,
+                        "body_html": body_html, "detail_id": timestamp})
 
     return entries
 
@@ -127,14 +155,15 @@ def scrape_lang(lang: str, limit: int = None) -> None:
     conn = db.connect()
     session = requests.Session()
 
-    best = {}  # url -> {title, date, body, detail_id}
+    best = {}  # url -> {title, date, body, body_html, detail_id}
 
-    def consider(url, title, date, body, detail_id):
+    def consider(url, title, date, body, body_html, detail_id):
         if not url:
             return
         cur = best.get(url)
         if cur is None or len(body) > len(cur["body"]):
-            best[url] = {"title": title, "date": date, "body": body, "detail_id": detail_id}
+            best[url] = {"title": title, "date": date, "body": body,
+                         "body_html": body_html, "detail_id": detail_id}
 
     # 1. Time-series sample every historical capture of the listing pages.
     # Small and fast (a couple dozen fetches total) - always completes in one
@@ -144,7 +173,8 @@ def scrape_lang(lang: str, limit: int = None) -> None:
         print(f"  {listing_url}", flush=True)
         entries = wayback.sample_all_captures(conn, session, listing_url, extract_entries)
         for e in entries:
-            consider(e["url"], e["title"], e["date"], e["body"], e["detail_id"])
+            consider(e["url"], e["title"], e["date"], e["body"], e["body_html"],
+                     e["detail_id"])
 
     # 2. Prefix crawl of individually-archived article pages - the slow part,
     # prone to Wayback's transient rate-limiting, so write incrementally
@@ -181,7 +211,7 @@ def scrape_lang(lang: str, limit: int = None) -> None:
             stats.uncertain()
             continue
 
-        title, date, body, detail_id = "", "", "", "stub"
+        title, date, body, body_html, detail_id = "", "", "", "", "stub"
         if found:
             snapshot_url, timestamp = found
             try:
@@ -192,18 +222,21 @@ def scrape_lang(lang: str, limit: int = None) -> None:
                 stats.uncertain()
                 continue
             if fetched:
-                title, date, body, detail_id = fetched[0]["title"], fetched[0]["date"], fetched[0]["body"], timestamp
+                title, date = fetched[0]["title"], fetched[0]["date"]
+                body, body_html, detail_id = fetched[0]["body"], fetched[0]["body_html"], timestamp
 
         # A listing-page capture may have a fuller body than the article's own page.
         listed = best.pop(url, None)
         if listed and len(listed["body"]) > len(body):
-            title, date, body, detail_id = listed["title"], listed["date"], listed["body"], listed["detail_id"]
+            title, date = listed["title"], listed["date"]
+            body, body_html, detail_id = listed["body"], listed["body_html"], listed["detail_id"]
 
         if not title and not body:
             stats.dead()
             continue
 
         db.store_release(conn, source, url, title=title, date=date, body=body,
+                         body_html=body_html or None,
                          detail_id=detail_id if body else "stub")
         if body:
             stats.added()
@@ -215,6 +248,7 @@ def scrape_lang(lang: str, limit: int = None) -> None:
         if already_stored(conn, url):
             continue
         db.store_release(conn, source, url, title=e["title"], date=e["date"], body=e["body"],
+                         body_html=e["body_html"] or None,
                          detail_id=e["detail_id"] if e["body"] else "stub", commit=False)
         if e["body"]:
             stats.added()

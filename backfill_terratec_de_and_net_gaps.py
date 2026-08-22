@@ -30,6 +30,7 @@ from fetch import SLEEP
 from db import already_stored
 from dates import iso_date
 import db
+import richtext
 from progress import Stats
 from scrape_terratec import parse_snapshot as parse_net_snapshot
 import wayback
@@ -53,8 +54,12 @@ INDEX_PAGES = [
 DATE_RE_DE = re.compile(r"Presse(?:Info|information) vom\s*(\d{1,2}\.\d{1,2}\.\d{2,4})", re.IGNORECASE)
 
 
-def extract_links(html: str, base_url: str) -> list:
-    soup = BeautifulSoup(html, "html.parser")
+def extract_links(content: bytes, base_url: str) -> list:
+    # cp1252 stated, never sniffed: these pages predate UTF-8 and declare no
+    # charset, so left to guess bs4 read them as ISO-8859-1 and stored the
+    # cp1252 punctuation range as C1 control characters (see
+    # repair_encoding.py, which had to undo exactly that).
+    soup = BeautifulSoup(content, "html.parser", from_encoding="cp1252")
     entries = []
     for row in soup.select("tr"):
         a = row.find("a", href=True)
@@ -71,9 +76,25 @@ def extract_links(html: str, base_url: str) -> list:
     return entries
 
 
-def parse_de_snapshot(html: str) -> dict:
-    soup = BeautifulSoup(html, "html.parser")
+def parse_de_snapshot(content: bytes) -> dict:
+    # cp1252 stated, never sniffed: these pages predate UTF-8 and declare no
+    # charset, so left to guess bs4 read them as ISO-8859-1 and stored the
+    # cp1252 punctuation range as C1 control characters (see
+    # repair_encoding.py, which had to undo exactly that).
+    soup = BeautifulSoup(content, "html.parser", from_encoding="cp1252")
     text = soup.get_text(" ", strip=True)
+    # Body from the DOM, date from the flat text. These pages are one big
+    # layout table, and the article's table is the one carrying the most text -
+    # see richtext.densest for why that beats a width= selector here. The flat
+    # text stays for DATE_RE_DE, which scans the whole page including the
+    # header where the date actually sits.
+    body, body_html = richtext.extract(richtext.densest(soup, "table", border="0"))
+    if not body:
+        # No layout table, or one with nothing in it: a handful of these
+        # captures are 290-byte "page moved" stubs. Fall back to the flat text
+        # rather than to nothing - an empty body_html means "not converted",
+        # an empty body would mean the row was wiped.
+        body, body_html = text, None
 
     date = ""
     m = DATE_RE_DE.search(text)
@@ -89,7 +110,7 @@ def parse_de_snapshot(html: str) -> dict:
                 title = bold_tags[i + 1].get_text(strip=True)
             break
 
-    return {"title": title, "date": date, "body": text}
+    return {"title": title, "date": date, "body": body, "body_html": body_html}
 
 
 def already_have_net_filenames(conn: sqlite3.Connection) -> set:
@@ -161,7 +182,8 @@ def backfill() -> None:
         title = parsed["title"] or e["title"]
         date = parsed["date"] or e["date"]
         db.store_release(conn, e["source"], e["url"], title=title, date=date,
-                         body=parsed["body"], detail_id=timestamp)
+                         body=parsed["body"], body_html=parsed["body_html"],
+                         detail_id=timestamp)
         s.added()
 
     for s in stats.values():

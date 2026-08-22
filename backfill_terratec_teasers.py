@@ -25,8 +25,10 @@ from bs4 import BeautifulSoup
 from db import stored_detail_id
 from dates import iso_date
 import db
+import richtext
 from progress import Stats
 import wayback
+from scrape_terratec_portal import parse_snapshot as parse_article_snapshot
 
 
 # (domain prefix, source, wayback snapshot URL) - id_ baked in directly,
@@ -62,9 +64,13 @@ SID_RE = re.compile(r"sid=(\d+)(?:&|$)")
 TITLE_RE = re.compile(r"(\d{2}\.\d{2}\.\d{4})\s*-\s*(.+)")
 
 
-def extract_teasers(html: str) -> dict:
+def extract_teasers(content: bytes) -> dict:
     """Return {sid: (date, title, teaser_text)} for every article on this page."""
-    soup = BeautifulSoup(html, "html.parser")
+    # cp1252 stated, never sniffed: these pages predate UTF-8 and declare no
+    # charset, so left to guess bs4 read them as ISO-8859-1 and stored the
+    # cp1252 punctuation range as C1 control characters (see
+    # repair_encoding.py, which had to undo exactly that).
+    soup = BeautifulSoup(content, "html.parser", from_encoding="cp1252")
     teasers = {}
 
     for a in soup.select("a.pn-title"):
@@ -82,15 +88,16 @@ def extract_teasers(html: str) -> dict:
 
         title_tr = a.find_parent("tr")
         content_tr = title_tr.find_next_sibling("tr") if title_tr else None
-        teaser = ""
+        teaser = teaser_html = ""
         if content_tr:
             content_html = str(content_tr)
             idx = content_html.find('<span class="note">')
             if idx != -1:
                 content_html = content_html[:idx]
-            teaser = BeautifulSoup(content_html, "html.parser").get_text(" ", strip=True)
+            teaser, teaser_html = richtext.extract(
+                BeautifulSoup(content_html, "html.parser"))
 
-        teasers[sid] = (date, title, teaser)
+        teasers[sid] = (date, title, teaser, teaser_html)
 
     return teasers
 
@@ -124,37 +131,32 @@ def recover_full_content(conn: sqlite3.Connection, prefix: str, sid: str, sessio
     return None, not uncertain
 
 
-TITLE_TAG_RE = re.compile(r"(\d{2}\.\d{2}\.\d{4})\s*-\s*(.+?)\s*::\s*Press")
+# parse_article_snapshot is scrape_terratec_portal.parse_snapshot, imported
+# above rather than reimplemented. It was a near-copy: the same TITLE_TAG_RE
+# verbatim, and the same three-step cut - except this copy always split
+# "Related links" before "Links!" while the portal's _cut_at_first_marker
+# takes whichever comes first, so the two disagreed whenever an article's
+# prose contained one of the markers. The portal version also has the
+# month-precision title fallback this one never got, and now produces
+# body_html from the DOM.
 
 
-def parse_article_snapshot(html: str) -> dict:
-    soup = BeautifulSoup(html, "html.parser")
-    title_full = soup.title.get_text(strip=True) if soup.title else ""
-    m = TITLE_TAG_RE.match(title_full)
-    if not m:
-        return {"title": "", "date": "", "body": ""}
-    date_str, title = m.group(1), m.group(2).strip()
-    date = iso_date(date_str, dayfirst=True)
-    heading = f"{date_str} - {title}"
-    text = soup.get_text(" ", strip=True)
-    parts = text.split(heading)
-    body = parts[-1].split("Related links")[0].split("Links!")[0].strip() if len(parts) > 1 else text
-    return {"title": title, "date": date, "body": body}
-
-
-def parse_print_snapshot(html: str) -> dict:
-    soup = BeautifulSoup(html, "html.parser")
+def parse_print_snapshot(content: bytes) -> dict:
+    # cp1252 stated, never sniffed: these pages predate UTF-8 and declare no
+    # charset, so left to guess bs4 read them as ISO-8859-1 and stored the
+    # cp1252 punctuation range as C1 control characters (see
+    # repair_encoding.py, which had to undo exactly that).
+    soup = BeautifulSoup(content, "html.parser", from_encoding="cp1252")
     title_tag = soup.select_one("font.print-title")
     if not title_tag:
-        return {"title": "", "date": "", "body": ""}
+        return {"title": "", "date": "", "body": "", "body_html": ""}
     m = TITLE_RE.match(title_tag.get_text(strip=True))
     if not m:
-        return {"title": "", "date": "", "body": ""}
+        return {"title": "", "date": "", "body": "", "body_html": ""}
     date = iso_date(m.group(1), dayfirst=True)
     title = m.group(2).strip()
-    body_tag = soup.select_one("font.print-normal")
-    body = body_tag.get_text(" ", strip=True) if body_tag else ""
-    return {"title": title, "date": date, "body": body}
+    body, body_html = richtext.extract(soup.select_one("font.print-normal"))
+    return {"title": title, "date": date, "body": body, "body_html": body_html}
 
 
 def backfill() -> None:
@@ -177,7 +179,7 @@ def backfill() -> None:
         print(f"\n[{source}] {len(teasers)} teaser sids to check", flush=True)
         stats = Stats(source, total=len(teasers))
 
-        for sid, (teaser_date, teaser_title, teaser_text) in teasers.items():
+        for sid, (teaser_date, teaser_title, teaser_text, teaser_html) in teasers.items():
             article_url = f"{prefix}modules.php?op=modload&name=News&file=article&sid={sid}"
 
             existing = stored_detail_id(conn, article_url)
@@ -191,11 +193,14 @@ def backfill() -> None:
                 if existing == "teaser":
                     db.upgrade_release(conn, article_url, detail_id=timestamp,
                                        title=parsed["title"], date=parsed["date"],
-                                       body=parsed["body"], commit=False)
+                                       body=parsed["body"],
+                                       body_html=parsed["body_html"] or None,
+                                       commit=False)
                     stats.upgraded()
                 else:
                     db.store_release(conn, source, article_url, title=parsed["title"],
                                      date=parsed["date"], body=parsed["body"],
+                                     body_html=parsed["body_html"] or None,
                                      detail_id=timestamp, commit=False)
                     stats.added()
                 conn.commit()
@@ -214,7 +219,8 @@ def backfill() -> None:
 
             if teaser_text:
                 db.store_release(conn, source, article_url, title=teaser_title,
-                                 date=teaser_date, body=teaser_text, detail_id="teaser")
+                                 date=teaser_date, body=teaser_text,
+                                 body_html=teaser_html or None, detail_id="teaser")
                 stats.teaser()
             else:
                 stats.dead()

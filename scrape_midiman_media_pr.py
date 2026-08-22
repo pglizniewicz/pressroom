@@ -56,6 +56,7 @@ from db import already_stored
 from dates import iso_date
 from encoding import decode_html
 import db
+import richtext
 from progress import Stats
 import wayback
 
@@ -95,14 +96,15 @@ def extract_entries_template_a(soup: BeautifulSoup, base_url: str) -> list:
         url = urljoin(base_url, a["href"])
         date = iso_date(date_td.get_text(strip=True))
 
-        teaser = ""
+        teaser = teaser_html = ""
         next_tr = tr.find_next_sibling("tr")
         if next_tr:
             teaser_td = next_tr.find("td", class_="normaltext")
             if teaser_td:
-                teaser = teaser_td.get_text(" ", strip=True)
+                teaser, teaser_html = richtext.extract(teaser_td)
 
-        entries.append({"title": title, "date": date, "url": url, "body": teaser})
+        entries.append({"title": title, "date": date, "url": url, "body": teaser,
+                        "body_html": teaser_html})
     return entries
 
 
@@ -123,12 +125,13 @@ def extract_entries_template_b(soup: BeautifulSoup, base_url: str) -> list:
         date_str = date_strong.get_text(strip=True).rstrip(" -").strip()
         date = iso_date(date_str)
 
-        teaser = ""
+        teaser = teaser_html = ""
         content_div = div.find("div", id="news-short-content")
         if content_div:
-            teaser = content_div.get_text(" ", strip=True)
+            teaser, teaser_html = richtext.extract(content_div)
 
-        entries.append({"title": title, "date": date, "url": url, "body": teaser})
+        entries.append({"title": title, "date": date, "url": url, "body": teaser,
+                        "body_html": teaser_html})
     return entries
 
 
@@ -150,12 +153,13 @@ def scrape_domain(source: str, listing_url: str, limit: int = None) -> None:
     print(f"[{source}] Listing historical captures of {listing_url}", flush=True)
     entries = wayback.sample_all_captures(conn, session, listing_url, extract_entries, limit=limit)
 
-    best = {}  # (title, date) -> {url, body, detail_id}
+    best = {}  # (title, date) -> {url, body, body_html, detail_id}
     for e in entries:
         key = (e["title"], e["date"])
         cur = best.get(key)
         if cur is None or len(e["body"]) > len(cur["body"]):
-            best[key] = {"url": e["url"], "body": e["body"], "detail_id": e["detail_id"]}
+            best[key] = {"url": e["url"], "body": e["body"],
+                         "body_html": e["body_html"], "detail_id": e["detail_id"]}
 
     print(f"\n[{source}] {len(best)} distinct release entries found across all captures", flush=True)
 
@@ -166,7 +170,8 @@ def scrape_domain(source: str, listing_url: str, limit: int = None) -> None:
             stats.skipped()
             continue
         if db.store_release(conn, source, url, title=title, date=date,
-                            body=e["body"], detail_id=e["detail_id"], commit=False):
+                            body=e["body"], body_html=e["body_html"],
+                            detail_id=e["detail_id"], commit=False):
             stats.added()
     conn.commit()
 

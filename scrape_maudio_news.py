@@ -58,6 +58,7 @@ from db import stored_detail_id
 from dates import iso_date
 from encoding import decode_html
 import db
+import richtext
 from progress import Stats
 import wayback
 
@@ -100,18 +101,19 @@ def parse_listing_page(content: bytes, base_url: str) -> list:
         title = a.get_text(" ", strip=True)
 
         p = a.find_parent("p")
-        teaser = ""
+        teaser = teaser_html = ""
         if p:
             strong = p.find("strong")
             if strong:
                 strong.decompose()
-            teaser = p.get_text(" ", strip=True)
+            teaser, teaser_html = richtext.extract(p)
 
         entries.append({
             "slug": slug,
             "url": DETAIL_URL_TMPL.format(slug),
             "title": title,
             "teaser": teaser,
+            "teaser_html": teaser_html,
             "date": _extract_date(teaser),
         })
     return entries
@@ -126,10 +128,11 @@ def parse_detail(content: bytes) -> dict:
     title = h5.get_text(" ", strip=True) if h5 else ""
     if h5:
         h5.decompose()
-    body = container.get_text(" ", strip=True)
+    body, body_html = richtext.extract(container)
     if not body:
         return {}
-    return {"title": title, "body": body, "date": _extract_date(body)}
+    return {"title": title, "body": body, "body_html": body_html,
+            "date": _extract_date(body)}
 
 
 def discover_listing(conn: sqlite3.Connection) -> list:
@@ -179,11 +182,13 @@ def scrape(limit: int = None) -> None:
             date = parsed.get("date") or e["date"]
             if existing == "teaser":
                 db.upgrade_release(conn, url, detail_id=parsed["detail_id"], title=title,
-                                   date=date, body=parsed["body"], commit=False)
+                                   date=date, body=parsed["body"],
+                                   body_html=parsed["body_html"], commit=False)
                 stats.upgraded()
             else:
                 db.store_release(conn, SOURCE, url, title=title, date=date,
-                                 body=parsed["body"], detail_id=parsed["detail_id"], commit=False)
+                                 body=parsed["body"], body_html=parsed["body_html"],
+                                 detail_id=parsed["detail_id"], commit=False)
                 stats.added()
             conn.commit()
             continue
@@ -201,7 +206,8 @@ def scrape(limit: int = None) -> None:
 
         if e["teaser"]:
             db.store_release(conn, SOURCE, url, title=e["title"], date=e["date"],
-                             body=e["teaser"], detail_id="teaser")
+                             body=e["teaser"], body_html=e["teaser_html"] or None,
+                             detail_id="teaser")
             stats.teaser()
         else:
             stats.dead()

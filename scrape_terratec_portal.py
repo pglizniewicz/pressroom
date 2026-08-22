@@ -32,6 +32,7 @@ from fetch import SLEEP
 from db import already_stored
 from dates import iso_date
 import db
+import richtext
 from progress import Stats
 import wayback
 
@@ -50,6 +51,7 @@ TITLE_TAG_MONTH_RE = re.compile(r"([A-Za-z]+\s+\d{4})\s*-\s*(.+?)\s*::\s*Press")
 # first. Both portals need both markers, which is exactly what the two
 # separate copies of this scraper used to get wrong.
 END_MARKERS = ["Links!", "Related links"]
+END_MARKER_RE = re.compile("|".join(re.escape(m) for m in END_MARKERS))
 
 
 def list_articles(prefix: str) -> list:
@@ -76,8 +78,47 @@ def _cut_at_first_marker(text: str) -> str:
     return text[:cut].strip()
 
 
-def parse_snapshot(html: str) -> dict:
-    soup = BeautifulSoup(html, "html.parser")
+def article_body(soup, heading: str) -> tuple:
+    """(body, body_html) for one portal article, from the DOM.
+
+    The same three cuts the text surgery above makes, done on elements instead
+    of on a string:
+
+      container  the <td> carrying the most text. Calibrated over all 186
+                 cached portal captures: 100% land within 0.85-1.25 of the
+                 previously stored body, against 150/186 for the obvious
+                 `td[valign="top"][width="85%"]` selector - the attributes are
+                 not on every capture, the size is.
+      heading    the "{date} - {title}" line, which the container includes and
+                 the stored body does not (median coverage was 1.05, and this
+                 plus the link block is the 5%).
+      tail       everything from the first END_MARKERS element onward.
+
+    Returns ("", None) when there is no container, so the caller can fall back
+    to the text path rather than store an empty body.
+    """
+    td = richtext.densest(soup, "td")
+    if td is None:
+        return "", None
+
+    work = BeautifulSoup(str(td), "html.parser")
+    norm = lambda t: " ".join(t.split())
+    target = norm(heading)
+
+    for tag in work.find_all(True):
+        if tag.find(True) is None and norm(tag.get_text(" ", strip=True)) == target:
+            tag.decompose()
+            break
+
+    richtext.cut_from(work, END_MARKER_RE)
+    return richtext.extract(work)
+
+
+def parse_snapshot(content: bytes) -> dict:
+    # cp1252 stated, never sniffed - see scrape_terratec.py's parse_snapshot for
+    # why (48 rows across pressde/pressen were stored with the cp1252
+    # punctuation range as C1 control characters until repair_encoding.py).
+    soup = BeautifulSoup(content, "html.parser", from_encoding="cp1252")
 
     # The heading anchor's CSS class isn't present in every capture (some
     # crawls render it as plain bold text instead) - the <title> tag is
@@ -93,16 +134,22 @@ def parse_snapshot(html: str) -> dict:
     title = ""
     date = ""
     body = ""
+    body_html = None
     if m:
         date_str, title = m.group(1), m.group(2).strip()
         date = iso_date(date_str, dayfirst=True, fmt=date_fmt)
 
         heading = f"{date_str} - {title}"
-        text = soup.get_text(" ", strip=True)
-        parts = text.split(heading)
-        body = _cut_at_first_marker(parts[-1]) if len(parts) > 1 else text
+        body, body_html = article_body(soup, heading)
+        if not body:
+            # No container in this capture - keep the old text surgery rather
+            # than store nothing.
+            text = soup.get_text(" ", strip=True)
+            parts = text.split(heading)
+            body = _cut_at_first_marker(parts[-1]) if len(parts) > 1 else text
+            body_html = None
 
-    return {"title": title, "date": date, "body": body}
+    return {"title": title, "date": date, "body": body, "body_html": body_html}
 
 
 def scrape_portal(source: str, prefix: str, limit: int = None) -> None:
@@ -143,7 +190,8 @@ def scrape_portal(source: str, prefix: str, limit: int = None) -> None:
             continue
 
         if db.store_release(conn, source, url, title=parsed["title"],
-                            date=parsed["date"], body=parsed["body"], detail_id=timestamp):
+                            date=parsed["date"], body=parsed["body"],
+                            body_html=parsed["body_html"], detail_id=timestamp):
             stats.added()
 
     stats.summary(conn)

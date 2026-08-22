@@ -72,6 +72,7 @@ from bs4 import BeautifulSoup
 
 from db import stored_detail_id
 import db
+import richtext
 from progress import Stats
 import wayback
 
@@ -139,10 +140,19 @@ def parse_inline_block(block_html: str) -> dict:
 
     text = soup.get_text(" ", strip=True)
     date = _extract_date(text)
-    m = INFOS_BEI_RE.search(text)
-    body = text[:m.start()].strip() if m else text.strip()
 
-    return {"kind": "inline", "title": title, "date": date, "url": None, "body": body}
+    # The contact footer and the arrow links after it are cut at the ELEMENT
+    # level now, not out of the flat string. BLOCK_RE already hands us an HTML
+    # fragment, so there was never a reason to flatten it first - and the h3/h4
+    # headers were decomposed above, so title and body stay disjoint either way.
+    richtext.cut_from(soup, INFOS_BEI_RE)
+    body, body_html = richtext.extract(soup)
+    if not body:
+        m = INFOS_BEI_RE.search(text)
+        body, body_html = (text[:m.start()].strip() if m else text.strip()), None
+
+    return {"kind": "inline", "title": title, "date": date, "url": None,
+            "body": body, "body_html": body_html}
 
 
 def parse_linkout_block(block_html: str, base_url: str) -> dict:
@@ -155,10 +165,13 @@ def parse_linkout_block(block_html: str, base_url: str) -> dict:
         return {}
     url = urljoin(base_url, href)
 
-    text = BeautifulSoup(block_html, "html.parser").get_text(" ", strip=True)
+    block = BeautifulSoup(block_html, "html.parser")
+    text = block.get_text(" ", strip=True)
     date = _extract_date(text)
+    body, body_html = richtext.extract(block)
 
-    return {"kind": "linkout", "title": title, "date": date, "url": url, "body": text}
+    return {"kind": "linkout", "title": title, "date": date, "url": url,
+            "body": body or text, "body_html": body_html or None}
 
 
 def split_subentries(block_html: str) -> list:
@@ -175,7 +188,7 @@ def split_subentries(block_html: str) -> list:
     a real release always ends with exactly one, so 2+ means 2+ releases
     were actually concatenated. Split at each subsequent <h3> that follows
     an "Infos bei:" occurrence."""
-    boundaries = [m.start() for m in re.finditer(r"Infos bei\s*:", block_html, re.IGNORECASE)]
+    boundaries = [m.start() for m in INFOS_BEI_RE.finditer(block_html)]
     if len(boundaries) <= 1:
         return [block_html]
     segments = []
@@ -207,10 +220,10 @@ def parse_generic_page(content: bytes) -> dict:
     soup = BeautifulSoup(content, "html.parser", from_encoding="cp1252")
     for tag in soup.find_all(["script", "style", "title"]):
         tag.decompose()
-    body = soup.get_text(" ", strip=True)
+    body, body_html = richtext.extract(soup)
     if not body:
         return {}
-    return {"body": body}
+    return {"body": body, "body_html": body_html}
 
 
 def scrape(limit: int = None) -> None:
@@ -246,7 +259,8 @@ def scrape(limit: int = None) -> None:
 
         if e["kind"] == "inline":
             db.store_release(conn, SOURCE, url, title=title, date=date,
-                             body=e["body"], detail_id=e["detail_id"])
+                             body=e["body"], body_html=e.get("body_html"),
+                             detail_id=e["detail_id"])
             stats.added()
             continue
 
@@ -258,11 +272,13 @@ def scrape(limit: int = None) -> None:
                 # No title=/date=: the listing block's values are better than
                 # the linked page's, so only the body is upgraded.
                 db.upgrade_release(conn, url, detail_id=parsed["detail_id"],
-                                   body=parsed["body"], commit=False)
+                                   body=parsed["body"], body_html=parsed["body_html"],
+                                   commit=False)
                 stats.upgraded()
             else:
                 db.store_release(conn, SOURCE, url, title=title, date=date,
-                                 body=parsed["body"], detail_id=parsed["detail_id"], commit=False)
+                                 body=parsed["body"], body_html=parsed["body_html"],
+                                 detail_id=parsed["detail_id"], commit=False)
                 stats.added()
             conn.commit()
             continue
@@ -277,7 +293,8 @@ def scrape(limit: int = None) -> None:
 
         if e["body"]:
             db.store_release(conn, SOURCE, url, title=title, date=date,
-                             body=e["body"], detail_id="teaser")
+                             body=e["body"], body_html=e.get("body_html"),
+                             detail_id="teaser")
             stats.teaser()
         else:
             stats.dead()

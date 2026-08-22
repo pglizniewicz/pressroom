@@ -17,6 +17,7 @@ from bs4 import BeautifulSoup
 
 from dates import iso_date
 import db
+import richtext
 import wayback
 
 SOURCE = "terratec_early"
@@ -58,7 +59,7 @@ def extract_entries(html: str, page: dict) -> list:
     for i, (pos, date_str) in enumerate(dates):
         chunk_end = dates[i + 1][0] if i + 1 < len(dates) else len(html)
         chunk_html = html[pos:chunk_end]
-        body = BeautifulSoup(chunk_html, "html.parser").get_text(" ", strip=True)
+        body, body_html = richtext.extract(BeautifulSoup(chunk_html, "html.parser"))
 
         date = iso_date(date_str, dayfirst=True)
 
@@ -70,6 +71,7 @@ def extract_entries(html: str, page: dict) -> list:
             "date_str": date_str,
             "date": date,
             "body": body,
+            "body_html": body_html,
             "url": url,
             "citation": citation,
             "lang": page["lang"],
@@ -116,11 +118,13 @@ def scrape() -> None:
             skipped_de += 1
             continue
         if db.store_release(conn, SOURCE, e["url"], date=e["date"], body=e["body"],
+                            body_html=e["body_html"] or None,
                             detail_id=de_page["timestamp"], commit=False):
             new_count += 1
 
     for e in en_entries:
         if db.store_release(conn, SOURCE, e["url"], date=e["date"], body=e["body"],
+                            body_html=e["body_html"] or None,
                             detail_id=en_page["timestamp"], commit=False):
             new_count += 1
 

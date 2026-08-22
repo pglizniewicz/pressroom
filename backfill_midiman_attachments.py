@@ -196,7 +196,21 @@ def extract_text(content: bytes) -> tuple:
 
 
 def normalize(text: str) -> str:
-    return re.sub(r"\s+", " ", text).strip()
+    """Tidy the extractor's output without flattening it.
+
+    This used to be `re.sub(r"\\s+", " ", text)`, which threw away the one
+    thing `pdftotext -layout` and `antiword` are asked for: the layout. A
+    two-column spec sheet came out as a single run-on line. Only trailing
+    spaces, form feeds (pdftotext's page breaks) and runs of blank lines go.
+
+    These rows keep body_html NULL on purpose - there is no HTML behind a PDF -
+    so the browser renders them through .body--text, i.e. white-space:
+    pre-wrap, which is exactly the right renderer for column layout.
+    """
+    text = text.replace("\r\n", "\n").replace("\r", "\n").replace("\f", "\n\n")
+    text = re.sub(r"[ \t]+\n", "\n", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
 
 
 def backfill_source(source: str, limit: int = None, only_short: bool = False) -> None:
