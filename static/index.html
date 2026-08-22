@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<title>pressroom</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+
+<!-- First in tab order, per the accessibility rules the web-static skill
+     inherits from web-conventions. -->
+<a class="skip-link" href="#content">Przejdź do treści</a>
+
+<header class="topbar">
+  <h1><a href="#order=date">pressroom</a></h1>
+
+  <form id="filters" autocomplete="off">
+    <!-- Every control has a real <label>, hidden visually rather than replaced
+         by aria-label, so the accessible name and the visible one are the same
+         string. -->
+    <p class="field grow">
+      <label class="sr-only" for="q">Szukana treść</label>
+      <input id="q" name="q" type="search"
+             placeholder='AND OR NOT "fraza" prefiks*'>
+    </p>
+    <p class="field">
+      <label for="from">Od</label>
+      <input id="from" name="from" type="text" inputmode="numeric"
+             placeholder="1996" size="8">
+    </p>
+    <p class="field">
+      <label for="to">Do</label>
+      <input id="to" name="to" type="text" inputmode="numeric"
+             placeholder="2026-12" size="8">
+    </p>
+    <p class="field">
+      <label for="order">Sortuj</label>
+      <select id="order" name="order">
+        <option value="rank">trafność</option>
+        <option value="date">data</option>
+      </select>
+    </p>
+    <p class="field">
+      <button type="submit">Szukaj</button>
+    </p>
+  </form>
+
+  <fieldset id="flags" class="flags">
+    <legend class="sr-only">Filtry jakości</legend>
+    <label><input type="checkbox" value="teaser"> teasery</label>
+    <label><input type="checkbox" value="short"> krótkie body</label>
+    <label><input type="checkbox" value="nodate"> bez daty</label>
+    <label><input type="checkbox" value="mojibake"> uszkodzone kodowanie</label>
+    <label><input type="checkbox" value="plain"> bez formatowania</label>
+  </fieldset>
+</header>
+
+<div class="layout">
+  <nav id="panel" class="panel" aria-label="Firmy i źródła"></nav>
+
+  <main id="content" class="content">
+    <h2 id="view-heading" tabindex="-1">Najnowsze</h2>
+    <p id="status" class="status" role="status" aria-live="polite"></p>
+    <div id="list"></div>
+    <p class="more-wrap">
+      <button id="more" type="button" hidden>Doładuj następne</button>
+    </p>
+  </main>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

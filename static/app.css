@@ -1,0 +1,392 @@
+/* pressroom browser - one stylesheet, no framework, no build step.
+   Mobile-first: the base rules are the 375px layout, and every breakpoint is a
+   min-width. Colours live in tokens defined twice, light then dark, so the page
+   follows the reader's system setting. */
+
+/* Reset baseline required by the web-static skill. */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, -apple-system, sans-serif; line-height: 1.5; }
+
+:root {
+  color-scheme: light dark;
+
+  --bg: #fbfaf7;
+  --surface: #ffffff;
+  --fg: #1c1a17;
+  --muted: #5d5a53;
+  --line: #d8d4cb;
+  --accent: #7a3311;
+  --accent-fg: #ffffff;
+  --mark-bg: #ffe9a8;
+  --mark-fg: #241d05;
+  /* Panel group band. Deliberately NOT --surface: that is the item hover
+     colour, so a label painted with it reads as a hovered row. Sits between
+     --bg and --line, i.e. visible as a band without becoming a second accent. */
+  --group-bg: #efebe1;
+
+  --teaser-bg: #ffe1dc;   --teaser-line: #d98d80;
+  --short-bg: #fff0c4;    --short-line: #c8a23f;
+  --full-bg: #e0f0da;     --full-line: #8db97f;
+  --damaged-bg: #ece0ff;  --damaged-line: #a888d8;
+
+  --radius: 6px;
+  --gap: 0.75rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #17161a;
+    --surface: #202025;
+    --fg: #ecebe6;
+    --muted: #aaa69e;
+    --line: #3a3941;
+    --accent: #f6a96a;
+    --accent-fg: #17161a;
+    --mark-bg: #6a4a10;
+    --mark-fg: #fff3d6;
+    --group-bg: #26252c;
+
+    --teaser-bg: #4a2620;   --teaser-line: #92544a;
+    --short-bg: #46390f;    --short-line: #8d7527;
+    --full-bg: #223a1f;     --full-line: #547f47;
+    --damaged-bg: #33254a;  --damaged-line: #6b53a0;
+  }
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 1rem;
+}
+
+a { color: var(--accent); }
+
+:where(a, button, input, select, summary):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* The view heading takes focus after every hash change so keyboard and screen
+   reader users land on the new content. It is not a control and the focus is
+   transient, so it never paints a ring: browsers count a scripted focus as
+   :focus-visible, which would draw a box around the heading on every single
+   navigation. */
+#view-heading:focus, #view-heading:focus-visible { outline: none; }
+
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.skip-link {
+  position: absolute;
+  inset-block-start: -3rem;
+  inset-inline-start: 0;
+  z-index: 3;
+  padding: 0.5rem 0.75rem;
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+.skip-link:focus { inset-block-start: 0; }
+
+/* ---- header ---- */
+
+.topbar {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 2;
+  padding: var(--gap);
+  background: var(--bg);
+  border-block-end: 1px solid var(--line);
+}
+.topbar h1 { font-size: 1.05rem; margin-block-end: 0.5rem; }
+.topbar h1 a { text-decoration: none; }
+
+#filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem var(--gap);
+  align-items: end;
+}
+.field { display: flex; flex-direction: column; gap: 0.15rem; }
+.field.grow { flex: 1 1 14rem; }
+.field label { font-size: 0.8rem; color: var(--muted); }
+
+input, select, button {
+  font: inherit;
+  padding: 0.3rem 0.45rem;
+  color: var(--fg);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+button { cursor: pointer; }
+button:hover { border-color: var(--accent); }
+
+.flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  margin-block-start: 0.5rem;
+  border: 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.flags label { display: inline-flex; align-items: center; gap: 0.3rem; }
+
+/* ---- layout: one column on phones, sidebar from 60rem up ---- */
+
+.layout {
+  display: grid;
+  gap: var(--gap);
+  padding: var(--gap);
+  align-items: start;
+}
+
+@media (min-width: 60rem) {
+  .layout { grid-template-columns: 15rem minmax(0, 1fr); }
+  .panel { position: sticky; inset-block-start: 8.5rem; }
+}
+
+/* ---- panel: companies (default) or sources ---- */
+
+.panel { font-size: 0.85rem; }
+.panel h2 { font-size: 0.85rem; color: var(--muted); margin-block-end: 0.35rem; }
+.panel .switch { display: flex; gap: 0.4rem; margin-block-end: 0.5rem; }
+.panel .switch a {
+  padding: 0.15rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  text-decoration: none;
+}
+.panel .switch a[aria-current="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-fg);
+}
+.panel .hint {
+  color: var(--muted);
+  font-size: 0.75rem;
+  margin-block-end: 0.4rem;
+}
+.panel ul { list-style: none; }
+.panel li + li { margin-block-start: 1px; }
+.panel a.pick {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0 0.5rem;
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
+  text-decoration: none;
+  color: var(--fg);
+}
+.panel a.pick:hover { background: var(--surface); }
+.panel a.pick[aria-current="true"] { background: var(--accent); color: var(--accent-fg); }
+.panel a.pick .n { color: var(--muted); font-variant-numeric: tabular-nums; }
+.panel a.pick[aria-current="true"] .n { color: var(--accent-fg); }
+/* flex-basis 100% keeps the year range on its own line every time, so items
+   do not jump between one and two lines as the panel is resized. */
+.panel a.pick .yrs {
+  flex: 0 0 100%;
+  font-size: 0.75rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.panel a.pick[aria-current="true"] .yrs { color: var(--accent-fg); }
+/* The group label has to out-rank the items under it. The first attempt was
+   0.75rem in --muted, i.e. smaller and paler than the 0.85rem --fg source
+   names below it, which read as a caption on the item above rather than as a
+   heading over the ones below - and it shared --muted with the year lines, so
+   it competed with them instead of framing them. Full contrast, uppercase and
+   letter-spacing make a small label read as a label; the rule under it does
+   the separating so the text does not have to. */
+.panel li.grp + li.grp { margin-block-start: 0.9rem; }
+.panel .grp-label {
+  /* 12px, not 11.2: the complaint was legibility, and the longest label
+     ("MIDIMAN / M-AUDIO") measures 151px uppercased in a 240px panel, so
+     there is no reason to shave it. Still clearly below the 13.6px item
+     text, which is what carries the rank. */
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg);
+  padding-inline: 0.4rem;
+  padding-block: 0.15rem;
+  margin-block-end: 0.3rem;
+  background: var(--group-bg);
+  border-radius: 4px;
+}
+/* Items sit slightly inside the label, so the nesting is visible as shape and
+   not only as typography. */
+.panel li.grp > ul { padding-inline-start: 0.35rem; }
+.panel .span { color: var(--muted); font-size: 0.75rem; padding-inline: 0.4rem; }
+
+/* ---- results ---- */
+
+.content { min-width: 0; }
+.content > h2 { font-size: 1.15rem; margin-block-end: 0.25rem; }
+.status { color: var(--muted); font-size: 0.85rem; margin-block-end: var(--gap); }
+
+.hits { list-style: none; }
+
+.hit {
+  padding: 0.6rem 0.75rem;
+  margin-block-end: 0.5rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  contain: layout style paint;
+}
+@supports (content-visibility: auto) {
+  .hit { content-visibility: auto; contain-intrinsic-size: auto 7rem; }
+}
+.hit .meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 0.5rem;
+  align-items: center;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+.hit .meta .firm { color: var(--fg); font-weight: 600; }
+.hit .meta .tag { font-family: ui-monospace, monospace; }
+.hit h3 { font-size: 1rem; margin-block: 0.2rem; }
+.hit h3 a { text-decoration: none; }
+.hit p { font-size: 0.9rem; color: var(--fg); }
+
+mark { background: var(--mark-bg); color: var(--mark-fg); }
+
+.badge {
+  padding-inline: 0.3rem;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  font-size: 0.7rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--fg);
+}
+.badge.teaser { background: var(--teaser-bg); border-color: var(--teaser-line); }
+.badge.short { background: var(--short-bg); border-color: var(--short-line); }
+.badge.full { background: var(--full-bg); border-color: var(--full-line); }
+.badge.damaged { background: var(--damaged-bg); border-color: var(--damaged-line); }
+
+.more-wrap { margin-block: var(--gap) 2rem; }
+
+/* ---- detail ---- */
+
+.detail {
+  padding: 1rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.detail .meta { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center;
+                font-size: 0.8rem; color: var(--muted); }
+.detail h3 { font-size: 1.3rem; margin-block: 0.4rem; }
+.detail .links { font-size: 0.8rem; margin-block-end: 0.5rem; word-break: break-all; }
+.detail .body {
+  overflow-wrap: break-word;
+  font: inherit;
+  border-block-start: 1px solid var(--line);
+  padding-block-start: 0.75rem;
+}
+/* Rows that predate richtext.py are one flat blob: pre-wrap is the only thing
+   that gives them any line breaks at all. Rows with body_html get real
+   elements instead, and pre-wrap there would honour the source indentation. */
+.detail .body--text { white-space: pre-wrap; }
+
+.detail .body--rich > :first-child { margin-block-start: 0; }
+.detail .body--rich > :last-child { margin-block-end: 0; }
+.detail .body--rich p { margin-block: 0.75em; }
+.detail .body--rich h3 { font-size: 1.15rem; margin-block: 1.2em 0.5em; }
+.detail .body--rich h4 { font-size: 1rem; margin-block: 1.2em 0.5em; }
+.detail .body--rich ul,
+.detail .body--rich ol { margin-block: 0.75em; padding-inline-start: 1.5em; }
+.detail .body--rich li { margin-block: 0.25em; }
+.detail .body--rich blockquote {
+  margin-block: 0.75em;
+  margin-inline: 0;
+  padding-inline-start: 0.9em;
+  border-inline-start: 3px solid var(--line);
+  color: var(--muted);
+}
+.detail .body--rich hr { border: 0; border-block-start: 1px solid var(--line); margin-block: 1em; }
+.detail .body--rich img { max-width: 100%; height: auto; }
+.detail .body--rich .img-missing {
+  display: inline-block;
+  font-size: 0.75rem;
+  color: var(--muted);
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  padding: 0.15em 0.4em;
+  word-break: break-all;
+}
+/* A spec sheet from a 2002 press release is a real table and can be wider
+   than the column; it scrolls inside itself rather than the page. */
+.detail .body--rich table {
+  display: block;
+  overflow-x: auto;
+  max-width: 100%;
+  border-collapse: collapse;
+  margin-block: 0.75em;
+  font-size: 0.9rem;
+}
+.detail .body--rich th,
+.detail .body--rich td {
+  border: 1px solid var(--line);
+  padding: 0.3em 0.5em;
+  text-align: start;
+  vertical-align: top;
+}
+.detail .nav-rel {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-block-start: 0.75rem;
+  padding-block-start: 0.5rem;
+  border-block-start: 1px solid var(--line);
+  font-size: 0.8rem;
+}
+
+/* ---- audit ---- */
+
+.cards { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-block-end: var(--gap); }
+.card {
+  flex: 1 1 7rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.card b { display: block; font-size: 1.3rem; font-variant-numeric: tabular-nums; }
+.card span { font-size: 0.75rem; color: var(--muted); }
+
+.table-wrap { overflow-x: auto; }
+table.audit { border-collapse: collapse; width: 100%; font-size: 0.8rem;
+              background: var(--surface); }
+table.audit caption { text-align: start; color: var(--muted); padding-block-end: 0.3rem; }
+table.audit th, table.audit td {
+  border: 1px solid var(--line);
+  padding: 0.25rem 0.5rem;
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+table.audit th[scope="col"] { background: var(--bg); }
+table.audit th[scope="row"], table.audit td:first-child { text-align: start; }
+table.audit td.zero { color: var(--muted); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
