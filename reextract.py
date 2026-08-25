@@ -28,6 +28,10 @@ Six shapes, and they are not interchangeable:
   retext          re-derive `body` from the stored `body_html`. Needs no bytes
                   at all.
 
+A title is filled only where the row has none (`_fill_title`), which is the one
+thing these shapes write besides the body - and the rule that a new extraction
+rule goes in as a *fallback*, never a replacement, is why.
+
 Three rules hold in every one of them, and each cost data before it was a rule:
 
 1. **The cursor is `body_html IS NULL`** for that source. `force=True` widens it
@@ -91,14 +95,35 @@ def _report_held(held: list) -> None:
         print(f"  {why:26} {url}")
 
 
-def _write(conn, url, body, body_html, *, origin_url=None, detail_id=None) -> None:
+def _fill_title(conn, url: str, parsed: dict):
+    """A title for a row that has none, or None.
+
+    **Fill-if-empty only, never a replacement.** This is what a deleted repair
+    pass did in one shot (37 of 54 empty titles recovered from cache, 17 rows
+    that carry no headline markup at all being the end state), and the reason it
+    only ever wrote over an empty title is measured: the same rule tried as a
+    replacement filled 8 rows and *changed* 30, twelve of them from a correct
+    title to an empty one. There are also 14 terratec_de rows where the current
+    parser disagrees with the stored title, twice substantively - that wants its
+    own measured pass, not a side effect of a re-extraction.
+    """
+    title = (parsed.get("title") or "").strip()
+    if not title:
+        return None
+    row = conn.execute("SELECT COALESCE(title, '') FROM releases WHERE url = ?",
+                       (url,)).fetchone()
+    return title if row is not None and not row[0].strip() else None
+
+
+def _write(conn, url, body, body_html, *, origin_url=None, detail_id=None,
+           title=None) -> None:
     """One write per row: text, markup, verdict and provenance in one call.
 
     `grade="full"` is not optional here - this is the pass that replaces a
     teaser body with the real article, and a row keeping a verdict that stopped
     being true gets handed to the next run as still-upgradable.
     """
-    db.upgrade_release(conn, url, body=body, body_html=body_html,
+    db.upgrade_release(conn, url, body=body, body_html=body_html, title=title,
                        detail_id=detail_id, grade="full", origin_url=origin_url)
 
 
@@ -156,7 +181,8 @@ def from_cache(conn, source: str, parser, *, has_collector: bool = False,
             # *is* the recorded entry, so clearing it deletes a true statement
             # and takes the row's archive link with it (38 rows lost their link
             # that way before the count gave it away).
-            _write(conn, url, body, body_html, origin_url=key)
+            _write(conn, url, body, body_html, origin_url=key,
+                   title=_fill_title(conn, url, parsed))
             stats.upgraded()
 
     stats.summary(conn)
@@ -203,7 +229,8 @@ def from_listings(conn, source: str, collect, *, force: bool = False,
                 break
         else:
             _write(conn, url, body, e.get("body_html") or "",
-                   origin_url=e.get("origin_url"))
+                   origin_url=e.get("origin_url"),
+                   title=_fill_title(conn, url, e))
             stats.upgraded()
 
     stats.summary(conn)
@@ -322,7 +349,8 @@ def retry_missing(conn, source: str, parser, session, *, limit=None) -> None:
             # parser still finds text in. Formatting is not worth losing text.
             stats.skipped()
             continue
-        _write(conn, url, body, body_html, origin_url=key, detail_id=new_detail_id)
+        _write(conn, url, body, body_html, origin_url=key, detail_id=new_detail_id,
+               title=_fill_title(conn, url, parsed))
         stats.upgraded()
 
     stats.summary(conn)

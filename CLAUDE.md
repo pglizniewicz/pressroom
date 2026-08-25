@@ -2,9 +2,10 @@
 
 Recovers historical company press releases — mostly from **dead sites, via the
 Wayback Machine** — into one SQLite database (`pressroom.db`) with a full-text
-index. A set of one-shot CLI scripts plus two readers: `search.py` (CLI) and
-`serve.py` (a local read-only HTTP browser on 127.0.0.1, stdlib + vanilla JS).
-No third-party dependencies, no build step, no auth, no tests.
+index. One CLI per source plus two readers: `search.py` (CLI) and `serve.py` (a
+local read-only HTTP browser on 127.0.0.1, stdlib + vanilla JS). A scraper is the
+only thing anyone runs, and a rerun picks up whatever the last one could not get.
+No build step, no auth, no tests.
 
 Currently ~6700 rows across 25 sources: Intel, AMD, Creative, TerraTec (5 site
 generations), Midiman/M-Audio (5 CMS generations), and Sound on Sound - the
@@ -16,6 +17,8 @@ here with content going back to 2000.
 ```bash
 uv venv && uv pip install -e ".[globenewswire]"             # Python 3.14
 .venv/bin/python scrape_terratec_portal.py --limit 5
+.venv/bin/python scrape_terratec_portal.py --offline     # re-extract, no network
+.venv/bin/python verify_body_origin.py                   # read-only checks
 .venv/bin/python search.py "Radium" --source midiman_com_pressdb
 .venv/bin/python serve.py                                   # http://127.0.0.1:8765
 ```
@@ -53,27 +56,55 @@ into `fetch.py`/`q4.py` for exactly this reason):
 | `richtext.py` | `extract()` — a parsed node to `(body, body_html)`: the tag allowlist, the sanitizer, the plain-text renderer. Plus `densest()`/`cut_from()`, which locate the article subtree before it is converted |
 | `progress.py` | `Stats` — the shared outcome vocabulary and summary line |
 | `q4.py` | the Q4 Inc. IR-platform parser (Intel + AMD only) |
-| `attachments.py` | what an attachment's bytes mean: `.pdf`/`.doc` -> text (`plain_text`), or a PDF -> our HTML subset (`to_richtext`). Shells out to `pdftotext`/`antiword`; no network, no SQL |
+| `attachments.py` | what an attachment's bytes mean: `.pdf`/`.doc` -> text (`plain_text`), or a PDF -> our HTML subset (`to_richtext`). Shells out to `pdftotext`/`antiword`; no network, no SQL. Also the two predicates that ask the same question before and after a fetch: `is_attachment_url()` on an address, `is_attachment()`/`looks_like_html()` on bytes - one magic-byte table, both directions |
+| `bodygate.py` | may this text replace what is stored: `safe_to_write`, `strict_same_text`, `same_words`, `not_shorter`, and `text_delta` underneath them. `re` and `collections` only - no SQL, no network, no parser |
+| `captures.py` | where a row's bytes are: `origin_key()` (what `body_origin` recorded, falling back to the address the row implies), `own_page()` - the question that picks the gate - and `cached()` |
+| `reextract.py` | phase 2 of a scraper's run: the six shapes that used to be a CLI's modes, each taking the parser/collector/fetcher from its caller. Imports no scraper, so every scraper imports it |
+| `attachment_crawl.py` | the second contract: phase 2 for the rows whose url is a `.pdf`/`.doc`. The extractor is the parser, the address comes from `body_origin` or a mirror domain, and the network half is opt-in |
+| `twins.py` | filling a teaser from its twin row in the same source. No capture involved, which is why it is not part of `reextract.py` - and the only caller `db.clear_body_origin()` has |
 
-Scripts: `scrape_<source>.py` = a source's primary pass. `backfill_<...>.py` =
-a follow-up pass that upgrades rows an earlier pass could only store as
-teasers. `repair_<...>.py` / `migrate_<...>.py` = one-time fixes and imports,
-kept rather than deleted so the change is reproducible. `search.py` and
-`serve.py` = the two readers; both go through `db.py` and both open the
+**Scripts: `scrape_<source>.py` is the only thing anyone runs.** It owns a
+source's whole job - discovery *and* the catch-up over everything an earlier run
+could not get - and a rerun is expected to pick up exactly what the last one
+missed. `--offline` makes a run free and touches nothing on the network;
+`--force` re-extracts every row after a parser change (and asks first);
+`--retext` re-derives text after a renderer change; `--seed-cache` fetches
+captures and parses nothing.
+
+**There is no `backfill_`, `repair_` or `migrate_` family any more, and
+reintroducing one is the smell.** Those prefixes named a *moment* - "the gap has
+been filled", "the damage has been undone" - and every one of them outlived it:
+`repair_encoding.py`'s own docstring ended up reading "written as a one-off and
+no longer one". Two rules replaced them, on 2026-08-25:
+
+- **a pass that has to be re-run after a crawl belongs in the write path or in
+  the scraper.** Provenance and the encoding repair both moved into
+  `db.store_release`/`upgrade_release` and `richtext.extract()`; the re-extraction
+  modes became `reextract.py` and are driven by the scraper that owns the tag.
+- **a fix that is genuinely finished gets deleted.** Git holds the code (`git
+  show <sha>:repair_cache_hashes.py`), this file holds what it established. The
+  five deleted one-shots are recorded in the sections below, with their numbers.
+
+`search.py` and `serve.py` = the two readers; both go through `db.py` and both open the
 database read-only, so neither can touch `releases` or the FTS index.
 `static/` = the browser's three files (`index.html`, `app.js`, `app.css`),
 served from a name whitelist in `serve.py`. `checks.md` = the browser's
 site-specific check manifest, in the format the `web-static` skill executes.
 `verify_<...>.py` = a read-only check that a claim in the database still holds,
-run after anything that could break it. `calibrate_<...>.py` = a read-only
+run after anything that could break it - `verify_body_origin.py` (a recorded
+origin really produces the body it claims) and `verify_encoding.py` (nothing
+repairable is stored, and the two detectors still agree). Both are what a
+deleted repair leaves behind: the reporting half survives, the writing half
+moved into the write path. `calibrate_<...>.py` = a read-only
 review pass over the whole cache, printing
 metrics *and* writing a page of full texts: `calibrate_containers.py` for DOM
 containers, `calibrate_attachments.py` for the attachment converters. The
 second half is not decoration - a column of metrics once said "100% of words
 kept" about a conversion that had put the release's headline after the footer.
 
-- `attachments.py` owns attachment extraction, `backfill_midiman_attachments.py`
-  owns the crawl. System binaries, deliberately, in a repo that declares no
+- `attachments.py` owns attachment extraction, `attachment_crawl.py` owns the
+  crawl, and the two scrapers whose tags hold those rows
+  (`scrape_midiman_pressdb.py`, `scrape_midiman_media_pr.py`) call it. System binaries, deliberately, in a repo that declares no
   Python dependencies. Dispatch on **magic bytes, not the extension** — CMS-era
   attachments are routinely mislabeled, and 7 of this corpus's ".pdf" URLs are
   an HTML soft-404.
@@ -147,7 +178,7 @@ duplication is intended (mirrors, no dedup key). *Within* one source the same
 release sometimes exists twice because the CMS published it under two URL
 schemes on one domain (`news/en_us-596.html` and
 `index.php?do=media.new&ID=596`), and one copy is a listing blurb while the
-other is the full article. `backfill_twin_bodies.py` fills the short one from
+other is the full article. `twins.py` fills the short one from
 its twin with **no network at all** - 111 rows recovered on 2026-08-21. It
 never deletes or merges: `releases.url` stays the dedup key, both URLs really
 existed, so both rows stay and only `body` (and `detail_id`, to keep provenance
@@ -250,7 +281,7 @@ fixtures, so it wants its own pass.
 
 **Duplication across tags is still intended for HTML bodies.** The same release
 lives on several mirrors under unrelated URL schemes, their bodies are separate
-extractions, and `backfill_twin_bodies.py` refuses to pair across tags for
+extractions, and `twins.py` refuses to pair across tags for
 exactly that reason - within one tag it fills 111 rows from a twin, across tags
 it would invent a fact. The measured picture: 238 groups (493 rows) share a tag
 *and* byte-identical text, 123 groups share a domain but not a tag (mostly the
@@ -357,21 +388,40 @@ explicit, and records three diagnostic encoding signals per capture in
 
 Damage is greppable: `â€` means UTF-8 read as something 8-bit; a raw C1
 control character (`\x99` etc.) means cp1252 read as ISO-8859-1. Because
-`page_cache` holds the original bytes, both are repairable with no refetch —
-see `repair_couk_news_encoding.py`.
+`page_cache` holds the original bytes, both are repairable with no refetch — and
+that is now what a rerun of the scraper does, since the repair lives in the write
+path.
 
-**Re-run `repair_encoding.py` after any pass that rewrites bodies from the
-network.** Some of this damage is *upstream*, not ours: ir.amd.com serves
-`\xc2\x99` — valid UTF-8 for the C1 control U+0099 — where it means `™`, so
-decoding it correctly still yields a control character. The 2026-08-21
-`backfill_body_html.py` run brought 10 amd rows and 24 creative rows straight
-back after the 2026-08-20 repair had fixed them, because a refetch overwrites a
-text-level repair. The script now repairs `body_html` alongside `body`, so the
-two representations stay in agreement.
+**The repair is in the write path, so there is nothing to re-run** (since
+2026-08-25). It used to be a rule - "re-run `repair_encoding.py` after any pass
+that rewrites bodies from the network" - and the rule is exactly what failed: the
+2026-08-21 re-extraction brought 10 amd rows and 24 creative rows straight back
+after the 2026-08-20 repair had fixed them, because a refetch overwrites a
+text-level repair and nobody ran the follow-up.
+
+It has to be at the write, not at the decode, because some of this damage is
+*upstream*: ir.amd.com serves `\xc2\x99` — valid UTF-8 for the C1 control
+U+0099 — where it means `™`, so decoding it *correctly* still yields a control
+character. Two places, each owning what it can keep consistent:
+
+- **`richtext.extract()`** repairs the emitted HTML **before** `to_text()` renders
+  from it. That ordering is the point: `body` is by definition
+  `to_text(body_html)`, and repairing the two independently could break it -
+  `undo_mojibake` accepts a round trip only when every qualifying codepage
+  agrees, and text with tags in it can answer that differently from text without.
+  Measured after the change: 5919 rows with markup, **0 mismatches**.
+- **`db.store_release`/`upgrade_release`** repair a `title` (no markup twin) and a
+  `body` whose `body_html` is NULL (attachments, flat fallbacks).
+
+`db.REPAIRS` counts what was undone, by method, and `progress.Stats.summary()`
+prints it - a run that fixes 10 amd rows says so on the way past. Silence means
+there was nothing to fix. `verify_encoding.py` is the read-only check that
+replaced the script's reporting; its expected output is **0 repairable, 1
+refused** (#4978's three 0x81 bytes), plus the two detectors agreeing.
 
 **A wrong decode already stored in the DB is undone in text, not refetched.**
-`encoding.repair_text()` owns both inversions and `repair_encoding.py` applies
-them (157 rows, 8 sources, 2026-08-20): C1 characters go back through cp1252
+`encoding.repair_text()` owns both inversions, and the historical pass that
+applied them across the corpus did 157 rows over 8 sources on 2026-08-20: C1 characters go back through cp1252
 *per character* — a whole-string `encode("latin-1")` dies on the mixed rows
 that need it most — and mojibake is re-encoded with the charset it was misread
 as, accepted only when the round trip leaves no markers and every qualifying
@@ -381,7 +431,8 @@ deliberately not a candidate: it re-encodes cleanly and produces garbage.
 
 Detection lives in two places on purpose: `encoding.C1_RE`/`MOJIBAKE_RE` for
 the repair, and `db.py`'s `_MOJIBAKE_SQL` for the browser's audit view, because
-SQLite has no regex. Change the rule and change both — and note that they had
+SQLite has no regex. `verify_encoding.py` compares the two counts on every run
+for exactly this reason. Change the rule and change both — and note that they had
 in fact drifted: the SQL named five C1 codepoints by hand while the regex
 always matched the whole `0x80-0x9F` range, so the audit view reported 12
 damaged rows where the repair found 35. `_C1_SQL` now generates all 32
@@ -419,8 +470,10 @@ Three things `richtext.py` does that are decisions, not cleanup:
   from a page banner built out of `top.gif` and 1x1 spacers.
 
 **A title comes from markup that means "headline", never from the body.**
-54 rows carried an empty `title` until 2026-08-22 and `repair_missing_titles.py`
-recovered 37 of them from `page_cache` with no network at all. Four unrelated
+54 rows carried an empty `title` until 2026-08-22, when a one-shot pass
+recovered 37 of them from `page_cache` with no network at all. The rule it was
+built on lives in `reextract._fill_title` now: a title is written **only over an
+empty one**, never as a replacement. Four unrelated
 causes, which is why one fix would not have done it: `terratec_early` never
 extracted a title in the first place (those two 1996-97 pages have no headline
 markup - `scrape_terratec_early.headline()` reads it off the rigid
@@ -446,8 +499,8 @@ Three rules the repair is built on, each of which cost a measurement:
   that for whatever slips through.
 - **The script writes the title and nothing else.** Several of these captures
   now parse to a better *body* too (portal sid=367 goes from 0 to 4547
-  characters), but a body rewrite belongs to `backfill_body_html.py`, which owns
-  `safe_to_write`. Widening the repair to "everything the parser now returns"
+  characters), but a body rewrite belongs to the re-extraction shapes, which go
+  through `bodygate`. Widening the repair to "everything the parser now returns"
   would be a bulk body update with no gate on it.
 
 17 rows keep an empty title and that is the end state: ten PHP-Nuke skeletons
@@ -460,42 +513,48 @@ A separate, dormant discrepancy this measurement turned up: for **14
 by collapsing a literal `\r\n      ` the listing pass stored inside it, but
 twice substantively (#4168 `GeForce FX: Neue Mystify 5800…` vs `GeForce`, #4172
 a title vs nothing). Nothing writes them today - no mode of
-`backfill_body_html.py` passes `title=` - so they are recorded here rather than
-fixed blind.
+anything passes a title over a non-empty one - so they are recorded here rather
+than fixed blind.
 
 **A row's URL is not always a page that existed.** Two shapes, and they need
 opposite treatment:
 
 - *page-derived* - the row has its own capture (`terratec`, `terratec_de`,
-  the portals, the 2001 GoLive pages). `--seed-cache`, then `CACHED_PARSERS`.
+  the portals, the 2001 GoLive pages). `--seed-cache`, then `from_cache` with
+  the scraper's own parser.
 - *listing-derived* - the release only ever existed inside a listing, so the
   scraper minted the URL. `scrape_midiman_de` builds
   `/press/{slug}-{date}`; `scrape_terratec_early` uses `presse2.htm#p20`
   anchors into one page. Their `detail_id` is the *listing* capture's
   timestamp, so a per-row fetch is 64 guaranteed 404s - hence
-  `SYNTHETIC_URL_SOURCES`. `--listings` walks the cached listing captures
-  instead and matches back by URL. It only ever UPDATEs: a parse matching no
+  a per-row fetch would be pointless. Their scrapers therefore pass a
+  *collector* and no `retry_missing`: `from_listings` walks the cached listing
+  captures instead and matches back by URL. It only ever UPDATEs: a parse matching no
   stored URL is dropped, never inserted, so a re-extraction cannot mint rows
   under URLs nobody has seen.
 - *listing-derived with a real URL* - `terratec_new_de`/`_en`. The hrefs were
   genuinely on the page, so these are not synthetic; archive.org simply never
-  captured 15 of them (CDX says zero, confirmed 2026-08-22 - `--wayback`
+  captured 15 of them (CDX says zero, confirmed 2026-08-22 - `retry_missing`
   reports all 15 as `dead`). Same treatment as the synthetic ones, opposite
   reason: nothing to fetch because nothing was ever there.
 
-**`--listings` needs both of its guards, and it got them the hard way.** It is
-the one mode with no `body_html IS NULL` cursor of its own and no length floor,
-and joining `terratec_new` to it cost data within one run on 2026-08-22: the
-pass walked all 159 rows, not the 24 pending ones, and **122 full articles were
-overwritten by their listing teasers** (#4445 4287 -> 359 characters). This CMS
-embeds the full text on the listing for recent releases and truncates older
-entries, so a listing entry is not automatically the better copy.
-`safe_to_write` cannot catch it: it refuses text vanishing from the *middle*,
-and a lost tail is `edges_only` - the same signature as correctly dropped nav.
-So the mode now skips rows that already carry `body_html` (`--force` widens it)
-and refuses any body shorter than the stored one, the same floor `--wayback`
-has. Restored from the pre-run copy of the DB, which is why that copy is a rule
-here and not advice.
+**The listing shape needs both of its guards, and it got them the hard way.**
+It was once the one mode with no `body_html IS NULL` cursor of its own and no
+length floor, and joining `terratec_new` to it cost data within one run on
+2026-08-22: the pass walked all 159 rows, not the 24 pending ones, and **122 full
+articles were overwritten by their listing teasers** (#4445 4287 -> 359
+characters). This CMS embeds the full text on the listing for recent releases and
+truncates older entries, so a listing entry is not automatically the better copy.
+`safe_to_write` cannot catch it: it refuses text vanishing from the *middle*, and
+a lost tail is `edges_only` - the same signature as correctly dropped nav.
+
+Both guards now live in `reextract.py`, applying to **every** shape rather than
+to the one that was caught: the cursor, and `bodygate.not_shorter` under every
+other gate including `--force`. Re-checked on 2026-08-25 by running
+`--force` over `terratec_new_de` on a copy - the floor held back every listing
+entry that was shorter, **0 rows changed, 0 shrank**. The original loss was
+restored from the pre-run copy of the DB, which is why that copy is a rule here
+and not advice.
 
 **A timestamp does not say which page it is a capture of, and `body_origin`
 is where that is written down.** `releases.detail_id` holds the capture a row's
@@ -506,7 +565,7 @@ capture was never lost - `web/20111011173713/…/presse.html` holds that
 release's full text, character for character what the row stores, while CDX has
 no capture of the article's own URL at all.
 
-`repair_capture_provenance.py` recovers the pairing from `page_cache` with no
+A one-shot pass recovered the pairing from `page_cache` with no
 network: candidates are only the cached captures carrying the **same
 timestamp** - so `detail_id` still does the identifying, this never goes
 looking for a plausible page - and the body is then located in the candidate's
@@ -545,8 +604,10 @@ over the recorded capture, compared to what the row stores. Read-only. Measured
 ones. Of the rest, 34 have no cached bytes to check against, 21 are
 `terratec_early`, whose bodies are anchors into one listing page that only the
 url-keyed collector can separate, and **two are known**: #4355, where the page
-itself carries `\xc2\x96` where a dash belongs and `repair_encoding.py` fixed the
-row (so the database is better than a fresh parse), and #6211, whose stored body
+itself carries `\xc2\x96` where a dash belongs and the row was repaired (so the
+database was better than a fresh parse - and since the repair moved into
+`richtext.extract()`, a fresh parse now agrees with it, which is why this row
+stopped being reported on 2026-08-25), and #6211, whose stored body
 is several releases concatenated by an old extraction - rewriting it would delete
 text belonging to other rows. Run it after any pass that touches bodies or
 origins; it is the guarantee `matched` only pretended to be.
@@ -554,19 +615,37 @@ origins; it is the guarantee `matched` only pretended to be.
 **The pass that reads the bytes records where they came from** (2026-08-25).
 `db.record_body_origin()` is now called next to the body write, in the same
 transaction, at all five re-extraction sites that have the address in hand:
-`backfill_body_html`'s `run_cached`, `run_listings` and `run_wayback`, and
-`backfill_midiman_attachments`' crawl, `--from-cache` and `--richtext`. The
+`reextract`'s `from_cache`, `from_listings` and `retry_missing`, and
+`attachment_crawl`'s crawl, cache re-extraction and richtext conversion. The
 listing collectors carry `origin_url` on each entry for it - they used to parse
 a capture and throw its address away. `run_retext` records nothing on purpose:
 its text comes from the stored HTML, no capture involved.
 
-Before this, all 1727 entries were written by `repair_capture_provenance.py`
-*after the fact*, which is why 149 of them had to be found by searching captures
-for the body's text, and why four entries pointed at the original server's error
-page until a content check caught them. Neither can happen to a row written from
-now on. **The scrapers are deliberately not converted** - ~20 `store_release`
-call sites in a repo with no tests - so a fresh crawl still needs the repair
-afterwards. That is the documented ritual, not an oversight.
+Before this, all 1727 entries were written by a repair pass *after the fact*,
+which is why 149 of them had to be found by searching captures for the body's
+text, and why four entries pointed at the original server's error page until a
+content check caught them. Neither can happen to a row written from now on.
+
+**The scrapers are converted too, since 2026-08-25, and the argument for not
+converting them turned out to be wrong in both halves.** It read: "the deliberate
+trade - one documented ritual, against threading a `capture_url=` argument
+through ~25 `store_release` call sites where passing a platform id by mistake
+would silently mint dead links."
+
+- *The argument was never really threaded.* `wayback.sample_all_captures()` and
+  `fetch_detail_snapshot()` already know the address they fetched; they stamp it
+  onto what they return, so a scraper passes a value that was already in scope.
+- *"Silently" is fixed.* `db.is_capture_address()` requires
+  `web/<14 digits>id_/…`; anything else - a Q4 numeric id, a Drupal node id, a
+  bare row url - raises `ValueError` at the write site. Measured against all
+  1727 entries that existed when the guard landed: every one passes, and no
+  live-source row has an entry at all.
+
+The repair got one last run before deletion, and the run is the proof it was
+spent: **0 rows derived, 144 re-resolved to the same addresses they already
+held, 0 changed.** What is left is 36 attachment rows with a timestamp and no
+entry, because their bytes are in `page_cache` under no name at all - the
+documented end state, not a backlog.
 
 **`page_cache.fetched_at` since 2026-08-25.** Filled at insert by both write
 sites; NULL on the 6345 older rows, which is honest - the table never recorded
@@ -577,7 +656,11 @@ code and two 404s in `wayback_calls`.
 
 **An entry must be dropped the moment it stops being true.** Any pass that
 rewrites a body from a capture of the row's *own* url calls
-`db.clear_body_origin()` - `--from-cache` and `--wayback` both do. Without it a
+`db.clear_body_origin()`. `twins.fill` is the one caller: the text it writes
+came out of a *sibling row*, so whatever capture was recorded has stopped
+describing it. The re-extraction shapes instead *record* the address they read,
+which is a no-op on the common path and the point on any path where the key came
+from elsewhere. Without one or the other a
 later recovery would leave the browser linking a listing for text that no
 longer came from one, and nothing would ever notice.
 
@@ -585,14 +668,12 @@ longer came from one, and nothing would ever notice.
 1605 derived, 158 measured), and that is what lets `serve.wayback_url()` be two
 lines with no idea what a timestamp looks like - a row with no entry gets no
 link, which is the right answer for the live sources too. `matched` carries the
-difference: a number means measured, NULL means derived from the row's own
-`detail_id`, where there is nothing to prove. `repair_capture_provenance.py`
-fills step 1 in pure SQL in milliseconds and **has to be re-run after a crawl**,
-because nothing else writes the table - a new Wayback row has no archive link
-in the browser until it does. That is the deliberate trade: one documented
-ritual, against threading a `capture_url=` argument through ~25 `store_release`
-call sites where passing a platform id by mistake would silently mint dead
-links.
+difference between a measured entry and a derived one, and the class is
+computable from the address itself (`verify_body_origin.origin_class()`).
+
+**Nothing has to be re-run after a crawl any more.** The pass that reads the
+bytes records the address, in the same transaction as the body - see the write
+path above - so a new Wayback row arrives with its archive link already correct.
 
 `db.py` joins the table into both the detail row and the list rows, and the
 browser names the page in plain text next to the link - an unannotated link to
@@ -620,7 +701,7 @@ terratec_new:
   whose listing and article versions are both cached, 61 listing versions are
   >10% shorter - but split by year that is 46/46 in 2007 against 9-38% from
   2008 on, and the median ratio overall is 0.98. Those rows already store the
-  article version (`--from-cache` upgraded them), so the grade only matters for
+  article version (the cache reparse upgraded them), so the grade only matters for
   the 11 rows where nothing else exists - and for those there is nothing to
   compare against. #4414 is 2011, in the era where the listing carried the full
   release.
@@ -633,14 +714,44 @@ that is not this release's own - and leaves the grade alone. `capture_page`
 rides on every row (list and detail), so it costs no extra query. Checked as
 `[badge-listing]`.
 
-**`backfill_body_html.py` has six modes and they are not interchangeable.**
-`--force` re-runs `clean()` (needs the HTML), `--retext` re-runs only
-`to_text()` (needs nothing but the DB), `--from-cache` parses what `page_cache`
-already holds, `--wayback` fetches a row's own capture when it does not,
-`--seed-cache` fetches captures and parses nothing, and `--listings` handles
-the listing-derived sources.
+**`reextract.py` has six shapes and they are not interchangeable.** They were a
+single script's CLI modes until 2026-08-25; now they are functions a scraper
+composes, with the parser passed in rather than looked up in a registry:
 
-**`--seed-cache` comes first when a parser is being redesigned.** It fetches
+| shape | what it needs | what it does |
+|---|---|---|
+| `from_cache` | the source's parser | reparse the bytes `page_cache` already holds. No network, ever |
+| `from_listings` | a url-keyed collector | re-walk cached listing captures for bodies that only ever existed inside one |
+| `from_live` | the source's `fetch_body` | re-fetch from a site that is still up, through `fetch_cached`, so a cached page costs nothing |
+| `retry_missing` | the source's parser | the row's own capture, then CDX when that 404s. The only shape that can turn "retried forever" into `dead` |
+| `seed_cache` | nothing | fetch captures, parse nothing |
+| `retext` | nothing but the DB | re-derive `body` from the stored `body_html` |
+
+`catch_up()` composes them in that order - free first, network last - and
+`run(conn, source, opts, **pieces)` is the two-line call a scraper makes. A
+source with no listing collector passes none and the listing shape does not run:
+that is what the old registry's membership tests became.
+
+**Three rules hold inside every shape, and each cost data before it was a rule.**
+They are in the library, in one copy, precisely so that a scraper cannot get them
+wrong:
+
+1. the cursor is `body_html IS NULL`; `force=True` widens it and says so first.
+2. `bodygate.not_shorter` applies **under** every other gate, `force` included.
+3. **the gate is chosen by the address, not by a flag.** `captures.own_page()`
+   decides: a capture of the row's own url goes through `safe_to_write`, a
+   capture of some other page through `strict_same_text` - and if the caller has
+   a collector, such a row is skipped here and handled by `from_listings`. This
+   replaced a `--relocated` mode plus a registry-membership test, and it caught a
+   live bug the moment it landed: the old `--from-cache` would have handed #5012
+   (`midiman_net_pressdb`) the *listing* capture its 413-character teaser came
+   from, and a whole-page `parse_detail` returns the whole listing - 34k
+   characters of other releases' text, which `safe_to_write` reads as a teaser
+   recovering its article and allows. One row corpus-wide today; the same shape
+   cost 64 rows once.
+
+**`--seed-cache` comes first when a parser is being redesigned** (on the
+scraper: `python scrape_terratec_portal.py --seed-cache`). It fetches
 and stores, full stop - no parsing, no write to `releases`, so it cannot
 damage a row and it needs no parser to exist yet. Without it there is nothing
 to calibrate a selector against and every iteration costs another crawl; with
@@ -654,9 +765,9 @@ Two traps that cost real data on the day this was written:
   correctly, and it looked like *encoding damage* rather than data loss,
   because a decoded PDF is full of C1 characters. `looks_like_html()` checks
   magic bytes before every parse now. The tell that something was wrong:
-  `repair_encoding.py` suddenly repaired **0 rows and refused 48 fields** — a
-  repair script that can no longer fix anything means the damage is not what
-  you think it is.
+  the encoding repair suddenly fixed **0 rows and refused 48 fields** — a repair
+  that can no longer fix anything means the damage is not what you think it is.
+  `verify_encoding.py` is the same signal now.
 - **A timestamp in `detail_id` does not always name a capture of that row's
   own URL.** For pressdb/media_news it can be the *listing* capture the body
   was read from, so the reconstructed capture URL never existed and 404s
@@ -666,14 +777,15 @@ Two traps that cost real data on the day this was written:
   confirmed `dead` instead of an `uncertain` that gets retried forever.
 
 **Re-extracting the whole corpus is now free.** Every page fetched since
-2026-08-21 is in `page_cache`, so `backfill_body_html.py --force` re-runs
+2026-08-21 is in `page_cache`, so `scrape_<source>.py --offline --force` re-runs
 `clean()` over rows that already have `body_html` without a single request:
 all 3619 live rows took 2m26s and made zero network calls. That is what the
 cache was for. Use `--force` after changing `clean()`, `--retext` after
 changing only `to_text()`.
 
-**Nothing is written without passing `safe_to_write()`.** It refuses exactly
-one thing - text disappearing from the **middle** of a body - and the reason
+**Nothing is written without passing a gate in `bodygate.py`**, and which gate
+is picked from the address (see the three rules above). `safe_to_write` refuses
+exactly one thing - text disappearing from the **middle** of a body - and the reason
 it took three measurements rather than one is worth keeping:
 
 - a word-multiset comparison is useless here. It flags every join the fix
@@ -697,13 +809,13 @@ rules out article text having been trimmed off the end.
 
 **`body` is by definition `to_text(body_html)`** wherever `body_html` exists —
 verified across all 4007 such rows, zero mismatches. That makes a fix to the
-*text renderer alone* free: `backfill_body_html.py --retext` recomputes `body`
+*text renderer alone* free: `scrape_<source>.py --retext` recomputes `body`
 from the stored HTML with no network and no per-source parser. Use it after
 changing `to_text()`; a change to `clean()` still needs the HTML rebuilt.
 
 `body_html IS NULL` means the row predates this and still renders as
 preformatted text; it is the `plain` flag in the audit view, i.e. a progress
-bar for `backfill_body_html.py`, not a defect in the source.
+bar for the re-extraction shapes, not a defect in the source.
 
 This used to say that attachment rows keep it NULL on purpose, "there is no HTML
 behind a PDF". Half of that was never true and the other half still is. A PDF
@@ -736,7 +848,7 @@ Three shapes came out of it:
   parser whose **title** comes out of the text surgery (a prefix slice before
   the dateline), so the flat `get_text` stays, for detection only.
 - **the biggest layout table/cell** - `scrape_terratec.py`,
-  `backfill_terratec_de_and_net_gaps.py`, `scrape_terratec_portal.py`. These
+  `scrape_terratec_de.py`, `scrape_terratec_portal.py`. These
   pages have no classes or ids worth keying on, only `width="535"` attributes
   that change between captures of the same site.
 - **an HTML fragment that was already sliced** - `scrape_midiman_de.py`'s
@@ -757,10 +869,17 @@ above, and measured the same way: over every cached capture, **510 identical,
 16 gained, 0 changed, 0 lost**. The date is then simply not on the page and the
 row keeps the one its listing gave it.
 
-`backfill_terratec_teasers.parse_article_snapshot` is gone: it now *imports*
-`scrape_terratec_portal.parse_snapshot`. It had been a near-copy with the same
-TITLE_TAG_RE verbatim, no month-precision fallback, and markers cut in a
-different order.
+**The portal's two other discovery channels are in its own scraper** (2026-08-25).
+The yearly category listings (`CATEGORY_PAGES`, `from_categories`) and the sids
+whose only archived page is the print view (`from_print_views`) were two separate
+"backfill" scripts; both stamp the same two tags and both now use this module's
+`parse_snapshot`. The print-specific parser they carried is gone, and measuring
+settled it rather than taste: over all **81 cached `print.php` captures** the
+portal parser never returns an empty body, and the two differ by 1-4 characters
+of whitespace - `strict_same_text` passes on every one. So that channel
+contributes *discovery*, not parsing. A teaser-grade row is still retried on
+every run and upgraded the moment the full article can be reached, which is why
+this was never a one-shot.
 
 **Two cuts that look like one.** `richtext.cut_from(soup, pattern)` removes
 everything from a marker onward at the element level. The naive version scanned
@@ -859,10 +978,17 @@ evidence before this existed. Best-effort and silent on failure, same as
 - **After any refactor that renames or removes a module-level name, sweep every
   module's import**, not just the file you edited:
   `python3 -c "import importlib,pathlib; [importlib.import_module(p.stem) for p in pathlib.Path('.').glob('*.py')]"`.
-  These are ~29 flat modules that import each other by name, there are no tests,
+  These are ~40 flat modules that import each other by name, there are no tests,
   and grep is not enough — renaming `DETAIL_URL_TMPL` in one scraper silently
-  broke a repair script that imported it, and it was committed that way. The
-  same class of break has happened more than once.
+  broke a follow-up script that imported it, and it was committed that way. The
+  same class of break has happened more than once. The 2026-08-25 cleanup moved
+  about fifteen module-level names in one pass and the sweep after every step is
+  the only reason it landed intact.
+- **The dependency direction is a rule now, not an accident.** A scraper imports
+  `reextract`/`bodygate`/`captures`/`twins`; none of those imports a scraper.
+  Before, the engine imported thirteen scrapers to build its registries, which
+  is why nothing could import it back and why a constant had to be *duplicated*
+  into `scrape_midiman_pressdb.py` with a comment apologising for it.
 - `pressroom.db` is gitignored, along with `pressroom.db.bak`. `'rebuild'` and
   bulk updates aren't reversible — copy the DB before one.
 - archive.org intermittently refuses connections. A run full of `?` markers is
@@ -879,10 +1005,34 @@ evidence before this existed. Best-effort and silent on failure, same as
   templates that differ per capture). Keep writing those down there — that
   archaeology is the expensive part of this project, not the code.
 
-## Known open state (2026-08-22)
+## Known open state (re-measured 2026-08-25)
 
 Everything here self-heals on a rerun; it is waiting on archive.org, not on a
 code change. Counts rot — re-measure before trusting them.
+
+- **The one-shots and the rituals are gone (2026-08-25).** Twelve files went:
+  five finished one-shots deleted (an intel import, a cache-hash fill, a
+  co.uk decode fix, the title recovery, a 23-url directory list), two rituals
+  moved into the write path, three "backfills" that were a source's primary pass
+  renamed or folded into the scraper that owns their tag, and the re-extraction
+  engine split into `bodygate.py` / `captures.py` / `reextract.py`. Net -621
+  lines. What each of them established is recorded in the sections above; the
+  code is in git.
+
+  Verified after, on the real corpus: 6708 rows, 789 without markup, 1727
+  origins, 17 empty titles, `grade` full 6154 / teaser 551 / stub 3, FTS token
+  counts unmoved (`MobilePre` 56, `Octane` 47, `ArKaos` 148, `Radium` 24,
+  `GeForce` 81), `body == to_text(body_html)` on 5919 of 5919 rows.
+  `verify_body_origin.py` came out *better* than before the change - 149/149
+  inferred, **323/323** located (was 321, two differed in whitespace),
+  1198/1255 computed - because a fresh parse of #4355 now reproduces the
+  repaired row instead of reintroducing the page's own damage. #6211 remains the
+  one row that does not reproduce, for the reason recorded above.
+
+  Two commands changed shape and are worth memorising: **`python
+  scrape_<source>.py --offline`** is the free re-extraction of one source (what
+  `--from-cache --source X` used to be), and **`--offline --force`** re-runs
+  `clean()` over every row of it, still with no requests.
 
 - **`terratec_new_de`/`_en`: done (2026-08-22).** All 159 rows carry
   `body_html`; there is nothing left to fetch for them. 9 came from article
@@ -890,12 +1040,12 @@ code change. Counts rot — re-measure before trusting them.
   15 from the German listing captures (30 of them, absent from `page_cache`
   until now - only the English ones had been cached), and CDX confirmed the
   other 15 article URLs were never captured at all. Corpus-wide the count is
-  now **6708 rows, 1097 without `body_html`** - of which 381 are .pdf/.doc
+  now **6708 rows, 789 without `body_html`** - of which 381 are .pdf/.doc
   attachment rows that have no HTML behind them by construction, so the audit
-  view's "bez formatowania" reads **716**, which is the number that means
+  view's "bez formatowania" reads **600**, which is the number that means
   outstanding work.
 - **Capture links: 158 recovered, 383 still unaddressed (2026-08-22).**
-  `repair_capture_provenance.py` resolved which page each listing-derived row's
+  A one-shot pass resolved which page each listing-derived row's
   timestamp really names; see the `body_origin` section above. The rest keep a
   timestamp whose page is unknown, so their link is still built from the row's
   own URL and may 404: 143 have no cached capture under that timestamp to test
@@ -904,21 +1054,22 @@ code change. Counts rot — re-measure before trusting them.
   repair after any pass that caches more captures is free.
 - **Titles: done (2026-08-22).** 37 of 54 empty titles recovered from cache,
   17 are the confirmed end state - see the headline section above. The pass is
-  `repair_missing_titles.py --dry-run` first; a rerun reports `17d` and writes
-  nothing.
+  confirmed again on 2026-08-25, the last time that pass ran before deletion:
+  `17d`, nothing written.
 - **One free body recovery is now waiting.** Teaching the portal parser
   `print.php` and the date-less `<title>` also made `terratec_pressde` sid=367
   parse to a 4547-character body where the row holds 0. Deliberately not
-  written by the title repair - `backfill_body_html.py --from-cache
-  --source terratec_pressde` is the pass that owns it, because it runs
-  `safe_to_write`.
+  written by the title repair - `scrape_terratec_portal.py --offline` is what
+  owns it, because it goes through `bodygate`. Measured 2026-08-25: that sid is
+  one of the 9 whose cached capture the parser finds nothing in, so the free
+  recovery is not there after all.
 - **`terratec_pressde` 300 rows (95 teaser), `terratec_pressen` 141 (52)** after
-  a full `backfill_terratec_teasers.py` pass on 2026-08-21: +97 rows, and the
+  a full pass over the category-listing channel on 2026-08-21: +97 rows, and the
   first pass to write correct text, since the cp1252 fix landed the day before.
   10 sids came back `uncertain` (archive.org refused mid-run) and a rerun
   retries exactly those.
 - **Encoding damage: fixed (2026-08-20).** 156 of 157 damaged rows repaired by
-  `repair_encoding.py`; every sniffing decode site closed. The one left is
+  the encoding repair; every sniffing decode site closed. The one left is
   `midiman_net_pressdb` #4978, whose only damage is three 0x81 bytes — cp1252
   does not define that byte, so there is nothing to decode it *to* and the
   script refuses it by design. It still shows in the audit view.
@@ -941,7 +1092,7 @@ code change. Counts rot — re-measure before trusting them.
   URL scheme before spending an hour of crawl on a block like this - that hour
   bought one row, and one query up front would have predicted it.
 - **73 PDF attachment rows carry real markup since 2026-08-24.**
-  `backfill_midiman_attachments.py --richtext` converted every cached PDF
+  The richtext conversion (`attachment_crawl.write_richtext`) converted every cached PDF
   attachment through `attachments.to_richtext()`: 73 rows gained `body_html`
   (11 paragraphs and a 7-item list on #4986, an `ol` of 6 on #5003, four nested
   `ul`s on #5572), `body` became `to_text(body_html)` as everywhere else, and
@@ -950,7 +1101,7 @@ code change. Counts rot — re-measure before trusting them.
   changed. Nothing needed a decision: all 73 converted and passed the gate.
 
   **The gate is a multiset of word characters, and it is the fourth attempt.**
-  `_wordchars` (imported from `backfill_body_html`, not copied) drops
+  `bodygate.wordchars` (one implementation, shared, not copied) drops
   indentation, wrapping, bullets and to_text()'s ordinals; comparing the
   *multiset* is blind to the two things a converter is allowed to change -
   order and joins - while still refusing a document that lost a paragraph.
@@ -974,7 +1125,7 @@ code change. Counts rot — re-measure before trusting them.
   held text with not one newline in it** - every spec sheet a single run-on
   line, rendered through a `pre-wrap` box with no layout left to show. The 140
   rows whose bytes are in `page_cache` were re-extracted for free by
-  `backfill_midiman_attachments.py --from-cache`; the gate is
+  `attachment_crawl.reextract_from_cache`; the gate is
   `strict_same_text`, so the only thing that could change was whitespace
   (verified: 140/140 identical modulo whitespace before writing, and the
   character sequence unchanged after). The remaining **240 need a refetch** and
@@ -1004,7 +1155,7 @@ code change. Counts rot — re-measure before trusting them.
   211, a rerun is not worth an hour - but it is free to leave open, and the
   selector finds them again.
 - **The 30 attachment rows a crawl could still help are dead, confirmed
-  2026-08-25.** `backfill_midiman_attachments.py --missing-bytes` - a selector
+  2026-08-25.** `attachment_crawl.missing_bytes_rows` - a selector
   for the rows whose bytes are in `page_cache` under no name at all, not their
   own capture and not a mirror's - walked all 30 twice. First run: 26 never
   archived, 4 `uncertain`, and the four were `connection_error` on `cdx_bulk`,
@@ -1021,7 +1172,8 @@ code change. Counts rot — re-measure before trusting them.
   decision, 153 .doc rows keep the text route, 30 are dead, 5 are a soft-404
   under a .pdf name. Nothing here is waiting on archive.org any more.
 - **The attachment backfill is done, and what is left is gone.**
-  `backfill_midiman_attachments.py --only-short` (2026-08-21) attempted the 36
+  The short-rows selector (`attachment_crawl.backfill(only_short=True)`, now
+  reached by `scrape_midiman_pressdb.py --attachments`) attempted, on 2026-08-21, the 36
   remaining short `media_pr`/`pressdb` rows: **33 confirmed never archived** -
   CDX has no 200 capture for those .doc/.pdf URLs, ever - and 3 `uncertain`
   from a flaky archive.org, which a rerun retries. So a short body in those
@@ -1029,7 +1181,7 @@ code change. Counts rot — re-measure before trusting them.
   flag that makes this a minutes-long retry instead of an hours-long crawl.
 - **`media_news` teasers are the big remaining block**: `midiman_net_media_news`
   179, `midiman_com_media_news` 122, `maudio_com_media_news` 86. Down 111 from
-  `backfill_twin_bodies.py` (below); the rest need their detail captures.
+  `twins.py` (below); the rest need their detail captures.
 
 - **Formatting recovery: 4060 of 5935 rows done, 1875 still flat (2026-08-21).**
   Every live source is complete — intel, amd, creative and creative_gnw, 3619
