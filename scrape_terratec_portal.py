@@ -45,6 +45,21 @@ SID_RE = re.compile(r"sid=(\d+)(?:&|$)")
 TITLE_TAG_RE = re.compile(r"(\d{2}\.\d{2}\.\d{4})\s*-\s*(.+?)\s*::\s*Press")
 TITLE_TAG_MONTH_RE = re.compile(r"([A-Za-z]+\s+\d{4})\s*-\s*(.+?)\s*::\s*Press")
 
+# Everything from the site name onward in a <title>. What is left in front of it
+# is the article heading - usually "{date} - {title}", but one capture carries
+# the headline with no date on it at all, and the two regexes above only match
+# the dated form. Splitting on the suffix instead of requiring the prefix keeps
+# that row's title, and still yields "" on the captures where PHP-Nuke rendered
+# the page skeleton with no article in it - there the <title> *starts* with the
+# site name, so nothing precedes the split.
+SITE_SUFFIX_RE = re.compile(r"\s*::\s*Press")
+
+# The printer-friendly view (print.php?sid=N) is a different template: no site
+# name in the <title>, and the heading in a font.print-title instead. Same
+# "{date} - {title}" text, so one regex reads both.
+PRINT_TITLE_SEL = "font.print-title"
+HEADING_RE = re.compile(r"^(\d{2}\.\d{2}\.\d{4}|[A-Za-z]+\s+\d{4})\s*-\s*(.+)$", re.S)
+
 # The sidebar box after the article body isn't labeled consistently across
 # captures ("Links!" in German templates, "Related links" seen on the English
 # portal's markup bleeding through some snapshots) - cut at whichever comes
@@ -131,15 +146,36 @@ def parse_snapshot(content: bytes) -> dict:
         m = TITLE_TAG_MONTH_RE.match(title_full)
         date_fmt = "%Y-%m"
 
+    date_str = ""
     title = ""
+    if m:
+        date_str, title = m.group(1), m.group(2).strip()
+    else:
+        # Neither dated form matched. Two templates still carry the heading:
+        # print.php in its own element, and the ordinary article view in a
+        # <title> that just has no date on it. Both are read the same way -
+        # take the heading text, then split a date prefix off it if there is
+        # one. A month-name date the parser cannot read (German "Mai 2007")
+        # leaves date empty and the title intact, exactly as the dated paths
+        # above already do.
+        printed = soup.select_one(PRINT_TITLE_SEL)
+        heading_text = (printed.get_text(" ", strip=True) if printed
+                        else SITE_SUFFIX_RE.split(title_full, 1)[0].strip())
+        h = HEADING_RE.match(heading_text)
+        if h:
+            date_str, title = h.group(1), h.group(2).strip()
+            date_fmt = "%Y-%m-%d" if "." in date_str else "%Y-%m"
+        else:
+            title = heading_text
+
     date = ""
     body = ""
     body_html = None
-    if m:
-        date_str, title = m.group(1), m.group(2).strip()
-        date = iso_date(date_str, dayfirst=True, fmt=date_fmt)
+    if title:
+        if date_str:
+            date = iso_date(date_str, dayfirst=True, fmt=date_fmt)
 
-        heading = f"{date_str} - {title}"
+        heading = f"{date_str} - {title}" if date_str else title
         body, body_html = article_body(soup, heading)
         if not body:
             # No container in this capture - keep the old text surgery rather

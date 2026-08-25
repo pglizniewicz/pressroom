@@ -33,6 +33,7 @@ import argparse
 import collections
 
 import db
+import wayback
 
 # A row counts as needing help below this; the repo's audit view uses the same
 # 300 characters to call a body teaser-grade.
@@ -120,8 +121,11 @@ def backfill(dry_run: bool, source: str = None) -> None:
         # detail_id follows the body: the text came from the twin's capture, so
         # that timestamp is what this row's provenance now is. upgrade_release
         # goes through releases_au, so the FTS index follows the change.
-        detail = best["detail_id"] if str(best["detail_id"] or "").isdigit() else None
-        if db.upgrade_release(conn, short["url"], body=body, detail_id=detail):
+        detail = best["detail_id"] if wayback.is_timestamp(best["detail_id"]) else None
+        # grade follows too: the row now holds the twin's full article, so a
+        # 'teaser' verdict on it has stopped being true.
+        if db.upgrade_release(conn, short["url"], body=body, detail_id=detail,
+                              grade="full"):
             written += 1
     print(f"\nuzupełniono {written} wierszy z bliźniaków")
     conn.close()

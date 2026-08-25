@@ -74,7 +74,7 @@ from urllib.parse import urljoin
 import requests
 from bs4 import BeautifulSoup
 
-from db import stored_detail_id
+from db import already_stored, stored_grade
 from dates import iso_date
 from encoding import decode_html
 import db
@@ -309,7 +309,7 @@ def scrape_domain(source: str, base: str, limit: int = None,
         m = ID_HREF_RE.search(e["href"])
         url = detail_url(base, m.group(1)) if m else e["href"]
 
-        existing = stored_detail_id(conn, url)
+        existing = stored_grade(conn, url)
         if existing is not None and existing != "teaser":
             stats.skipped()
             continue
@@ -322,7 +322,7 @@ def scrape_domain(source: str, base: str, limit: int = None,
                 # the detail page's, so only the body is upgraded.
                 db.upgrade_release(conn, url, detail_id=parsed["detail_id"],
                                    body=parsed["body"], body_html=parsed["body_html"],
-                                   commit=False)
+                                   grade="full", commit=False)
                 stats.upgraded()
             else:
                 db.store_release(conn, source, url, title=title, date=date,
@@ -348,7 +348,7 @@ def scrape_domain(source: str, base: str, limit: int = None,
         if e["teaser"]:
             db.store_release(conn, source, url, title=title, date=date,
                              body=e["teaser"], body_html=e["teaser_html"] or None,
-                             detail_id="teaser")
+                             grade="teaser")
             stats.teaser()
         else:
             stats.dead()
@@ -356,8 +356,7 @@ def scrape_domain(source: str, base: str, limit: int = None,
     for hexid in extra_ids_list:
         url = detail_url(base, hexid)
 
-        existing = stored_detail_id(conn, url)
-        if existing is not None:
+        if already_stored(conn, url):
             stats.skipped()
             continue
 

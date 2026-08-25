@@ -85,6 +85,7 @@ Usage:
 """
 
 import argparse
+import collections
 import re
 import subprocess
 
@@ -93,6 +94,17 @@ import requests
 from encoding import decode_html
 import db
 from progress import Stats
+# _wordchars is the repo's single implementation of "compare two extractions of
+# the same text": it drops indentation, line wrapping, bullets and the ordinals
+# to_text() prepends. Imported rather than copied, private name and all.
+from backfill_body_html import _wordchars
+# One implementation of "only whitespace may differ", shared with
+# backfill_body_html's --relocated path rather than copied.
+from backfill_body_html import strict_same_text
+# What an attachment's bytes mean is attachments.py's concern; this file owns
+# the crawl. extract_text/normalize/PDF_MAGIC/OLE2_MAGIC moved there when
+# calibrate_attachments.py became a second caller for them.
+import attachments
 import wayback
 
 SOURCES = [
@@ -128,23 +140,10 @@ RECOVERED_LENGTH = 900
 # turning a single dead URL into dozens of requests.
 WALKBACK_ATTEMPTS = 6
 
-PDF_MAGIC = b"%PDF"
-# OLE2 compound document header - the real Word 97-2003 container.
-OLE2_MAGIC = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
-
-
-def is_attachment(content: bytes) -> bool:
-    """True if `content`'s magic bytes are a type extract_text can pull real
-    text from. Drives fetch_first_matching_snapshot's walk-back: a capture
-    that is HTML (a soft-404) or anything else fails this, so the walk-back
-    tries an older capture instead of settling for a wrong-typed page.
-
-    Checked on the raw bytes, not by calling extract_text and looking at
-    `kind` - that would run pdftotext/antiword just to classify, then run it
-    again to actually extract.
-    """
-    head = content[:8]
-    return head.startswith(PDF_MAGIC) or head.startswith(OLE2_MAGIC)
+# Magic bytes, the extractors and the two levels of extraction live in
+# attachments.py: calibrate_attachments.py needs the same code, and a second
+# copy of "what these bytes are" is exactly the mirror-rule trap this repo
+# keeps paying for. This file owns the crawl.
 
 
 def domain_variants(url: str) -> list:
@@ -156,68 +155,284 @@ def domain_variants(url: str) -> list:
     return [url]
 
 
-def _run(cmd: list, data: bytes) -> str:
-    """Feed `data` to an extractor on stdin; "" on any failure."""
-    try:
-        result = subprocess.run(cmd, input=data, capture_output=True, timeout=30)
-    except Exception:
-        return ""
-    if result.returncode != 0:
-        return ""
-    return decode_html(result.stdout)
+# The bytes page_cache already holds for an attachment row, addressed through
+# the capture body_origin records for it - which for these rows is the real
+# capture of the .pdf/.doc itself, not the listing timestamp their detail_id
+# carries.
+CACHED_ATTACHMENT_SQL = """
+    SELECT r.source, r.url, r.body, p.content, c.origin_url
+      FROM releases r
+      JOIN body_origin c ON c.url = r.url
+      JOIN page_cache p ON p.url = c.origin_url
+     WHERE (lower(r.url) LIKE '%.pdf' OR lower(r.url) LIKE '%.doc')
+       -- Rows already converted to markup are on the other route: re-extracting
+       -- their text would try to replace real paragraphs with a pre-wrap blob,
+       -- and strict_same_text refuses it - but as a policy, not as a near miss.
+       AND r.body_html IS NULL
+       {where}
+     ORDER BY r.source, r.id
+"""
 
 
-def extract_text(content: bytes) -> tuple:
-    """Extract an attachment's text as (text, kind).
+def reextract_from_cache(limit: int = None, sources: list = None) -> None:
+    r"""Re-extract attachment text from bytes page_cache already holds. No network.
 
-    `kind` names what the bytes actually turned out to be, so a mislabeled or
-    unsupported file can be reported instead of just yielding an empty body.
+    This exists because normalize()'s layout fix never reached the corpus.
+    Measured 2026-08-23: **380 of 381 attachment rows held text with not one
+    newline in it** - the output of the old `re.sub(r"\s+", " ", text)`, which is
+    precisely what that fix was written to stop doing. The rows predate it and
+    nothing re-ran the extraction, so every spec sheet in this corpus was still
+    a single run-on line, rendered through white-space: pre-wrap that had no
+    layout left to show.
+
+    140 rows had their attachment's bytes in page_cache, so their layout cost
+    nothing to recover. Of the 241 that did not, **205 have the same file cached
+    under a mirror domain** (midiman.com / midiman.net / m-audio.com served the
+    same attachment) - reachable by widening this query, not by crawling.
+
+    The gate is strict_same_text, not the length comparison the network path
+    uses: here the *only* admissible change is whitespace, because the same
+    extractor on the same bytes must produce the same characters. Measured over
+    all 140 before writing anything: 140/140 identical modulo whitespace.
     """
-    head = content[:8]
+    conn = db.connect()
+    where = ""
+    params = ()
+    if sources:
+        where = "AND r.source IN (%s)" % ",".join("?" * len(sources))
+        params = tuple(sources)
+    rows = conn.execute(CACHED_ATTACHMENT_SQL.format(where=where), params).fetchall()
+    if limit:
+        rows = rows[:limit]
+    print(f"[from-cache] {len(rows)} attachment rows whose bytes are cached", flush=True)
 
-    if head.startswith(PDF_MAGIC):
-        return _run(["pdftotext", "-layout", "-", "-"], content), "pdf"
-    if head.startswith(OLE2_MAGIC):
-        return _run(["antiword", "-m", "UTF-8.txt", "-"], content), "doc"
-    if content.lstrip()[:5].lower() == b"{\\rtf":
-        # antiword refuses RTF and there is no unrtf in this environment;
-        # report it rather than hand-rolling a stripper on zero real samples.
-        return "", "rtf (no extractor)"
-    if content.lstrip()[:1] == b"<":
-        # HTML under a .doc/.pdf URL is almost always the original server's
-        # soft-404 (served as HTTP 200, so CDX's statuscode filter can't catch
-        # it), not the release. Deliberately NOT returned as text: an error
-        # page easily runs longer than the teaser, so the length guard below
-        # would happily overwrite good data with junk. Reported instead, so a
-        # real release hiding here would still be visible in the log.
-        return "", "html (soft-404?)"
+    stats = Stats(total=len(rows))
+    held, gained_layout = [], 0
+    for source, url, old_body, content, origin in rows:
+        text, kind = attachments.plain_text(content)
+        if not text:
+            print(f"\n  {kind} extractor produced no text for {url}")
+            stats.dead()
+            continue
+        ok, why = strict_same_text(old_body or "", text)
+        if not ok:
+            held.append((url, why))
+            stats.skipped()
+            continue
+        if text == (old_body or ""):
+            stats.skipped()
+            continue
+        gained_layout += 1 if "\n" in text and "\n" not in (old_body or "") else 0
+        db.upgrade_release(conn, url, body=text)
+        db.record_body_origin(conn, url, origin)
+        stats.upgraded()
 
-    return "", f"unrecognised ({bytes(head[:4])!r})"
+    stats.summary()
+    print(f"  layout recovered: {gained_layout} rows now have line breaks where they had none")
+    if held:
+        print(f"WSTRZYMANE przez bramke: {len(held)} - nic nie zapisano")
+        for url, why in held[:10]:
+            print(f"  {why:26} {url}")
+    conn.close()
 
 
-def normalize(text: str) -> str:
-    """Tidy the extractor's output without flattening it.
+def richtext_gate(text: str, body: str, dropped: list, list_items: int) -> tuple:
+    """(ok, why) for replacing an attachment's flat text with its structured form.
 
-    This used to be `re.sub(r"\\s+", " ", text)`, which threw away the one
-    thing `pdftotext -layout` and `antiword` are asked for: the layout. A
-    two-column spec sheet came out as a single run-on line. Only trailing
-    spaces, form feeds (pdftotext's page breaks) and runs of blank lines go.
+    Compares the **multiset of word characters** - backfill_body_html._wordchars,
+    the repo's one implementation of "the same text, extracted differently" -
+    and that choice is the fourth attempt, each earlier one refused by a
+    measurement rather than by taste:
 
-    These rows keep body_html NULL on purpose - there is no HTML behind a PDF -
-    so the browser renders them through .body--text, i.e. white-space:
-    pre-wrap, which is exactly the right renderer for column layout.
+    - **character sequence** refused 13 of 73 rows for losing nothing: the two
+      routes order fragments differently, because `pdftotext -layout` puts a
+      superscript and a `®` on their own lines while the structured route puts
+      them back beside the word they belong to.
+    - **subsequence** (text_delta's kept/clean) breaks on the same reordering,
+      and the text route is not the reference here - it is the other reading of
+      the same bytes.
+    - **word coverage** refused 10, all of them joins: `Composer` + `®` +
+      `system` arriving as one word `Composer®system`.
+
+    A multiset of characters is blind to order and to joins, which is exactly
+    what a converter is allowed to change, and still cannot pass a document that
+    lost a paragraph - those characters appear nowhere.
+
+    Two allowances, both named and bounded:
+
+    - the blocks the converter deliberately dropped, which it must name
+      (attachments.rotated_text - the sideways banner, the only difference
+      between the routes on 33 of the 81 cached PDFs);
+    - **markers that became structure**: `1)`..`6)` absorbed into an <ol> and the
+      Courier `o` of a second-level bullet absorbed into <li>. Measured: 3 rows,
+      6 digits and 9 `o`s. Bounded by the number of list items, so it can never
+      excuse a missing word.
     """
-    text = text.replace("\r\n", "\n").replace("\r", "\n").replace("\f", "\n\n")
-    text = re.sub(r"[ \t]+\n", "\n", text)
-    text = re.sub(r"\n{3,}", "\n\n", text)
-    return text.strip()
+    want = collections.Counter(_wordchars(text)) \
+        - collections.Counter(_wordchars(" ".join(dropped)))
+    got = collections.Counter(_wordchars(body))
+
+    def only_markers(diff):
+        """Whether a difference is nothing but list markers.
+
+        Both directions need this allowance, and the second one took a
+        measurement to find. `_wordchars` strips an ordinal only at the start of
+        a line, and the two routes break lines in different places - so prose
+        reading `Mac OS 10.1 Drivers` has its digits stripped on one side and
+        kept on the other (#5049, 4 digits). Bounded by the list items either
+        way, at two characters each, so it can never excuse a missing word.
+        """
+        return (all(ch.isdigit() or ch == "o" for ch in diff)
+                and sum(diff.values()) <= max(list_items, 0) * 2)
+
+    invented = got - want
+    if invented and not only_markers(invented):
+        sample = "".join(sorted(invented))[:24]
+        return False, f"{sum(invented.values())} znakow z niczego ({sample!r})"
+
+    missing = want - got
+    if missing and not only_markers(missing):
+        sample = "".join(sorted(missing))[:24]
+        return False, f"brak {sum(missing.values())} znakow ({sample!r})"
+    return True, ""
 
 
-def backfill_source(source: str, limit: int = None, only_short: bool = False) -> None:
+# Rows whose own attachment bytes are in page_cache, addressed through the
+# capture body_origin recorded for them.
+RICHTEXT_SQL = """
+    SELECT r.id, r.source, r.url, r.body, p.content, c.origin_url
+      FROM releases r
+      JOIN body_origin c ON c.url = r.url
+      JOIN page_cache p ON p.url = c.origin_url
+     WHERE (lower(r.url) LIKE '%.pdf' OR lower(r.url) LIKE '%.doc')
+       {where}
+     ORDER BY r.source, r.id
+"""
+
+
+def write_richtext(limit: int = None, sources: list = None, dry_run: bool = False) -> None:
+    """Store the structured form of every PDF attachment whose bytes we hold.
+
+    PDFs only. .doc keeps the text route by decision - see attachments.py - so
+    a Word row here is `skipped`, not converted.
+
+    **A PDF that converts to nothing is reported and left alone.** Falling back
+    to its text would put a pre-wrap blob in the corpus and lose the fact that
+    the converter failed on that document; the choice between "use the text for
+    this one" and "fix the converter" belongs to a person reading it. Same for a
+    row the gate refuses. Both are listed at the end of the run.
+    """
+    conn = db.connect()
+    where = ""
+    params = ()
+    if sources:
+        where = "AND r.source IN (%s)" % ",".join("?" * len(sources))
+        params = tuple(sources)
+    rows = conn.execute(RICHTEXT_SQL.format(where=where), params).fetchall()
+    if limit:
+        rows = rows[:limit]
+    print(f"[richtext] {len(rows)} attachment rows with cached bytes"
+          f"{' (dry run)' if dry_run else ''}", flush=True)
+
+    stats = Stats(total=len(rows))
+    decisions, gained = [], 0
+    for rid, source, url, old_body, content, origin in rows:
+        kind = attachments.kind_of(content)
+        if kind != "pdf":
+            stats.skipped()
+            continue
+        text, _ = attachments.plain_text(content)
+        body, body_html, _ = attachments.to_richtext(content)
+        if not body_html:
+            decisions.append((rid, url, "converter returned nothing"))
+            stats.dead()
+            continue
+        ok, why = richtext_gate(text, body, attachments.rotated_text(content),
+                                body_html.count("<li>"))
+        if not ok:
+            decisions.append((rid, url, why))
+            stats.skipped()
+            continue
+        if not dry_run:
+            db.upgrade_release(conn, url, body=body, body_html=body_html)
+            db.record_body_origin(conn, url, origin)
+        gained += 1
+        stats.upgraded()
+
+    stats.summary()
+    print(f"  {gained} rows now carry real paragraphs instead of preformatted text")
+    if decisions:
+        print(f"\nDO DECYZJI: {len(decisions)} wierszy - nic nie zapisano")
+        for rid, url, why in decisions:
+            print(f"  #{rid:5} {why:34} {url}")
+    else:
+        print("  nothing needed a decision: every PDF converted and passed the gate")
+    conn.close()
+
+
+# Rows whose attachment bytes are in page_cache under NO name - not their own
+# capture, and not a mirror's. Everything else can be worked offline, so these
+# are the only attachment rows a crawl can still add anything to.
+def no_own_bytes_rows(conn) -> list:
+    """(url, body) for attachment rows we hold bytes for, but not under their own
+    address - the copy in page_cache was fetched from a mirror domain.
+
+    Worth a crawl of its own rather than reading the sibling's bytes at write
+    time: the row would otherwise claim its text came from a capture of another
+    domain's url, which is true and unrepresentable - `releases.url` is one
+    address per row. `domain_variants` puts the row's own url first, so this pass
+    stores the right capture wherever archive.org has one, and where it has
+    none the mirror stays the only honest answer.
+
+    Rows with no cached bytes anywhere are excluded: those 30 were probed twice
+    and confirmed never archived (see CLAUDE.md), so re-crawling them buys the
+    same nothing again.
+    """
+    own, anywhere = set(), set()
+    for (key,) in conn.execute("SELECT url FROM page_cache WHERE lower(url) LIKE '%.pdf' "
+                               "OR lower(url) LIKE '%.doc'"):
+        if "id_/" not in key:
+            continue
+        page = key.split("id_/", 1)[1]
+        own.add(page.lower())
+        anywhere.add(page.rsplit("/", 1)[1].lower())
+    return [(url, body) for url, body in conn.execute(
+                "SELECT url, COALESCE(body, '') FROM releases "
+                "WHERE lower(url) LIKE '%.pdf' OR lower(url) LIKE '%.doc' ORDER BY id")
+            if url.lower() not in own and url.rsplit("/", 1)[1].lower() in anywhere]
+
+
+def missing_bytes_rows(conn) -> list:
+    """(url, body) for attachment rows with no cached bytes under any mirror name.
+
+    Done in Python, not SQL: SQLite has no basename(), the rtrim/replace trick
+    that emulates one is unreadable, and this comparison has to match the one
+    calibrate_attachments.py and the richtext pass use.
+    """
+    cached = set()
+    for (key,) in conn.execute("SELECT url FROM page_cache WHERE lower(url) LIKE '%.pdf' "
+                               "OR lower(url) LIKE '%.doc'"):
+        if "id_/" in key:
+            cached.add(key.rsplit("/", 1)[1].lower())
+    return [(url, body) for url, body in conn.execute(
+                "SELECT url, COALESCE(body, '') FROM releases "
+                "WHERE lower(url) LIKE '%.pdf' OR lower(url) LIKE '%.doc' ORDER BY id")
+            if url.rsplit("/", 1)[1].lower() not in cached]
+
+
+def backfill_source(source: str, limit: int = None, only_short: bool = False,
+                    rows: list = None, in_db: bool = True) -> None:
+    """One source's attachment rows, or an explicit `rows` list spanning several.
+
+    `in_db=False` says the label is not a source tag - the --missing-bytes run
+    passes "missing-bytes", and Stats would otherwise look that up with
+    source_total and print "Total in DB: 0", which reads as the run having found
+    an empty source rather than as the label not being one.
+    """
     conn = db.connect()
     session = requests.Session()
 
-    rows = conn.execute(ATTACHMENT_SQL, (source,)).fetchall()
+    rows = rows if rows is not None else conn.execute(ATTACHMENT_SQL, (source,)).fetchall()
     if only_short:
         full = [r for r in rows if len(r[1] or "") >= RECOVERED_LENGTH]
         rows = [r for r in rows if len(r[1] or "") < RECOVERED_LENGTH]
@@ -247,8 +462,8 @@ def backfill_source(source: str, limit: int = None, only_short: bool = False) ->
             # 2024 capture of the modern site both turned up served as 200 for
             # a 2003-era attachment path. is_attachment rejects those and the
             # walk-back tries the next-older capture instead of giving up.
-            content, _ts, confirmed = wayback.fetch_first_matching_snapshot(
-                conn, session, candidate, is_attachment,
+            content, found_ts, confirmed = wayback.fetch_first_matching_snapshot(
+                conn, session, candidate, attachments.is_attachment,
                 max_attempts=WALKBACK_ATTEMPTS, timeout=30)
 
             if content is None:
@@ -256,8 +471,8 @@ def backfill_source(source: str, limit: int = None, only_short: bool = False) ->
                     uncertain = True
                 continue
 
-            text, kind = extract_text(content)
-            text = normalize(text)
+            origin = wayback.snapshot_url(found_ts, candidate) if found_ts else None
+            text, kind = attachments.plain_text(content)
             if not text:
                 # is_attachment already confirmed this is a real pdf/doc, so a
                 # failure here is the extractor choking on it (encrypted,
@@ -276,13 +491,41 @@ def backfill_source(source: str, limit: int = None, only_short: bool = False) ->
             continue
 
         db.upgrade_release(conn, url, body=text)
+        # The address this text came out of, recorded now rather than inferred
+        # later. For a row whose own url was never archived this is a sibling
+        # domain of the same scraper - true, and unrepresentable in
+        # `releases.url`, which is exactly why the table exists.
+        if origin:
+            db.record_body_origin(conn, url, origin)
         stats.upgraded()
 
-    stats.summary(conn)
+    stats.summary(conn if in_db else None)
     conn.close()
 
 
-def backfill(limit: int = None, sources: list = None, only_short: bool = False) -> None:
+def backfill(limit: int = None, sources: list = None, only_short: bool = False,
+             missing_bytes: bool = False, no_own_bytes: bool = False) -> None:
+    if no_own_bytes:
+        conn = db.connect_ro()
+        rows = no_own_bytes_rows(conn)
+        conn.close()
+        if limit:
+            rows = rows[:limit]
+        print(f"[no-own-bytes] {len(rows)} attachment rows whose bytes we only hold "
+              f"under a mirror domain", flush=True)
+        backfill_source("no-own-bytes", rows=rows, in_db=False)
+        return
+    if missing_bytes:
+        conn = db.connect_ro()
+        rows = missing_bytes_rows(conn)
+        conn.close()
+        if limit:
+            rows = rows[:limit]
+        print(f"[missing-bytes] {len(rows)} attachment rows have no cached bytes "
+              f"under any mirror name - the only ones a crawl can still help",
+              flush=True)
+        backfill_source("missing-bytes", rows=rows, in_db=False)
+        return
     for source in sources or SOURCES:
         backfill_source(source, limit=limit, only_short=only_short)
 
@@ -293,9 +536,33 @@ if __name__ == "__main__":
     parser.add_argument("--limit", type=int, default=None,
                         help="Only process the first N attachment rows per source")
     parser.add_argument("--source", help="Only this source (default: all five)")
+    parser.add_argument("--no-own-bytes", action="store_true",
+                        help="crawl the rows whose bytes we only hold under a "
+                             "mirror domain, to get a capture of their own url")
+    parser.add_argument("--missing-bytes", action="store_true",
+                        help="crawl only the rows whose attachment bytes are in "
+                             "page_cache under no name at all")
+    parser.add_argument("--richtext", action="store_true",
+                        help="store the structured form of cached PDF attachments; "
+                             "no network, PDFs only, no silent fallback")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="with --richtext: measure and report, write nothing")
+    parser.add_argument("--from-cache", action="store_true",
+                        help="re-extract from bytes page_cache already holds; "
+                             "no network, and only whitespace may change")
     parser.add_argument("--only-short", action="store_true",
                         help=f"Skip rows whose body already exceeds {RECOVERED_LENGTH} "
                              "characters - makes a retry pass minutes instead of hours")
     args = parser.parse_args()
+    if args.richtext:
+        write_richtext(limit=args.limit,
+                       sources=[args.source] if args.source else None,
+                       dry_run=args.dry_run)
+        raise SystemExit(0)
+    if args.from_cache:
+        reextract_from_cache(limit=args.limit,
+                             sources=[args.source] if args.source else None)
+        raise SystemExit(0)
     backfill(limit=args.limit, sources=[args.source] if args.source else None,
+             missing_bytes=args.missing_bytes, no_own_bytes=args.no_own_bytes,
              only_short=args.only_short)

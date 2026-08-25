@@ -62,6 +62,23 @@ ARTICLE_FILE_RE = re.compile(r"_\d+\.html?(?:$|\?)", re.IGNORECASE)
 # "Month YYYY - Title" or "EventName YYYY - Title" (e.g. "CeBIT 2008 - ...")
 TITLE_DATE_RE = re.compile(r"^([A-Za-zäöüÄÖÜ]+)\s+(\d{4})\s*-\s*(.+)$")
 
+# div#Content > div.column.span-8 - the column that holds the release on both
+# page shapes this CMS has (a listing of div.block entries, or one article).
+# Measured over all 164 cached captures: present in every one of them, and the
+# only h2s outside it are chrome ("Unternehmen" in the menu, "Presse-Kontakt"
+# in the right column). That is what makes the date-less headline below safe to
+# accept - the container identifies a heading as a release, so TITLE_DATE_RE no
+# longer has to.
+CONTENT_ID = "Content"
+ARTICLE_COLUMN = "span-8"
+
+
+def article_area(soup):
+    """The column a release lives in, or None on a capture that predates this
+    CMS (the 2003-era terratec.net/press/ pages, which other scrapers own)."""
+    content = soup.find("div", id=CONTENT_ID)
+    return content.find("div", class_=ARTICLE_COLUMN) if content else None
+
 
 def normalize_url(url: str) -> str:
     return url.replace(":80/", "/") if url else url
@@ -117,13 +134,27 @@ def extract_entries(content: bytes, base_url: str = None, timestamp: str = None)
     'FÃ¼hrungsduo' and 'FĂ¼r'. repair_encoding.py undid that; this is why it
     cannot come back."""
     soup = BeautifulSoup(decode_html(content), "html.parser")
+    area = article_area(soup)
+    headings = area.find_all("h2") if area else soup.find_all("h2")
     entries = []
 
-    for h2 in soup.find_all("h2"):
+    for h2 in headings:
         heading = h2.get_text(" ", strip=True)
-        if not TITLE_DATE_RE.match(heading):
+        if TITLE_DATE_RE.match(heading):
+            date, title = parse_month_year(heading)
+        elif area is not None and (h2.find_parent("div", class_="block")
+                                   or len(headings) == 1):
+            # A fallback, never a replacement. Later captures dropped the
+            # "Month YYYY - " prefix from the headline, and the regex is the
+            # only thing that recognised a release, so those pages parsed to
+            # nothing at all: 9 of the 144 cached article captures and 8
+            # listing entries. Inside the article column a heading in a
+            # div.block, or the column's only heading, *is* the release
+            # headline; the date is then simply not on the page, and the row
+            # keeps the one its listing gave it.
+            date, title = "", heading
+        else:
             continue
-        date, title = parse_month_year(heading)
 
         container = h2.find_parent("div", class_="block") or h2.parent
 
@@ -237,7 +268,8 @@ def scrape_lang(lang: str, limit: int = None) -> None:
 
         db.store_release(conn, source, url, title=title, date=date, body=body,
                          body_html=body_html or None,
-                         detail_id=detail_id if body else "stub")
+                         detail_id=detail_id if body else None,
+                         grade="full" if body else "stub")
         if body:
             stats.added()
         else:
@@ -249,7 +281,8 @@ def scrape_lang(lang: str, limit: int = None) -> None:
             continue
         db.store_release(conn, source, url, title=e["title"], date=e["date"], body=e["body"],
                          body_html=e["body_html"] or None,
-                         detail_id=e["detail_id"] if e["body"] else "stub", commit=False)
+                         detail_id=e["detail_id"] if e["body"] else None,
+                         grade="full" if e["body"] else "stub", commit=False)
         if e["body"]:
             stats.added()
         else:

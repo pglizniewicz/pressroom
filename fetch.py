@@ -14,6 +14,8 @@ import time
 import requests
 from bs4 import BeautifulSoup
 
+import db
+
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:120.0) Gecko/20100101 Firefox/120.0"
 }
@@ -64,9 +66,11 @@ def fetch_cached(conn: sqlite3.Connection, session: requests.Session, url: str,
         pass
 
     conn.execute(
-        "INSERT OR IGNORE INTO page_cache (url, content, id_content_type, bs4_encoding) "
-        "VALUES (?, ?, ?, ?)",
-        (url, content, r.headers.get("Content-Type"), bs4_encoding),
+        "INSERT OR IGNORE INTO page_cache "
+        "(url, content, id_content_type, bs4_encoding, content_sha256, fetched_at) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (url, content, r.headers.get("Content-Type"), bs4_encoding,
+         db.content_hash(content), time.time()),
     )
     conn.commit()
     time.sleep(SLEEP if sleep is None else sleep)

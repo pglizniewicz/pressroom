@@ -22,7 +22,7 @@ import sqlite3
 import requests
 from bs4 import BeautifulSoup
 
-from db import stored_detail_id
+from db import stored_grade
 from dates import iso_date
 import db
 import richtext
@@ -182,7 +182,7 @@ def backfill() -> None:
         for sid, (teaser_date, teaser_title, teaser_text, teaser_html) in teasers.items():
             article_url = f"{prefix}modules.php?op=modload&name=News&file=article&sid={sid}"
 
-            existing = stored_detail_id(conn, article_url)
+            existing = stored_grade(conn, article_url)
             if existing is not None and existing != "teaser":
                 stats.skipped()
                 continue
@@ -195,7 +195,7 @@ def backfill() -> None:
                                        title=parsed["title"], date=parsed["date"],
                                        body=parsed["body"],
                                        body_html=parsed["body_html"] or None,
-                                       commit=False)
+                                       grade="full", commit=False)
                     stats.upgraded()
                 else:
                     db.store_release(conn, source, article_url, title=parsed["title"],
@@ -220,7 +220,7 @@ def backfill() -> None:
             if teaser_text:
                 db.store_release(conn, source, article_url, title=teaser_title,
                                  date=teaser_date, body=teaser_text,
-                                 body_html=teaser_html or None, detail_id="teaser")
+                                 body_html=teaser_html or None, grade="teaser")
                 stats.teaser()
             else:
                 stats.dead()

@@ -32,7 +32,7 @@ from dates import iso_date
 import db
 import richtext
 from progress import Stats
-from scrape_terratec import parse_snapshot as parse_net_snapshot
+from scrape_terratec import find_headline, parse_snapshot as parse_net_snapshot
 import wayback
 
 
@@ -109,6 +109,12 @@ def parse_de_snapshot(content: bytes) -> dict:
             if i + 1 < len(bold_tags):
                 title = bold_tags[i + 1].get_text(strip=True)
             break
+    # terratec.de is the same hand-built template as terratec.net, so the same
+    # three headline shapes turn up here - see scrape_terratec.find_headline.
+    # Fallback only: it runs when the rule above finds nothing, which is the
+    # only reason adding it changes no title that already parsed.
+    if not title:
+        title = find_headline(soup)
 
     return {"title": title, "date": date, "body": body, "body_html": body_html}
 
@@ -166,7 +172,7 @@ def backfill() -> None:
 
         if not found:
             db.store_release(conn, e["source"], e["url"], title=e["title"],
-                             date=e["date"], detail_id="stub")
+                             date=e["date"], grade="stub")
             s.stub()
             continue
 

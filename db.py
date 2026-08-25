@@ -10,6 +10,7 @@ Not an ORM: plain sqlite3, plain SQL strings, one function per statement
 shape. The point is that each statement exists exactly once.
 """
 
+import hashlib
 import sqlite3
 import time
 from pathlib import Path
@@ -29,6 +30,16 @@ _SCHEMA_SQL = """
         date      TEXT,
         url       TEXT UNIQUE,
         body      TEXT,
+        -- How good this row is: 'full' | 'teaser' | 'stub'. Its own column
+        -- since 2026-08-22, because it spent a long time inside `detail_id`,
+        -- where a *verdict about the body* sat in a field meant for a
+        -- *reference to where the body came from*. Seven places had to
+        -- re-derive which of the two a given value was, by counting digits.
+        -- 'full' is only ever as good as what the scraper knew: the media_pr
+        -- and pressdb sources store a capture timestamp on a row whose body is
+        -- just the listing blurb, so a 'full' grade there means "not marked
+        -- otherwise", and length(body) remains the honest check.
+        grade     TEXT NOT NULL DEFAULT 'full',
         -- The same content as `body`, but as the small HTML subset richtext.py
         -- emits: paragraphs, lists, headings, links, images, tables. NULL means
         -- the row predates that change and still renders as preformatted text.
@@ -54,7 +65,57 @@ _SCHEMA_SQL = """
         content            BLOB NOT NULL,
         id_content_type    TEXT,
         fw_guessed_charset TEXT,
-        bs4_encoding       TEXT
+        bs4_encoding       TEXT,
+        -- When these bytes were fetched (time.time()). NULL on the 6345 entries
+        -- written before this column existed, which is the honest answer: the
+        -- table never recorded it, and the question "when did this file arrive"
+        -- had no answer at all - not even "before the wayback_calls log
+        -- started", since a cache hit is not logged as an attempt.
+        fetched_at         REAL,
+        -- sha256 of `content`. Not a storage trick - the blobs stay, and
+        -- deduplicating them would be the thing that makes sharding this table
+        -- awkward later. It is an *identity* fact: the same attachment was
+        -- served from midiman.com, midiman.net and m-audio.com, and until this
+        -- column existed the only way to ask "are these the same bytes" was to
+        -- match filenames, which quietly paired a row with a different release
+        -- that happened to share a file name (#5343).
+        content_sha256     TEXT
+    );
+
+    -- Which archive.org capture a row's `body` was actually read out of, for
+    -- the rows where that is NOT a capture of the row's own url. A scraper
+    -- that reads a release out of a *listing* capture stores that listing's
+    -- timestamp in releases.detail_id, and the timestamp alone cannot say
+    -- which page it belongs to - so serve.py used to build
+    -- web/<ts>/<row url>, a capture that never existed (#4414 was the report
+    -- that turned this up; CDX has no capture of that article, ever, while
+    -- web/20111011173713/.../presse.html holds its full text).
+    --
+    -- Its own table rather than a column on `releases`: this is provenance,
+    -- one row per release that has a capture behind its text, and absence has
+    -- to keep meaning "no archive link for this row".
+    --
+    -- Two columns and nothing else. It briefly carried `matched`, the fraction
+    -- of body probes found when an address had to be *inferred* - dropped once
+    -- the classes turned out to be derivable from what is already here:
+    -- `origin_url` equal to `web/<detail_id>id_/<url>` is an address computed
+    -- from the row, a .pdf/.doc url is an attachment located by path, and
+    -- anything else was inferred (149 rows, exactly the ones `matched` marked).
+    -- What a reader wants from those is not a score but whether the body can be
+    -- produced from those bytes, which verify_body_origin.py answers.
+    --
+    -- `origin_url` is the ONLY address stored, and it is the whole one: the
+    -- page_cache key, `…/web/<ts>id_/<page>`. It first shipped alongside a
+    -- `page_url` column and that was one column too many - the two agreed in
+    -- 158 of 158 rows, since one is a prefix of the other. Of the two,
+    -- origin_url is the one worth keeping: the page is a pure string split
+    -- out of it (serve.py), while rebuilding it from a page would need
+    -- releases.detail_id, which a --wayback recovery can rewrite underneath.
+    CREATE TABLE IF NOT EXISTS body_origin (
+        url        TEXT PRIMARY KEY,  -- releases.url
+        origin_url TEXT NOT NULL      -- where the body was read from: an
+                                      -- archive.org capture address, which is
+                                      -- also the page_cache key
     );
 
     -- One row per HTTP attempt against archive.org - a CDX query or a content
@@ -109,8 +170,9 @@ _TRIGGERS_SQL = """
 """
 
 _INSERT_SQL = (
-    "INSERT OR IGNORE INTO releases (source, detail_id, title, date, url, body, body_html) "
-    "VALUES (?,?,?,?,?,?,?)"
+    "INSERT OR IGNORE INTO releases "
+    "(source, detail_id, title, date, url, body, body_html, grade) "
+    "VALUES (?,?,?,?,?,?,?,?)"
 )
 
 _UPGRADE_SQL = """
@@ -119,9 +181,33 @@ _UPGRADE_SQL = """
            title     = COALESCE(?, title),
            date      = COALESCE(?, date),
            body      = COALESCE(?, body),
-           body_html = COALESCE(?, body_html)
+           body_html = COALESCE(?, body_html),
+           grade     = COALESCE(?, grade)
      WHERE url = ?
 """
+
+
+def content_hash(content: bytes) -> str:
+    """sha256 of a cached page's bytes, hex. One implementation for the two
+    write sites (fetch.fetch_cached, wayback.fetch_snapshot) and for the pass
+    that fills it in for older rows."""
+    return hashlib.sha256(content).hexdigest()
+
+
+def same_bytes(conn: sqlite3.Connection, url: str) -> list:
+    """Other addresses in page_cache holding byte-identical content to `url`'s.
+
+    Answers "we already have these bytes, under another name" without guessing
+    from file names or paths. Empty when the entry is unique, or when its hash
+    has not been filled in yet.
+    """
+    row = conn.execute("SELECT content_sha256 FROM page_cache WHERE url = ?",
+                       (url,)).fetchone()
+    if not row or not row[0]:
+        return []
+    return [u for (u,) in conn.execute(
+        "SELECT url FROM page_cache WHERE content_sha256 = ? AND url <> ?",
+        (row[0], url))]
 
 
 def rebuild_fts(conn: sqlite3.Connection) -> None:
@@ -169,21 +255,92 @@ def init_db(conn: sqlite3.Connection) -> None:
     """Create the schema if absent, apply migrations, install FTS triggers.
     Idempotent - every scraper calls it once at startup."""
     _rename_wayback_cache(conn)
+    # Before the CREATE TABLEs, for the same reason: the script would otherwise
+    # create an empty body_origin beside the populated body_origin, and a
+    # rename guarded on "the target does not exist" would then never fire.
+    _rename_to_body_origin(conn)
     conn.executescript(_SCHEMA_SQL)
     conn.commit()
 
     # page_cache may predate these diagnostic columns (SQLite has no
     # "ADD COLUMN IF NOT EXISTS") - add whichever are missing.
     existing_cols = {row[1] for row in conn.execute("PRAGMA table_info(page_cache)").fetchall()}
-    for col in ("id_content_type", "fw_guessed_charset", "bs4_encoding"):
+    for col, coltype in (("id_content_type", "TEXT"), ("fw_guessed_charset", "TEXT"),
+                         ("bs4_encoding", "TEXT"), ("content_sha256", "TEXT"),
+                         ("fetched_at", "REAL")):
         if col not in existing_cols:
-            conn.execute(f"ALTER TABLE page_cache ADD COLUMN {col} TEXT")
+            conn.execute(f"ALTER TABLE page_cache ADD COLUMN {col} {coltype}")
+    # After the ALTER, not in _SCHEMA_SQL: on an existing database the script
+    # runs before the column is added, and CREATE INDEX on a column that is not
+    # there yet fails the whole init.
+    conn.execute("CREATE INDEX IF NOT EXISTS page_cache_sha "
+                 "ON page_cache(content_sha256)")
 
     if "body_html" not in {row[1] for row in conn.execute("PRAGMA table_info(releases)")}:
         conn.execute("ALTER TABLE releases ADD COLUMN body_html TEXT")
+
+    # body_origin shipped with a redundant page_url (a prefix of origin_url).
+    if "page_url" in {row[1] for row in conn.execute("PRAGMA table_info(body_origin)")}:
+        conn.execute("ALTER TABLE body_origin DROP COLUMN page_url")
     conn.commit()
 
+    _migrate_grade(conn)
+    _drop_matched(conn)
+
     _sync_fts_triggers(conn)
+
+
+def _migrate_grade(conn: sqlite3.Connection) -> None:
+    """Move the two grade sentinels out of `detail_id` into `grade`.
+
+    Idempotent by construction rather than by a version flag: the ALTER is
+    guarded on the column being absent, and the UPDATE matches nothing once it
+    has run. `detail_id` is set to NULL for those rows because 'teaser'/'stub'
+    never *were* references - the scraper had no capture to name, which is
+    exactly what the row was recording. Callers asking "is this row worth
+    retrying" must read `grade` (stored_grade), not `detail_id`; the one that
+    only wanted "does a row exist" is already served by already_stored().
+    """
+    if "grade" not in {row[1] for row in conn.execute("PRAGMA table_info(releases)")}:
+        # A DEFAULT on ALTER TABLE fills every existing row without firing the
+        # FTS update trigger, which is right: title and body are untouched.
+        conn.execute("ALTER TABLE releases ADD COLUMN grade TEXT NOT NULL DEFAULT 'full'")
+    moved = conn.execute(
+        "UPDATE releases SET grade = detail_id, detail_id = NULL "
+        "WHERE detail_id IN ('teaser', 'stub')").rowcount
+    if moved:
+        print(f"Migrated {moved} rows: detail_id -> grade", flush=True)
+    conn.commit()
+
+
+def _rename_to_body_origin(conn: sqlite3.Connection) -> None:
+    """body_capture -> body_origin, capture_url -> origin_url.
+
+    The old name glued a column of `releases` to a concept from `page_cache` and
+    read like a table storing captures *of* bodies; what it stores is where each
+    body came from. Runs after the column migrations above, which still address
+    the old name - on a renamed database their PRAGMA finds nothing and they are
+    no-ops.
+    """
+    names = {r[0] for r in conn.execute(
+        "SELECT name FROM sqlite_master WHERE type = 'table'")}
+    if "body_capture" in names and "body_origin" not in names:
+        conn.execute("ALTER TABLE body_capture RENAME TO body_origin")
+        conn.commit()
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(body_origin)")}
+    if "capture_url" in cols and "origin_url" not in cols:
+        conn.execute("ALTER TABLE body_origin RENAME COLUMN capture_url TO origin_url")
+        conn.commit()
+
+
+def _drop_matched(conn: sqlite3.Connection) -> None:
+    """Remove body_origin.matched, whose three classes are derivable without it
+    (see the table's comment). Idempotent: guarded on the column being present.
+    """
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(body_origin)")}
+    if "matched" in cols:
+        conn.execute("ALTER TABLE body_origin DROP COLUMN matched")
+        conn.commit()
 
 
 def connect(db_path=None) -> sqlite3.Connection:
@@ -195,7 +352,8 @@ def connect(db_path=None) -> sqlite3.Connection:
 
 def store_release(conn: sqlite3.Connection, source: str, url: str, *,
                   title: str = "", date: str = "", body: str = "",
-                  body_html=None, detail_id=None, commit: bool = True) -> bool:
+                  body_html=None, detail_id=None, grade: str = "full",
+                  commit: bool = True) -> bool:
     """INSERT OR IGNORE one release, keyed on `url` (UNIQUE).
 
     Returns True only if a row was actually inserted; False means the url was
@@ -205,8 +363,14 @@ def store_release(conn: sqlite3.Connection, source: str, url: str, *,
     Content fields are keyword-only on purpose: the six positional columns
     were easy to transpose silently, and this way a mistake is a TypeError.
     Pass commit=False when the caller commits once after a loop.
+
+    `grade` defaults to 'full' because most callers store a real article; a
+    caller that could only get the listing blurb passes grade="teaser" (or
+    "stub" for title/date only) and leaves detail_id alone. Those two strings
+    used to be written *into* detail_id, which is the union this split undid.
     """
-    cur = conn.execute(_INSERT_SQL, (source, detail_id, title, date, url, body, body_html))
+    cur = conn.execute(_INSERT_SQL,
+                       (source, detail_id, title, date, url, body, body_html, grade))
     if commit:
         conn.commit()
     return cur.rowcount > 0
@@ -214,7 +378,7 @@ def store_release(conn: sqlite3.Connection, source: str, url: str, *,
 
 def upgrade_release(conn: sqlite3.Connection, url: str, *,
                     body=None, body_html=None, title=None, date=None,
-                    detail_id=None, commit: bool = True) -> bool:
+                    detail_id=None, grade=None, commit: bool = True) -> bool:
     """Upgrade an existing row in place - a teaser/stub replaced by recovered
     full text. None means "leave that column alone", so the call site states
     which columns the upgrade is allowed to touch:
@@ -227,18 +391,50 @@ def upgrade_release(conn: sqlite3.Connection, url: str, *,
         upgrade_release(conn, url, detail_id=ts, title=t, date=d, body=text)
             detail page is authoritative for all of them.
 
+    A pass that replaces a teaser body with the real article must say so with
+    grade="full" - otherwise the row keeps a verdict that stopped being true,
+    and `stored_grade()` will hand it to the next run as still-upgradable.
+
     Returns True if a row matched `url`.
     """
-    cur = conn.execute(_UPGRADE_SQL, (detail_id, title, date, body, body_html, url))
+    cur = conn.execute(_UPGRADE_SQL,
+                       (detail_id, title, date, body, body_html, grade, url))
     if commit:
         conn.commit()
     return cur.rowcount > 0
 
 
+def capture_page_of(origin_url: str):
+    """The page a `body_origin.origin_url` is a capture of, or None.
+
+    One split on the `id_/` marker wayback.py puts in every page_cache key -
+    which is why the column stores the whole address and the page is derived.
+    Lives here rather than in wayback.py because serve.py needs it and must not
+    import requests, and here rather than twice because it was twice: this
+    function and repair_capture_provenance.page_of, the same line in two files.
+    """
+    if not origin_url or "id_/" not in origin_url:
+        return None
+    return origin_url.split("id_/", 1)[1]
+
+
+def clear_body_origin(conn: sqlite3.Connection, url: str, commit: bool = True) -> None:
+    """Forget the recorded capture for `url`.
+
+    Called by any pass that rewrites a body from the row's *own* capture: the
+    recorded one then no longer describes where the text came from, and a stale
+    entry would keep the browser linking a listing for text that no longer came
+    from it. Cheap and unconditional - most urls have no entry to begin with.
+    """
+    conn.execute("DELETE FROM body_origin WHERE url = ?", (url,))
+    if commit:
+        conn.commit()
+
+
 def already_stored(conn: sqlite3.Connection, url: str) -> bool:
-    """Whether any row exists for `url`. Note this is not the same as
-    stored_detail_id(...) is not None - a row whose detail_id is NULL exists
-    but yields None there."""
+    """Whether any row exists for `url`. The right question for a loop that
+    only skips what it has already seen; a loop that wants to know whether the
+    row is worth upgrading asks stored_grade()."""
     return conn.execute("SELECT 1 FROM releases WHERE url = ?", (url,)).fetchone() is not None
 
 
@@ -264,19 +460,32 @@ def record_wayback_call(conn: sqlite3.Connection, *, kind: str, url: str, attemp
         pass
 
 
-def stored_detail_id(conn: sqlite3.Connection, url: str):
-    """None if no row exists for `url`, else its detail_id - lets a caller
-    tell a fully-recovered row apart from a fallback (e.g. detail_id=="teaser"
-    or "stub") that's still worth retrying to upgrade on a future run."""
-    row = conn.execute("SELECT detail_id FROM releases WHERE url = ?", (url,)).fetchone()
+def stored_grade(conn: sqlite3.Connection, url: str):
+    """None if no row exists for `url`, else 'full' | 'teaser' | 'stub' - i.e.
+    whether a future run should try to upgrade this row. The scrapers' loop
+    condition: `grade is not None and grade != "teaser"` means "already stored
+    and already as good as this source can get"."""
+    row = conn.execute("SELECT grade FROM releases WHERE url = ?", (url,)).fetchone()
     return row[0] if row else None
+
+
+def record_body_origin(conn: sqlite3.Connection, url: str, origin_url: str,
+                       commit: bool = True) -> None:
+    """Record which capture a row's body came from. One statement, one place,
+    like every other write here."""
+    conn.execute(
+        "INSERT INTO body_origin (url, origin_url) VALUES (?,?) "
+        "ON CONFLICT(url) DO UPDATE SET origin_url = excluded.origin_url",
+        (url, origin_url))
+    if commit:
+        conn.commit()
 
 
 def stored_body_length(conn: sqlite3.Connection, url: str):
     """None if no row exists for `url`, else the length of its body.
 
-    The way to tell a teaser-grade row from a fully recovered one when
-    stored_detail_id() cannot: the pressdb and media_pr scrapers put the
+    The way to tell a teaser-grade row from a fully recovered one when `grade`
+    cannot: the pressdb and media_pr scrapers put the
     *listing* capture's timestamp in detail_id even when the body they stored is
     only that listing's blurb, so a timestamp there says nothing about whether
     the real text was ever fetched. Length does.
@@ -305,10 +514,6 @@ def source_urls(conn: sqlite3.Connection, source: str):
 # them takes a connection they could migrate, and connect_ro below hands out a
 # connection SQLite itself refuses to write through.
 
-# 14 digits: a Wayback timestamp in detail_id means full text was recovered
-# from that capture. 'teaser'/'stub'/NULL mean it wasn't.
-_TS_GLOB = "[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]"
-
 # The two damage shapes described in CLAUDE.md's encoding convention: 'â€' is
 # UTF-8 read as something 8-bit, a raw C1 control character is cp1252 read as
 # ISO-8859-1 (0x99 ™, 0x92 ', 0x93 ", 0x84 „ are the ones that occur most,
@@ -333,7 +538,7 @@ _MOJIBAKE_SQL = (
 )
 
 _FLAG_SQL = {
-    "teaser": "r.detail_id IN ('teaser', 'stub')",
+    "teaser": "r.grade IN ('teaser', 'stub')",
     "short": "length(COALESCE(r.body, '')) < 300",
     "nodate": "(r.date IS NULL OR r.date = '')",
     "mojibake": _MOJIBAKE_SQL,
@@ -360,8 +565,14 @@ _FLAG_SQL = {
 # string so serve.py and the frontend never have to know which mode they're in.
 _MAX_OFFSET = 1000
 
-_ROW_COLS = ("r.id, r.source, r.date, r.title, r.url, r.detail_id, "
-             "length(COALESCE(r.body, '')), " + _MOJIBAKE_SQL)
+# `c.origin_url` rides along on every list row for the same reason get_release
+# joins it: a row's detail_id timestamp does not always name a capture of that
+# row's own url, so a reader cannot build the capture link from the timestamp
+# alone. NULL is the common case and means it can.
+_ROW_COLS = ("r.id, r.source, r.date, r.title, r.url, r.detail_id, r.grade, "
+             "length(COALESCE(r.body, '')), " + _MOJIBAKE_SQL + ", c.origin_url")
+
+_ROW_JOIN = " LEFT JOIN body_origin c ON c.url = r.url"
 
 
 def connect_ro(db_path=None) -> sqlite3.Connection:
@@ -379,7 +590,8 @@ def connect_ro(db_path=None) -> sqlite3.Connection:
 
 
 def _row_dict(row, excerpt_key: str) -> dict:
-    rid, source, date, title, url, detail_id, body_len, damaged = row[:8]
+    (rid, source, date, title, url, detail_id, grade, body_len, damaged,
+     origin_url) = row[:10]
     return {
         "id": rid,
         "source": source,
@@ -387,11 +599,13 @@ def _row_dict(row, excerpt_key: str) -> dict:
         "title": title or "",
         "url": url or "",
         "detail_id": detail_id,
+        "grade": grade,
         "body_len": body_len,
         # Judged over the whole body in SQL, not client-side over the excerpt:
         # most damage sits past the 240 characters a listing row ever shows.
         "damaged": bool(damaged),
-        excerpt_key: row[8] or "",
+        "origin_url": origin_url,
+        excerpt_key: row[10] or "",
     }
 
 
@@ -456,7 +670,7 @@ def search_releases(conn: sqlite3.Connection, q: str = "", *, sources=None,
         sql = f"""
             SELECT {_ROW_COLS}, snippet(releases_fts, 1, '>>>', '<<<', '…', 24)
               FROM releases_fts
-              JOIN releases r ON releases_fts.rowid = r.id
+              JOIN releases r ON releases_fts.rowid = r.id{_ROW_JOIN}
              WHERE releases_fts MATCH ?{where}
              ORDER BY {ordering}
              LIMIT ? OFFSET ?
@@ -478,7 +692,7 @@ def search_releases(conn: sqlite3.Connection, q: str = "", *, sources=None,
         keyset_params = [date, date, int(rid)]
     sql = f"""
         SELECT {_ROW_COLS}, substr(COALESCE(r.body, ''), 1, 240)
-          FROM releases r
+          FROM releases r{_ROW_JOIN}
          WHERE 1=1{where}{keyset}
          ORDER BY r.date DESC, r.id DESC
          LIMIT ?
@@ -495,20 +709,28 @@ def search_releases(conn: sqlite3.Connection, q: str = "", *, sources=None,
 
 
 def get_release(conn: sqlite3.Connection, rid: int):
-    """One full row by id, body included, or None."""
+    """One full row by id, body included, or None.
+
+    `origin_url` is the capture the body was read out of, and it is present
+    only when that capture is *not* one of the row's own url - i.e. only for
+    the rows whose text came off a listing. serve.py turns it into the link and
+    names the page; without it a reader can only guess from the timestamp, and
+    for these rows that guess is a page that never existed."""
     row = conn.execute(
-        f"""SELECT r.id, r.source, r.detail_id, r.title, r.date, r.url, r.body,
-                  {_MOJIBAKE_SQL}, r.body_html
-             FROM releases r WHERE r.id = ?""",
+        f"""SELECT r.id, r.source, r.detail_id, r.grade, r.title, r.date, r.url,
+                  r.body, {_MOJIBAKE_SQL}, r.body_html, c.origin_url
+             FROM releases r
+             LEFT JOIN body_origin c ON c.url = r.url
+            WHERE r.id = ?""",
         (rid,),
     ).fetchone()
     if row is None:
         return None
     return {
-        "id": row[0], "source": row[1], "detail_id": row[2],
-        "title": row[3] or "", "date": row[4] or "", "url": row[5] or "",
-        "body": row[6] or "", "damaged": bool(row[7]),
-        "body_html": row[8],
+        "id": row[0], "source": row[1], "detail_id": row[2], "grade": row[3],
+        "title": row[4] or "", "date": row[5] or "", "url": row[6] or "",
+        "body": row[7] or "", "damaged": bool(row[8]),
+        "body_html": row[9], "origin_url": row[10],
     }
 
 
@@ -546,17 +768,21 @@ def quality_counts(conn: sqlite3.Connection) -> dict:
     so they still render as one preformatted blob - excluding .pdf/.doc
     attachment rows, which have no HTML behind them and never will.
 
-    'wayback' counts rows whose detail_id is a 14-digit capture timestamp;
-    'platform_id' the rest of the non-fallback ids, which are the Q4 sources
-    (intel, amd) storing that platform's own numeric detail id instead - so a
-    short detail_id there is not a defect."""
+    'wayback' counts rows with a recorded archive capture (body_origin), and
+    'platform_id' the rows that carry a reference but no capture: mostly the
+    live sources storing their platform's own numeric id, plus 241 attachment
+    rows whose .pdf/.doc bytes were never cached, so nothing can say which
+    capture their text came out of. The key name is older than that second
+    group - the browser labels it "bez capture", which is what it measures. Neither is derived from
+    the *shape* of detail_id any more: counting digits was the same rule
+    re-implemented in seven places, and it silently decided what a new source
+    was allowed to store (soundonsound's docstring says so outright)."""
     row = conn.execute(f"""
         SELECT count(*),
-               sum(r.detail_id = 'teaser'),
-               sum(r.detail_id = 'stub'),
-               sum(r.detail_id GLOB '{_TS_GLOB}'),
-               sum(r.detail_id IS NOT NULL AND r.detail_id NOT IN ('teaser', 'stub')
-                   AND NOT r.detail_id GLOB '{_TS_GLOB}'),
+               sum(r.grade = 'teaser'),
+               sum(r.grade = 'stub'),
+               sum(c.url IS NOT NULL),
+               sum(c.url IS NULL AND r.detail_id IS NOT NULL),
                sum(length(COALESCE(r.body, '')) < 300),
                sum(COALESCE(r.body, '') = ''),
                sum(r.date IS NULL OR r.date = ''),
@@ -564,6 +790,7 @@ def quality_counts(conn: sqlite3.Connection) -> dict:
                sum(r.body_html IS NULL AND lower(r.url) NOT LIKE '%.pdf'
                                        AND lower(r.url) NOT LIKE '%.doc')
           FROM releases r
+          LEFT JOIN body_origin c ON c.url = r.url
     """).fetchone()
     keys = ("total", "teaser", "stub", "wayback", "platform_id",
             "short", "empty", "nodate", "mojibake", "plain")
@@ -576,7 +803,7 @@ def list_sources(conn: sqlite3.Connection) -> list:
     rows = conn.execute(f"""
         SELECT r.source, count(*),
                min(NULLIF(r.date, '')), max(NULLIF(r.date, '')),
-               sum(r.detail_id IN ('teaser', 'stub')),
+               sum(r.grade IN ('teaser', 'stub')),
                sum(length(COALESCE(r.body, '')) < 300),
                sum(r.date IS NULL OR r.date = ''),
                sum({_MOJIBAKE_SQL}),

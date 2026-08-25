@@ -40,7 +40,6 @@ STATIC_FILES = {
     "app.css": "text/css; charset=utf-8",
 }
 
-_TS_RE = re.compile(r"^\d{14}$")
 
 VALID_FLAGS = ("teaser", "short", "nodate", "mojibake", "plain")
 
@@ -59,16 +58,71 @@ def _conn(db_path):
     return _local.conn
 
 
-def wayback_url(detail_id, url: str):
-    """The capture this row's text came from, when there is one.
+def capture_ts(origin_url):
+    """The timestamp of the capture a row's body came from, or None.
 
-    Only a 14-digit detail_id is a Wayback timestamp. 'teaser'/'stub'/NULL
-    aren't, and neither are the Q4 sources' short numeric platform ids, so
-    those get no link rather than a fabricated one.
+    Taken from the recorded capture, never from `releases.detail_id`: for a row
+    whose bytes came off a sibling domain those two differ (#4984's detail_id is
+    the listing's 20030212170800, its capture is 20030421210545), and labelling
+    the link with the wrong one is the same misreading this whole table exists
+    to end.
     """
-    if not url or not detail_id or not _TS_RE.match(str(detail_id)):
+    if not origin_url:
         return None
-    return f"https://web.archive.org/web/{detail_id}/{url}"
+    m = re.search(r"/web/(\d{14})", origin_url)
+    return m.group(1) if m else None
+
+
+def capture_kind(page, row_url):
+    """How the capture's page relates to the row's own url: 'mirror' | 'other'.
+
+    A copy of the *same file* on a sibling domain is not a listing, and calling
+    it one is what stopped 209 attachment rows from being written for a day: the
+    browser's badge said "z listingu", which for `midiman.net/.../BX5_PR.pdf`
+    read off `m-audio.com/.../BX5_PR.pdf` is simply false. Both addresses are
+    start urls of one scraper (its own DOMAINS dict lists them side by side), so
+    the honest label is "a copy from another domain".
+
+    The file name decides, and only here: it is a *label*, never an identity
+    test. Identity was established by the bytes (page_cache.content_sha256) and
+    by the extracted text matching, path-with-domain-swapped - matching on the
+    name alone once paired a row with a different release (#5343).
+    """
+    if not page or not row_url:
+        return None
+    return ("mirror" if page.rsplit("/", 1)[-1].lower() == row_url.rsplit("/", 1)[-1].lower()
+            else "other")
+
+
+def capture_page(origin_url, row_url):
+    """The page a `body_origin.origin_url` is a capture of - but only when
+    that is *not* the row's own url, since that is the only case the reader has
+    anything to say about.
+
+    The split itself is db.capture_page_of - one implementation, shared with the
+    provenance repair. What belongs here is the comparison: since body_origin
+    covers every Wayback row, not just the discrepant ones, this is what keeps
+    "(capture strony: …)" and the "z listingu" badge off the 1605 rows whose
+    capture *is* of their own page."""
+    page = db.capture_page_of(origin_url)
+    return page if page and page != row_url else None
+
+
+def wayback_url(origin_url):
+    """The archive link for a row, or None if it has no capture.
+
+    Reads `db.body_origin` and nothing else. It used to build the address from
+    `detail_id` whenever that field looked like 14 digits, which was wrong twice
+    over: the shape of an id is not a statement about what it refers to, and for
+    a row whose text came off a listing the address it produced was a capture
+    that never existed (#4414). A row with no recorded capture now gets no link,
+    which is the only honest answer - including for the live sources, whose
+    detail_id is their own platform's id and never named a capture at all.
+
+    Stored minus the `id_` marker, so the reader lands on the ordinary viewer
+    page rather than page_cache's raw-bytes variant.
+    """
+    return origin_url.replace("id_/", "/", 1) if origin_url else None
 
 
 def _one(params, key, default=None):
@@ -153,7 +207,12 @@ def handle_search(conn, params) -> dict:
     except (ValueError, sqlite3.OperationalError) as e:
         raise BadRequest(str(e))
     for row in payload["results"]:
-        row["wayback_url"] = wayback_url(row["detail_id"], row["url"])
+        row["wayback_url"] = wayback_url(row.get("origin_url"))
+        cap = row.pop("origin_url", None)
+        page = capture_page(cap, row["url"])
+        row["capture_page"] = page
+        row["capture_kind"] = capture_kind(page, row["url"])
+        row["capture_ts"] = capture_ts(cap)
         row["company"] = companies.label(companies.company_of(row["source"]))
     return payload
 
@@ -162,7 +221,12 @@ def handle_release(conn, rid: int):
     row = db.get_release(conn, rid)
     if row is None:
         return None
-    row["wayback_url"] = wayback_url(row["detail_id"], row["url"])
+    row["wayback_url"] = wayback_url(row.get("origin_url"))
+    cap = row.pop("origin_url", None)
+    page = capture_page(cap, row["url"])
+    row["capture_page"] = page
+    row["capture_kind"] = capture_kind(page, row["url"])
+    row["capture_ts"] = capture_ts(cap)
     row["body_len"] = len(row["body"])
     row["company_slug"] = companies.company_of(row["source"])
     row["company"] = companies.label(row["company_slug"])

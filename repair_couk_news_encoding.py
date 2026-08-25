@@ -65,21 +65,23 @@ def repair(dry_run: bool = False) -> None:
     by_url = correct_entries(conn)
 
     stored = conn.execute(
-        "SELECT url, detail_id, title, body FROM releases WHERE source = ?", (SOURCE,)
+        "SELECT url, grade, title, body FROM releases WHERE source = ?", (SOURCE,)
     ).fetchall()
     print(f"[{SOURCE}] {len(stored)} stored rows, {len(by_url)} listing entries re-parsed\n")
 
     titles = bodies = unmatched = 0
-    for url, detail_id, title, body in stored:
+    for url, grade, title, body in stored:
         good = by_url.get(url)
         if good is None:
             unmatched += 1
             continue
 
         new_title = good["title"] if good["title"] != title else None
-        # Only teaser rows carry a listing-derived body.
+        # Only teaser rows carry a listing-derived body. Reads `grade`: this
+        # test said `detail_id == "teaser"` until the grade got its own column,
+        # and a kept repair script has to stay runnable to stay reproducible.
         new_body = (good["teaser"]
-                    if detail_id == "teaser" and good["teaser"] != body else None)
+                    if grade == "teaser" and good["teaser"] != body else None)
         if new_title is None and new_body is None:
             continue
 

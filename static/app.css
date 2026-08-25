@@ -28,6 +28,10 @@ body { font-family: system-ui, -apple-system, sans-serif; line-height: 1.5; }
   --short-bg: #fff0c4;    --short-line: #c8a23f;
   --full-bg: #e0f0da;     --full-line: #8db97f;
   --damaged-bg: #ece0ff;  --damaged-line: #a888d8;
+  /* "z listingu": provenance, not grade - the text was read off another page.
+     Cool/neutral on purpose, so it does not compete with the three warm
+     badges that do judge the body (teaser, short, full). */
+  --listing-bg: #dde8f6;  --listing-line: #7d9fc6;
 
   --radius: 6px;
   --gap: 0.75rem;
@@ -50,6 +54,7 @@ body { font-family: system-ui, -apple-system, sans-serif; line-height: 1.5; }
     --short-bg: #46390f;    --short-line: #8d7527;
     --full-bg: #223a1f;     --full-line: #547f47;
     --damaged-bg: #33254a;  --damaged-line: #6b53a0;
+    --listing-bg: #1d2836;  --listing-line: #46648f;
   }
 }
 
@@ -147,8 +152,35 @@ button:hover { border-color: var(--accent); }
 }
 
 @media (min-width: 60rem) {
-  .layout { grid-template-columns: 15rem minmax(0, 1fr); }
-  .panel { position: sticky; inset-block-start: 8.5rem; }
+  /* 15rem of text plus the scrollbar strip the panel reserves below, so the
+     items keep exactly the width the tag names were fitted to. Taking the
+     strip out of 15rem instead wrapped the three longest tags to a third
+     line. */
+  .layout { grid-template-columns: calc(15rem + var(--gap)) minmax(0, 1fr); }
+  /* Pinned under the topbar AND capped at what is left of the viewport, so the
+     panel is its own scroll container. Sticky alone was not enough: an element
+     taller than the viewport only pins once its bottom edge arrives, so until
+     then it travels with the page and the wheel over a 25-source list moved the
+     results instead of the list. --topbar-h is measured in app.js; 8.5rem is
+     the pre-JS fallback, i.e. the value this rule used to hardcode.
+     No `overscroll-behavior: contain` here, and that was measured rather than
+     assumed: with the companies list the panel fits, so it is a scroll
+     container with zero range - and Chrome still stops the chain there, which
+     froze the page for any wheel over the short panel. Chaining at the end of
+     the sources list is the ordinary sidebar behaviour and costs nothing. */
+  .panel {
+    position: sticky;
+    inset-block-start: var(--topbar-h, 8.5rem);
+    max-block-size: calc(100dvh - var(--topbar-h, 8.5rem) - var(--gap));
+    overflow-y: auto;
+    /* Room for the scrollbar to sit beside the items rather than across the
+       end of a picked one. It has to be padding, not `scrollbar-gutter`: this
+       Chrome overlays its scrollbar (offsetWidth == clientWidth), and a gutter
+       is defined to do nothing for an overlay scrollbar. --gap is the same
+       12px the results column already keeps between a .hit and the document
+       scrollbar, which is what this is being matched to. */
+    padding-inline-end: var(--gap);
+  }
 }
 
 /* ---- panel: companies (default) or sources ---- */
@@ -275,6 +307,7 @@ mark { background: var(--mark-bg); color: var(--mark-fg); }
 .badge.short { background: var(--short-bg); border-color: var(--short-line); }
 .badge.full { background: var(--full-bg); border-color: var(--full-line); }
 .badge.damaged { background: var(--damaged-bg); border-color: var(--damaged-line); }
+.badge.listing { background: var(--listing-bg); border-color: var(--listing-line); }
 
 .more-wrap { margin-block: var(--gap) 2rem; }
 

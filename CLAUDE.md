@@ -53,6 +53,7 @@ into `fetch.py`/`q4.py` for exactly this reason):
 | `richtext.py` | `extract()` — a parsed node to `(body, body_html)`: the tag allowlist, the sanitizer, the plain-text renderer. Plus `densest()`/`cut_from()`, which locate the article subtree before it is converted |
 | `progress.py` | `Stats` — the shared outcome vocabulary and summary line |
 | `q4.py` | the Q4 Inc. IR-platform parser (Intel + AMD only) |
+| `attachments.py` | what an attachment's bytes mean: `.pdf`/`.doc` -> text (`plain_text`), or a PDF -> our HTML subset (`to_richtext`). Shells out to `pdftotext`/`antiword`; no network, no SQL |
 
 Scripts: `scrape_<source>.py` = a source's primary pass. `backfill_<...>.py` =
 a follow-up pass that upgrades rows an earlier pass could only store as
@@ -63,11 +64,51 @@ database read-only, so neither can touch `releases` or the FTS index.
 `static/` = the browser's three files (`index.html`, `app.js`, `app.css`),
 served from a name whitelist in `serve.py`. `checks.md` = the browser's
 site-specific check manifest, in the format the `web-static` skill executes.
+`verify_<...>.py` = a read-only check that a claim in the database still holds,
+run after anything that could break it. `calibrate_<...>.py` = a read-only
+review pass over the whole cache, printing
+metrics *and* writing a page of full texts: `calibrate_containers.py` for DOM
+containers, `calibrate_attachments.py` for the attachment converters. The
+second half is not decoration - a column of metrics once said "100% of words
+kept" about a conversion that had put the release's headline after the footer.
 
-- `pdftotext -layout` extracts PDF attachments, `antiword -m UTF-8.txt` the
-  .doc ones (`backfill_midiman_attachments.py`). System binaries, deliberately,
-  in a repo that declares no Python dependencies. Dispatch on **magic bytes,
-  not the extension** — CMS-era attachments are routinely mislabeled.
+- `attachments.py` owns attachment extraction, `backfill_midiman_attachments.py`
+  owns the crawl. System binaries, deliberately, in a repo that declares no
+  Python dependencies. Dispatch on **magic bytes, not the extension** — CMS-era
+  attachments are routinely mislabeled, and 7 of this corpus's ".pdf" URLs are
+  an HTML soft-404.
+
+  **PDFs and .doc files take different routes, and that asymmetry is a
+  measured decision, not an omission.**
+
+  - **PDF -> `pdftotext -bbox-layout` -> our HTML subset.** Not `-layout`: the
+    bbox output is an XML tree of page/block/line/word *with coordinates and no
+    composed text at all*, and the structure is derived from geometry. Words
+    join into a line when the gap is under 0.15 of the line height and
+    non-negative (real word spaces measure 0.20–0.30, letter-spaced display type
+    0.08–0.10, and *overlapping* boxes — 97 pairs, `MAC|OS`, `OS|X` — are
+    tracked capitals that must not merge). Lines sharing a y-band merge, so a
+    list's marker column rejoins its text column. Blocks sort by position, not
+    stream order. A line taller than 1.6× the page median outside the margins is
+    a heading; one opening with a bullet or number is a list item, nested by
+    indent, and a gap over 3× the leading starts a *new* list rather than a
+    deeper level. Rotated blocks — the sideways banner these releases print down
+    the margin — are dropped, and `rotated_text()` names them so a writer can
+    account for what it left out.
+  - **.doc -> `antiword -m UTF-8.txt` text, `body_html` NULL, `pre-wrap`.** The
+    DocBook route (`antiword -x db`) was built, calibrated over all 67 cached
+    Word files and dropped: it flattens nested lists (`GForce_M-Tron Pro_PR6.doc`
+    loses both levels), loses paragraph breaks, mangles numbering and drops an
+    item, and all it gained was `<strong>` on the headline. One known bad row
+    stays: `m-audio_octane_pr.doc`, whose text output interleaves two overlapping
+    copies of the release (`$749699.95.use`).
+
+  **A PDF that converts to nothing is reported, never quietly given the text
+  route.** A silent fallback would turn a converter failure into a row that
+  merely looks worse, and nobody would learn which document broke it.
+  `calibrate_attachments.py` reports three conditions with a suggestion each -
+  no output, one block for a whole document, retention under 95% - and as of
+  2026-08-24 none of them fire.
 
 ## Invariants — breaking these fails silently
 
@@ -119,11 +160,40 @@ against a flaky archive; a rerun must pick up exactly what the last one
 couldn't get. Commit per row unless a loop batches explicitly
 (`commit=False`).
 
-**`detail_id` records how good a row is:** a Wayback timestamp = full text
-recovered from that capture; `"teaser"` = only a listing blurb;
-`"stub"` = title/date only. Use `stored_detail_id()`, not `already_stored()`,
-whenever a row might deserve an upgrade later — `already_stored()` would wedge
-teaser rows permanently.
+**`releases.grade` records how good a row is; `detail_id` records where its
+text came from. They were one field until 2026-08-22 and that was a mistake.**
+
+- `grade` is `full` | `teaser` | `stub` — a verdict about the body. Use
+  `stored_grade()`, not `already_stored()`, whenever a row might deserve an
+  upgrade later: the scrapers' condition is
+  `grade is not None and grade != "teaser"`, and `already_stored()` alone would
+  wedge teaser rows permanently. `already_stored()` is right when the loop only
+  needs "have I seen this url".
+- `detail_id` is an **opaque reference** — a Wayback capture timestamp, or the
+  platform's own id on the live sources (Q4's numeric ids, Drupal node ids) —
+  and NULL on the 554 rows that never had one. Nothing parses it: reading it is
+  `wayback.is_timestamp()`'s job, and only the archive-facing scripts ask.
+- `full` is only as good as what the scraper knew. The `media_pr` and `pressdb`
+  sources store a capture timestamp on rows whose body is just the listing
+  blurb, so `full` there means "not marked otherwise" — `length(body)` stays the
+  honest check, which is what the `short` flag is for.
+
+Writers say it explicitly: `store_release(..., grade="teaser")` for a row that
+is only a listing blurb, `grade="stub"` for title/date only, and default `full`
+otherwise. **An upgrade that replaces a teaser body with the real article must
+pass `grade="full"`** - otherwise the row keeps a verdict that stopped being
+true and `stored_grade()` hands it to the next run as still-upgradable. Five
+writers and four upgrade sites were switched over; nothing writes those two
+strings into `detail_id` any more.
+
+The union cost more than it looks: **seven** places re-derived which kind of
+value a `detail_id` held, six of them by counting digits (two regexes, a SQL
+GLOB, `len()==14 and isdigit()` twice, a bare `isdigit()`, and a string compare
+in the browser). Worse, the digit rule quietly **constrained what a new source
+was allowed to store** - `scrape_soundonsound`'s docstring says so outright.
+`grade` is a column on `releases`, i.e. the first deliberate exception to "no
+schema churn on `releases`" below; the migration is idempotent
+(`db._migrate_grade`) and moved 554 rows without touching a title or a body.
 
 **A network error is not a verdict.** `wayback.fetch_detail_snapshot()` returns
 `(parsed, confirmed)`: `confirmed=False` means archive.org failed, so the
@@ -131,10 +201,60 @@ caller must write *nothing* and leave the item open to a full retry. Only a
 confirmed absence may be recorded as a fallback. Report it as `uncertain`
 (`?`), never as `dead`.
 
-**Source tags are per-domain, not per-brand** (`midiman_net_pressdb`,
-`maudio_com_media_pr`, `terratec_pressde`). The same release genuinely exists
-on several mirrors under unrelated URL schemes; there is no reliable
-cross-domain dedup key, so duplication across sources is intended, not a bug.
+**A source tag identifies a scraper - a CMS generation - not a domain.** That
+is the intent, and the tags only look domain-shaped because most scrapers were
+pointed at one host. Six of them cover several: `scrape_midiman_media_pr` has
+three start urls in its own `DOMAINS` dict (midiman.com, midiman.net,
+m-audio.com), one CMS, one parser - and stamps three different tags on the
+result. `scrape_midiman_news` does it four ways. Read the other way round, the
+tag answers the question it exists for: *what did this scraper work on, what
+does it already hold, what could it still fetch, what did it skip after a
+change.*
+
+Two consequences, and the first one cost real time. **A file read off a sibling
+domain is not a cross-source claim** - 205 attachment rows hold text extracted
+from a capture of another host, and treating that as foreign is what left them
+without provenance and without markup for a day. But the permission comes from
+two different places and the difference is worth keeping straight, because the
+first version of this paragraph got it wrong:
+
+- **189 rows: the host is one of that scraper's own start urls.** `media_pr`
+  lists all three (midiman.com, midiman.net, m-audio.com) in its `DOMAINS`, so
+  a `midiman_net_media_pr` row reading m-audio.com is the scraper fetching from
+  its own second entry. Nothing to justify.
+- **16 rows: it is not.** `scrape_midiman_pressdb` only ever crawled
+  midiman.com and midiman.net, yet 16 of its rows hold text from m-audio.com.
+  That permission is `MIRROR_DOMAINS` in the attachment backfill - an
+  attachment-level claim that the three hosts served the same release *files*
+  through the Midiman -> M-Audio transition - and it is backed per row rather
+  than taken on faith: identical path, host swapped, and the extracted text
+  character-identical to what the row already held (16 of 16).
+
+Four more rows looked like that class and were not: their sibling-domain capture
+is the original server's `509 Bandwidth Limit Exceeded` page, so the recorded
+origin was a false statement and got deleted. `attachment_captures` now checks
+magic bytes before recording a candidate, the same rule `is_attachment` has
+always applied to extraction.
+
+What the browser must not do is call any of this a listing:
+`serve.capture_kind()` separates "a copy from another domain" (same file name)
+from "a capture of a different page", and the badge says which. The link is
+labelled with the *capture's* timestamp too, not the row's `detail_id` - for
+these rows the two differ.
+
+**Merging tags is a separate, mechanical change and has not been done.** Ten of
+the 25 tags differ only by domain (four scrapers); the other splits are
+`_de`/`_en`, where the text genuinely differs and the split is right. Collapsing
+the ten would move the panel, the audit, `companies.py` and five `checks.md`
+fixtures, so it wants its own pass.
+
+**Duplication across tags is still intended for HTML bodies.** The same release
+lives on several mirrors under unrelated URL schemes, their bodies are separate
+extractions, and `backfill_twin_bodies.py` refuses to pair across tags for
+exactly that reason - within one tag it fills 111 rows from a twin, across tags
+it would invent a fact. The measured picture: 238 groups (493 rows) share a tag
+*and* byte-identical text, 123 groups share a domain but not a tag (mostly the
+DE/EN pairs), and 219 groups share text across tags.
 
 That makes `source` the right axis for debugging a scraper and the wrong one
 for reading the corpus, so **`companies.py` owns a second axis**: 5 firms over
@@ -185,6 +305,29 @@ one firm (re-clicking the only picked one clears back to "wszystkie") - and
 always the single-select target, so a panel item stays a real link; only the
 modifier click is intercepted with `preventDefault()`, which knowingly costs
 open-in-new-tab there. Panel items are filter toggles, not destinations.
+
+**The panel is its own scroll container from 60rem up, and `sticky` alone was
+not enough.** With only `position: sticky` the wheel over the source list moved
+the *results*: a sticky element taller than the viewport travels with the page
+until its bottom edge arrives, and it has nothing to scroll of its own. It needs
+`max-block-size` + `overflow-y: auto` as well. **Not**
+`overscroll-behavior: contain`: measured on 2026-08-22, the companies list fits,
+which makes the panel a scroll container with zero range - and Chrome still ends
+the chain there, so a wheel over the short panel moved nothing at all. Chaining
+once the sources list hits its end is the ordinary sidebar behaviour.
+The panel also keeps a `--gap` of `padding-inline-end`, and the grid column is
+`calc(15rem + var(--gap))` to pay for it: an overlay scrollbar paints *on top of*
+content, so without that strip it crossed the end of a picked item's highlight -
+and taking the strip out of the 15rem instead wrapped the three longest tags to
+a third line. `scrollbar-gutter: stable` is not the tool: it is defined to
+reserve nothing when the scrollbar is an overlay, which this one is
+(`offsetWidth == clientWidth`).
+Both the sticky offset and that max height are `100dvh` minus the topbar, so
+**`--topbar-h` is measured in `app.js` with a `ResizeObserver`** rather than
+hardcoded twice: the topbar is not a fixed height, the filter form wraps to a
+second row between 60rem and ~72rem. `app.css` keeps the old `8.5rem` as the
+fallback for the first paint. Below 60rem the panel is a plain block above the
+content and gets none of this.
 
 **The browser's frontend follows the `web-static`/`web-conventions` rules**
 (semantic HTML, one `<main>`, no skipped heading levels, real `<label>`s, skip
@@ -275,6 +418,51 @@ Three things `richtext.py` does that are decisions, not cleanup:
   as content.** That is what separates a product photo in its own paragraph
   from a page banner built out of `top.gif` and 1x1 spacers.
 
+**A title comes from markup that means "headline", never from the body.**
+54 rows carried an empty `title` until 2026-08-22 and `repair_missing_titles.py`
+recovered 37 of them from `page_cache` with no network at all. Four unrelated
+causes, which is why one fix would not have done it: `terratec_early` never
+extracted a title in the first place (those two 1996-97 pages have no headline
+markup - `scrape_terratec_early.headline()` reads it off the rigid
+`Presseinformation vom <date>:` dateline instead); `terratec`/`terratec_de` hit
+three headline shapes the bold-tag rule cannot see; `terratec_pressen` simply
+predates `TITLE_TAG_MONTH_RE`; and `terratec_pressde` has two templates the
+`<title>` regexes miss - `print.php`'s `font.print-title`, and one article whose
+`<title>` carries no date prefix.
+
+Three rules the repair is built on, each of which cost a measurement:
+
+- **A new extraction rule goes in as a *fallback*, never as a replacement.**
+  `scrape_terratec.find_headline` runs only when the caller's own bold-tag rule
+  returns "". Tried the other way round first, it filled 8 rows and *changed*
+  30 - 12 of them from a correct title to an empty one. As a fallback: 380
+  identical, 16 filled, 0 changed, measured over every cached capture of the
+  four sources.
+- **The walk for a bare-text headline stops at `<p>`, not at "any block".**
+  `<tr>`/`<td>` are the container being walked into, so stopping there ends the
+  walk before any text; stopping at `<p>` is the whole point, because a cell
+  that opens with a paragraph has no headline and descending into it titles the
+  row with the release's first sentence. There is a `MAX_HEADLINE` bound behind
+  that for whatever slips through.
+- **The script writes the title and nothing else.** Several of these captures
+  now parse to a better *body* too (portal sid=367 goes from 0 to 4547
+  characters), but a body rewrite belongs to `backfill_body_html.py`, which owns
+  `safe_to_write`. Widening the repair to "everything the parser now returns"
+  would be a bulk body update with no gate on it.
+
+17 rows keep an empty title and that is the end state: ten PHP-Nuke skeletons
+archive.org captured with no article in them, five 290-byte terratec.de
+placeholders, and one French release that opens straight into prose. The
+browser renders `(bez tytułu)` for them - checked as `[untitled]`.
+
+A separate, dormant discrepancy this measurement turned up: for **14
+`terratec_de` rows the current parser disagrees with the stored title**, mostly
+by collapsing a literal `\r\n      ` the listing pass stored inside it, but
+twice substantively (#4168 `GeForce FX: Neue Mystify 5800…` vs `GeForce`, #4172
+a title vs nothing). Nothing writes them today - no mode of
+`backfill_body_html.py` passes `title=` - so they are recorded here rather than
+fixed blind.
+
 **A row's URL is not always a page that existed.** Two shapes, and they need
 opposite treatment:
 
@@ -289,6 +477,161 @@ opposite treatment:
   instead and matches back by URL. It only ever UPDATEs: a parse matching no
   stored URL is dropped, never inserted, so a re-extraction cannot mint rows
   under URLs nobody has seen.
+- *listing-derived with a real URL* - `terratec_new_de`/`_en`. The hrefs were
+  genuinely on the page, so these are not synthetic; archive.org simply never
+  captured 15 of them (CDX says zero, confirmed 2026-08-22 - `--wayback`
+  reports all 15 as `dead`). Same treatment as the synthetic ones, opposite
+  reason: nothing to fetch because nothing was ever there.
+
+**`--listings` needs both of its guards, and it got them the hard way.** It is
+the one mode with no `body_html IS NULL` cursor of its own and no length floor,
+and joining `terratec_new` to it cost data within one run on 2026-08-22: the
+pass walked all 159 rows, not the 24 pending ones, and **122 full articles were
+overwritten by their listing teasers** (#4445 4287 -> 359 characters). This CMS
+embeds the full text on the listing for recent releases and truncates older
+entries, so a listing entry is not automatically the better copy.
+`safe_to_write` cannot catch it: it refuses text vanishing from the *middle*,
+and a lost tail is `edges_only` - the same signature as correctly dropped nav.
+So the mode now skips rows that already carry `body_html` (`--force` widens it)
+and refuses any body shorter than the stored one, the same floor `--wayback`
+has. Restored from the pre-run copy of the DB, which is why that copy is a rule
+here and not advice.
+
+**A timestamp does not say which page it is a capture of, and `body_origin`
+is where that is written down.** `releases.detail_id` holds the capture a row's
+text came from, which for a listing-derived row is the *listing's* timestamp -
+honest, and not enough: `serve.wayback_url()` built `web/<ts>/<row url>` from
+it, a capture that never existed. That is what #4414 was reported for, and the
+capture was never lost - `web/20111011173713/…/presse.html` holds that
+release's full text, character for character what the row stores, while CDX has
+no capture of the article's own URL at all.
+
+`repair_capture_provenance.py` recovers the pairing from `page_cache` with no
+network: candidates are only the cached captures carrying the **same
+timestamp** - so `detail_id` still does the identifying, this never goes
+looking for a plausible page - and the body is then located in the candidate's
+raw bytes via ASCII-only slices decoded latin-1, which is what makes the test
+independent of the page's charset. 158 of 541 rows resolved, 0 ties, weakest
+match 0.625; one resolved link per source was checked against archive.org and
+all 14 answered 200. The threshold is 0.6 rather than 1.0 because a slice can
+straddle an entity or a tag on the very page the text came from.
+
+It is its own table, not a column on `releases`: absence has to keep meaning
+"no archive link for this row". **Two columns**, and it took two removals to get
+there. `page_url` agreed with `origin_url` in 158 of 158 rows because one is a
+prefix of the other; `origin_url` survived because it is the whole address and
+the `page_cache` key, while rebuilding it the other way would need
+`releases.detail_id`, which a recovery can rewrite underneath -
+`serve.wayback_url()` therefore never consults the timestamp when an entry
+exists. And `matched` - the fraction of body probes found when an address had to
+be *searched for* - went once its three classes turned out to be derivable from
+the address itself:
+
+    computed   capture_url == web/<detail_id>id_/<url>   1255 rows
+    located    the row's url is a .pdf/.doc, bytes found under that path   323
+    inferred   neither                                   149
+
+`verify_body_origin.origin_class()` computes that, and it agreed with `matched`
+on all 149 rows and on no others before the column was dropped. The number was
+never the useful thing: 88 of the 149 scored below 1.0 and are right, four
+attachment rows scored a perfect 1.0 and were wrong. What a reader wants is
+whether the body can be *produced* from those bytes, which is a different
+question and has its own script.
+
+**`verify_body_origin.py` answers it by reproduction** - the source's own parser
+over the recorded capture, compared to what the row stores. Read-only. Measured
+2026-08-25 over all 1727 entries: **149 of 149 inferred reproduce exactly**,
+321 of 323 located ones do (2 differ in whitespace), and 1197 of 1255 computed
+ones. Of the rest, 34 have no cached bytes to check against, 21 are
+`terratec_early`, whose bodies are anchors into one listing page that only the
+url-keyed collector can separate, and **two are known**: #4355, where the page
+itself carries `\xc2\x96` where a dash belongs and `repair_encoding.py` fixed the
+row (so the database is better than a fresh parse), and #6211, whose stored body
+is several releases concatenated by an old extraction - rewriting it would delete
+text belonging to other rows. Run it after any pass that touches bodies or
+origins; it is the guarantee `matched` only pretended to be.
+
+**The pass that reads the bytes records where they came from** (2026-08-25).
+`db.record_body_origin()` is now called next to the body write, in the same
+transaction, at all five re-extraction sites that have the address in hand:
+`backfill_body_html`'s `run_cached`, `run_listings` and `run_wayback`, and
+`backfill_midiman_attachments`' crawl, `--from-cache` and `--richtext`. The
+listing collectors carry `origin_url` on each entry for it - they used to parse
+a capture and throw its address away. `run_retext` records nothing on purpose:
+its text comes from the stored HTML, no capture involved.
+
+Before this, all 1727 entries were written by `repair_capture_provenance.py`
+*after the fact*, which is why 149 of them had to be found by searching captures
+for the body's text, and why four entries pointed at the original server's error
+page until a content check caught them. Neither can happen to a row written from
+now on. **The scrapers are deliberately not converted** - ~20 `store_release`
+call sites in a repo with no tests - so a fresh crawl still needs the repair
+afterwards. That is the documented ritual, not an oversight.
+
+**`page_cache.fetched_at` since 2026-08-25.** Filled at insert by both write
+sites; NULL on the 6345 older rows, which is honest - the table never recorded
+it, and a cache *hit* is not logged as an attempt either, so "when did these
+bytes arrive" had no answer at all. That is what made the question "how did a
+`midiman_net_pressdb` row end up with m-audio.com bytes" answerable only from
+code and two 404s in `wayback_calls`.
+
+**An entry must be dropped the moment it stops being true.** Any pass that
+rewrites a body from a capture of the row's *own* url calls
+`db.clear_body_origin()` - `--from-cache` and `--wayback` both do. Without it a
+later recovery would leave the browser linking a listing for text that no
+longer came from one, and nothing would ever notice.
+
+**The table covers every Wayback row, not only the discrepant ones** (1763:
+1605 derived, 158 measured), and that is what lets `serve.wayback_url()` be two
+lines with no idea what a timestamp looks like - a row with no entry gets no
+link, which is the right answer for the live sources too. `matched` carries the
+difference: a number means measured, NULL means derived from the row's own
+`detail_id`, where there is nothing to prove. `repair_capture_provenance.py`
+fills step 1 in pure SQL in milliseconds and **has to be re-run after a crawl**,
+because nothing else writes the table - a new Wayback row has no archive link
+in the browser until it does. That is the deliberate trade: one documented
+ritual, against threading a `capture_url=` argument through ~25 `store_release`
+call sites where passing a platform id by mistake would silently mint dead
+links.
+
+`db.py` joins the table into both the detail row and the list rows, and the
+browser names the page in plain text next to the link - an unannotated link to
+another page would read as the article's own capture, which is the misreading
+this started from. `origin_url` never reaches the JSON: `serve.py` turns it
+into `wayback_url` plus `capture_page` and drops it, so the reader has the two
+strings it renders and no third representation to keep in agreement.
+`capture_page` is **only** set when the capture is of a different page - once
+the table covered all 1763 rows, the first cut of this annotated every one of
+them, including the 1605 whose capture is of their own page. Checked as
+`[capture-of-listing]` and `[capture-of-own-page]`.
+
+**"z listingu" is provenance; "teaser" is a grade. They are different badges
+because the obvious shortcut does not survive measurement.** The teaser badge
+fires on `detail_id IN ('teaser', 'stub')`, i.e. only where a scraper *knew* the
+body was a blurb - and a listing-derived row stores a timestamp instead, so it
+can never fire there. Three attempts at deriving the grade, all measured on
+terratec_new:
+
+- **the "weiterlesen..." link is not a signal.** All **821 of 821** listing
+  entries carry one, including the ones whose text is identical to the article's.
+  It means "here is the article page", not "this is truncated". `extract_entries`
+  drops it (`a.arrow`) and that is right.
+- **truncation is real but era-dependent, not per-row.** Of the 125 releases
+  whose listing and article versions are both cached, 61 listing versions are
+  >10% shorter - but split by year that is 46/46 in 2007 against 9-38% from
+  2008 on, and the median ratio overall is 0.98. Those rows already store the
+  article version (`--from-cache` upgraded them), so the grade only matters for
+  the 11 rows where nothing else exists - and for those there is nothing to
+  compare against. #4414 is 2011, in the era where the listing carried the full
+  release.
+- **"the capture serves several rows" does not identify a listing.** 90 of the
+  158 resolved captures look single-row, because the siblings on the same
+  listing page resolved to captures of their own.
+
+So the badge states the one thing that is certain - the text was read off a page
+that is not this release's own - and leaves the grade alone. `capture_page`
+rides on every row (list and detail), so it costs no extra query. Checked as
+`[badge-listing]`.
 
 **`backfill_body_html.py` has six modes and they are not interchangeable.**
 `--force` re-runs `clean()` (needs the HTML), `--retext` re-runs only
@@ -360,10 +703,16 @@ changing `to_text()`; a change to `clean()` still needs the HTML rebuilt.
 
 `body_html IS NULL` means the row predates this and still renders as
 preformatted text; it is the `plain` flag in the audit view, i.e. a progress
-bar for `backfill_body_html.py`, not a defect in the source. PDF-derived rows
-(`backfill_midiman_attachments.py`) keep it NULL on purpose — there is no HTML
-behind a PDF, and `pdftotext -layout` output wants `white-space: pre-wrap`
-exactly as it is.
+bar for `backfill_body_html.py`, not a defect in the source.
+
+This used to say that attachment rows keep it NULL on purpose, "there is no HTML
+behind a PDF". Half of that was never true and the other half still is. A PDF
+does carry structure - poppler measures it, and since 2026-08-24 the 73 cached
+PDF attachments store real markup. A **.doc** keeps `body_html` NULL, because
+`antiword`'s text is all there is for it and `pre-wrap` is the right renderer
+for that. The `plain` flag still excludes every `.pdf`/`.doc` url, which is now
+a slight over-exclusion: it hides those 73 from the "bez formatowania" count,
+where they would legitimately read as done.
 
 **The allowlist lives in two places on purpose**: `richtext._ALLOWED` and
 `RICH_TAGS` in `static/app.js`, which rebuilds every node rather than trusting
@@ -393,6 +742,20 @@ Three shapes came out of it:
 - **an HTML fragment that was already sliced** - `scrape_midiman_de.py`'s
   inline blocks. `BLOCK_RE` always returned HTML; flattening it first was
   simply unnecessary.
+
+**A regex that identifies the headline decides which pages exist at all.**
+`scrape_terratec_new.extract_entries` recognised a release *only* by an
+`<h2>Month YYYY - Title</h2>` heading, and the later captures of that CMS
+dropped the date prefix - so those pages parsed to nothing whatsoever, no
+warning, no marker: 9 of the 144 cached article captures and 8 listing entries.
+The fix keys on the container instead - `div#Content > div.column.span-8`,
+present in all 164 cached captures, with the only outside `h2`s being chrome
+("Unternehmen" in the menu, "Presse-Kontakt" in the right column) - and takes a
+date-less heading there as a headline when it sits in a `div.block` or is that
+column's only one. In as a **fallback**, never a replacement, per the rule
+above, and measured the same way: over every cached capture, **510 identical,
+16 gained, 0 changed, 0 lost**. The date is then simply not on the page and the
+row keeps the one its listing gave it.
 
 `backfill_terratec_teasers.parse_article_snapshot` is gone: it now *imports*
 `scrape_terratec_portal.parse_snapshot`. It had been a near-copy with the same
@@ -439,8 +802,11 @@ holds 23 `div.views-row` of which only **20 contain `article[about]`** - the
 rest are promo blocks, so counting rows gets the page size wrong.
 
 `detail_id` is Drupal's node id (`<article id="node-4935591">`), deliberately
-not a timestamp: 14 digits means "Wayback capture" everywhere here, and faking
-one would put a dead archive.org link on all 772 rows.
+not a timestamp: faking one would have put a dead archive.org link on all 772
+rows. That reasoning is now belt *and* braces - the link comes from
+`body_origin`, and a live source has no entry there - but it was this
+docstring that showed the digit rule had become a constraint on what a source
+may store, which is half the reason `grade` got its own column.
 
 **GlobeNewswire needs a browser TLS fingerprint, everything else does not.**
 As of 2026 Akamai Bot Manager drops `requests`/`urllib3` at
@@ -503,17 +869,49 @@ evidence before this existed. Best-effort and silent on failure, same as
   usually the archive, not the code — confirm with a bare `curl` before
   debugging a parser.
 - Not wanted here: an ORM, a query builder, a row dataclass, schema churn on
-  `releases`. Six plain functions over plain SQL is the chosen design.
+  `releases`. Six plain functions over plain SQL is the chosen design. One
+  deliberate exception, 2026-08-22: `grade`, because the alternative was
+  leaving a verdict inside a reference field and seven places guessing which
+  was which (see the `grade`/`detail_id` split above). Provenance still goes in
+  its own table, not a column - that is what `body_origin` is.
 - Every scraper's module docstring records what its source's markup actually
   does, including the quirks that cost time (CMS bugs, retargeted links,
   templates that differ per capture). Keep writing those down there — that
   archaeology is the expensive part of this project, not the code.
 
-## Known open state (2026-08-21)
+## Known open state (2026-08-22)
 
 Everything here self-heals on a rerun; it is waiting on archive.org, not on a
 code change. Counts rot — re-measure before trusting them.
 
+- **`terratec_new_de`/`_en`: done (2026-08-22).** All 159 rows carry
+  `body_html`; there is nothing left to fetch for them. 9 came from article
+  captures already in `page_cache` once the date-less headline was recognised,
+  15 from the German listing captures (30 of them, absent from `page_cache`
+  until now - only the English ones had been cached), and CDX confirmed the
+  other 15 article URLs were never captured at all. Corpus-wide the count is
+  now **6708 rows, 1097 without `body_html`** - of which 381 are .pdf/.doc
+  attachment rows that have no HTML behind them by construction, so the audit
+  view's "bez formatowania" reads **716**, which is the number that means
+  outstanding work.
+- **Capture links: 158 recovered, 383 still unaddressed (2026-08-22).**
+  `repair_capture_provenance.py` resolved which page each listing-derived row's
+  timestamp really names; see the `body_origin` section above. The rest keep a
+  timestamp whose page is unknown, so their link is still built from the row's
+  own URL and may 404: 143 have no cached capture under that timestamp to test
+  against - `--seed-cache` on the *listing* URL would open those up - and for
+  240 the body is in none of the captures that do share it. Re-running the
+  repair after any pass that caches more captures is free.
+- **Titles: done (2026-08-22).** 37 of 54 empty titles recovered from cache,
+  17 are the confirmed end state - see the headline section above. The pass is
+  `repair_missing_titles.py --dry-run` first; a rerun reports `17d` and writes
+  nothing.
+- **One free body recovery is now waiting.** Teaching the portal parser
+  `print.php` and the date-less `<title>` also made `terratec_pressde` sid=367
+  parse to a 4547-character body where the row holds 0. Deliberately not
+  written by the title repair - `backfill_body_html.py --from-cache
+  --source terratec_pressde` is the pass that owns it, because it runs
+  `safe_to_write`.
 - **`terratec_pressde` 300 rows (95 teaser), `terratec_pressen` 141 (52)** after
   a full `backfill_terratec_teasers.py` pass on 2026-08-21: +97 rows, and the
   first pass to write correct text, since the cp1252 fix landed the day before.
@@ -542,6 +940,86 @@ code change. Counts rot — re-measure before trusting them.
   A teaser in these four sources is the expected end state now. Measure the
   URL scheme before spending an hour of crawl on a block like this - that hour
   bought one row, and one query up front would have predicted it.
+- **73 PDF attachment rows carry real markup since 2026-08-24.**
+  `backfill_midiman_attachments.py --richtext` converted every cached PDF
+  attachment through `attachments.to_richtext()`: 73 rows gained `body_html`
+  (11 paragraphs and a 7-item list on #4986, an `ol` of 6 on #5003, four nested
+  `ul`s on #5572), `body` became `to_text(body_html)` as everywhere else, and
+  the FTS token counts did not move (`MobilePre` 56, `Octane` 47, `ArKaos` 148
+  before and after) because the words are the same - only their arrangement
+  changed. Nothing needed a decision: all 73 converted and passed the gate.
+
+  **The gate is a multiset of word characters, and it is the fourth attempt.**
+  `_wordchars` (imported from `backfill_body_html`, not copied) drops
+  indentation, wrapping, bullets and to_text()'s ordinals; comparing the
+  *multiset* is blind to the two things a converter is allowed to change -
+  order and joins - while still refusing a document that lost a paragraph.
+  Character *sequence* refused 13 of 73 for pure reordering (`pdftotext
+  -layout` puts a superscript on its own line; the structured route puts it back
+  beside its number), `text_delta`'s subsequence test broke on the same thing,
+  and word coverage refused 10 more for joins (`Composer` + `®` + `system`
+  arriving as `Composer®system`). Two allowances, both named and bounded: the
+  rotated banner the converter says it dropped, and **markers that became
+  structure** - 6 digits absorbed into an `<ol>` and 9 Courier `o`s into a
+  second-level `<ul>`, capped at two characters per list item so it can never
+  excuse a missing word.
+
+  What this leaves: 153 `.doc` rows on the text route by decision, 30 rows whose
+  bytes are not cached at all, and 2 whose cached file is a soft-404. Checked as
+  `[body-richtext]`; `[body-layout]` moved its fixture to a .doc row, since the
+  PDF it used now renders as markup.
+- **The layout fix reached the corpus on 2026-08-23, 140 rows of 381.**
+  `normalize()` stopped flattening `pdftotext -layout`/`antiword` output long
+  ago, but nothing re-ran the extraction, so **380 of 381 attachment rows still
+  held text with not one newline in it** - every spec sheet a single run-on
+  line, rendered through a `pre-wrap` box with no layout left to show. The 140
+  rows whose bytes are in `page_cache` were re-extracted for free by
+  `backfill_midiman_attachments.py --from-cache`; the gate is
+  `strict_same_text`, so the only thing that could change was whitespace
+  (verified: 140/140 identical modulo whitespace before writing, and the
+  character sequence unchanged after). The remaining **240 need a refetch** and
+  33 of those are confirmed never archived, so this is not "pending work" so
+  much as the ceiling of what the cache can pay for. Checked as `[body-layout]`.
+  One thing the recovered layout exposes rather than causes: `#5914`, a Word
+  attachment, interleaves text from overlapping boxes (`New 8x8 Digital
+  PreamSophisticated new entryp`). The characters are byte-identical to what was
+  stored flat, so that is antiword reading a text-box layout, not a regression.
+- **The 211 rows whose bytes we only held under a mirror domain: crawled, and
+  their own urls are not there (2026-08-25).** `--no-own-bytes` walked every
+  one, ~3 hours against a throttling archive (23 HTTP 503s, each costing a
+  120-second cooldown). Yield of new files: **zero**. The single new
+  `page_cache` entry is 380 bytes of `509 Bandwidth Limit Exceeded` - and that
+  page is `Apache/1.3.27 Server at www.m-audio.com`, i.e. the *original* server
+  over quota in 2003, faithfully archived, not an archive.org error. Exactly the
+  soft-404-as-HTTP-200 class `is_attachment` exists for, and it rejected it.
+
+  What the run did deliver, as a side effect of falling back to the mirror
+  candidate whose bytes were already cached: **201 rows re-extracted with their
+  layout intact**, every one character-identical to what it replaced. Attachment
+  rows carrying line structure went from 141 to **342 of 381**. `--from-cache`
+  would have done that offline; what the crawl bought is the *knowledge* that
+  the own-url captures do not exist, which was previously an assumption.
+
+  4 rows stayed `uncertain` on transient CDX failures. Given zero yield across
+  211, a rerun is not worth an hour - but it is free to leave open, and the
+  selector finds them again.
+- **The 30 attachment rows a crawl could still help are dead, confirmed
+  2026-08-25.** `backfill_midiman_attachments.py --missing-bytes` - a selector
+  for the rows whose bytes are in `page_cache` under no name at all, not their
+  own capture and not a mirror's - walked all 30 twice. First run: 26 never
+  archived, 4 `uncertain`, and the four were `connection_error` on `cdx_bulk`,
+  not an answer. Second run after `curl` confirmed archive.org was up again: 28
+  never archived, 2 `uncertain`. Those last two were then probed by hand across
+  all three mirror domains - `M-Audio_SonicReFills_PR.pdf` and
+  `M-Audio_ProKeys88_PRv5.doc`, six CDX queries - and **none of the six has a
+  single HTTP-200 capture, ever**. So the listing teaser (45-756 characters) is
+  the end state for those 30 rows, and 219 logged attempts bought nothing,
+  which was the honest answer rather than a failure.
+
+  The whole attachment picture, 381 rows: **72 PDFs carry real markup**, 121
+  PDFs have bytes only under a mirror domain and wait on the one-row-many-urls
+  decision, 153 .doc rows keep the text route, 30 are dead, 5 are a soft-404
+  under a .pdf name. Nothing here is waiting on archive.org any more.
 - **The attachment backfill is done, and what is left is gone.**
   `backfill_midiman_attachments.py --only-short` (2026-08-21) attempted the 36
   remaining short `media_pr`/`pressdb` rows: **33 confirmed never archived** -
@@ -586,5 +1064,5 @@ code change. Counts rot — re-measure before trusting them.
 
 A quirk worth knowing when reading these numbers: a `media_pr` row stores a
 Wayback timestamp in `detail_id` even when its body is only the listing teaser,
-because the timestamp refers to the *listing* capture. So teaser-grade rows do
-not always show up as `detail_id = 'teaser'` — check `length(body)` too.
+because the timestamp refers to the *listing* capture. So a teaser-grade row is
+not always `grade = 'teaser'` — check `length(body)` too.

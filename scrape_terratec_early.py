@@ -43,6 +43,47 @@ PAGES = [
     },
 ]
 
+# The longest a first paragraph may be and still be read as the headline. Every
+# one of the 21 headlines on these two pages is 16-56 characters; the shortest
+# opening paragraph of an actual release is 264. Nothing lands in between, so
+# the cut is nowhere near either population.
+MAX_TITLE = 200
+
+
+def headline(body: str, date_marker: str) -> str:
+    """The headline of one entry, out of the text extract() just produced.
+
+    These two pages carry no headline markup at all - no heading tag, no bold,
+    nothing to key on - so the entries were stored with no title for as long as
+    this scraper has existed. What they do have is a rigid dateline, and the
+    headline sits in one of exactly two places relative to it:
+
+        Presseinformation vom 19.12.1997: TerraTec Electronic mit windiger Idee
+        <the release>
+
+        Presseinformation vom 24.11.1997:
+        TerraTec: Mit Erfolg von Deutschland nach Asien
+        <the release>
+
+    2 entries use the first shape, 19 the second, and the English page ("Press-
+    Release as of 27.9.96:") only the second. The length guard is what keeps the
+    second shape from titling an entry with its opening paragraph on a page
+    where the headline is missing.
+    """
+    paras = [p.strip() for p in body.split("\n\n") if p.strip()]
+    if not paras:
+        return ""
+    m = re.match(date_marker, paras[0])
+    rest = paras[0][m.end():].strip() if m else ""
+    if not rest and len(paras) > 1:
+        rest = paras[1].strip()
+    if not rest or len(rest) > MAX_TITLE:
+        return ""
+    # A few headlines are punctuated as a lead-in ("CeBit Home 1996:"); the
+    # colon belongs to the layout, not to the title.
+    return " ".join(rest.split()).rstrip(":").strip()
+
+
 def find_anchor_for(pos: int, anchors: list) -> str:
     best = None
     for apos, aname in anchors:
@@ -70,6 +111,7 @@ def extract_entries(html: str, page: dict) -> list:
         entries.append({
             "date_str": date_str,
             "date": date,
+            "title": headline(body, page["date_marker"]),
             "body": body,
             "body_html": body_html,
             "url": url,
@@ -117,14 +159,14 @@ def scrape() -> None:
         if e["date"] in english_dates:
             skipped_de += 1
             continue
-        if db.store_release(conn, SOURCE, e["url"], date=e["date"], body=e["body"],
-                            body_html=e["body_html"] or None,
+        if db.store_release(conn, SOURCE, e["url"], title=e["title"], date=e["date"],
+                            body=e["body"], body_html=e["body_html"] or None,
                             detail_id=de_page["timestamp"], commit=False):
             new_count += 1
 
     for e in en_entries:
-        if db.store_release(conn, SOURCE, e["url"], date=e["date"], body=e["body"],
-                            body_html=e["body_html"] or None,
+        if db.store_release(conn, SOURCE, e["url"], title=e["title"], date=e["date"],
+                            body=e["body"], body_html=e["body_html"] or None,
                             detail_id=en_page["timestamp"], commit=False):
             new_count += 1
 

@@ -23,6 +23,17 @@ const $ = (sel) => document.querySelector(sel);
 const panel = $("#panel"), list = $("#list"), statusEl = $("#status");
 const more = $("#more"), heading = $("#view-heading");
 
+// The panel is pinned under the sticky topbar and capped at what is left of the
+// viewport, and both need the topbar's real height. It is not a constant:
+// between 60rem and ~72rem the filter form wraps to a second row. Measure it
+// once and publish it as a token; app.css keeps 8.5rem as the pre-JS fallback.
+// ResizeObserver fires immediately on observe(), so there is nothing to call at
+// startup and no resize listener to add.
+new ResizeObserver(([e]) => {
+  document.documentElement.style.setProperty(
+    "--topbar-h", e.borderBoxSize[0].blockSize + "px");
+}).observe($(".topbar"));
+
 const FLAGS = ["teaser", "short", "nodate", "mojibake", "plain"];
 const FLAG_LABEL = {
   teaser: "teasery", short: "krótkie body",
@@ -205,8 +216,10 @@ function dateNode(iso, cls) {
 
 function badges(row) {
   const out = [];
-  if (row.detail_id === "teaser" || row.detail_id === "stub") {
-    out.push(["teaser", row.detail_id]);
+  // row.grade, not row.detail_id: the verdict is its own column now, so the
+  // browser no longer has to know which detail_id values are not references.
+  if (row.grade === "teaser" || row.grade === "stub") {
+    out.push(["teaser", row.grade]);
   } else if (row.body_len < 300) {
     out.push(["short", row.body_len + " zn."]);
   } else {
@@ -215,7 +228,25 @@ function badges(row) {
   // row.damaged comes from the API, judged over the whole body - the excerpt
   // alone would miss damage further down and disagree with the audit filter.
   if (row.damaged) out.push(["damaged", "kodowanie"]);
-  return out.map(([cls, label]) => el("span", "badge " + cls, label));
+  // Provenance, deliberately NOT folded into the teaser badge: the text was
+  // read off a page that is not this release's own (db.body_origin). On
+  // terratec_new's CMS that listing usually carries the full release - median
+  // 0.98 of the article's length over the 125 releases where both versions are
+  // cached - so calling it a teaser would be wrong for most of them, while
+  // saying nothing hides the one thing that is certain.
+  // "z listingu" only when the capture is of a *different* document. The same
+  // file on a sibling domain is a copy, and one scraper covers both addresses -
+  // see serve.capture_kind.
+  if (row.capture_page) {
+    out.push(row.capture_kind === "mirror"
+      ? ["listing", "z innej domeny", row.capture_page]
+      : ["listing", "z listingu", row.capture_page]);
+  }
+  return out.map(([cls, label, title]) => {
+    const b = el("span", "badge " + cls, label);
+    if (title) b.title = title;
+    return b;
+  });
 }
 
 // ---- list view -----------------------------------------------------------
@@ -294,6 +325,13 @@ async function loadList(append) {
 
 // ---- detail view ---------------------------------------------------------
 
+// The tail of a url, for naming the page a capture is of: "presse.html",
+// "print.php?sid=195", "index.php?do=media.media_pr". The full address stays
+// in the link's title attribute.
+function pageName(url) {
+  return String(url).replace(/\/+$/, "").split("/").pop() || url;
+}
+
 async function loadDetail(id) {
   more.hidden = true;
   statusEl.textContent = "";
@@ -327,9 +365,24 @@ async function loadDetail(id) {
   links.appendChild(orig);
   if (row.wayback_url) {
     links.appendChild(document.createTextNode(" · "));
-    const wb = link(row.wayback_url, "capture " + row.detail_id);
+    // The capture's own timestamp, not the row's detail_id: they differ for a
+    // row whose bytes came from a sibling domain, and the label has to name the
+    // capture the link actually opens.
+    const wb = link(row.wayback_url, "capture " + (row.capture_ts || row.detail_id));
     wb.rel = "noreferrer";
     links.appendChild(wb);
+    if (row.capture_page) {
+      // The timestamp names a capture of a *different* page - the listing (or
+      // print view) this release was read out of, because archive.org has no
+      // capture of the article itself. The link now goes there, so say which
+      // page it is: an unannotated link would read as the article's own
+      // capture, which is the misreading #4414 started from.
+      wb.title = row.capture_page;
+      links.appendChild(document.createTextNode(
+        (row.capture_kind === "mirror" ? " (kopia z: " : " (capture strony: ")
+        + (row.capture_kind === "mirror"
+             ? row.capture_page.split("/")[2] : pageName(row.capture_page)) + ")"));
+    }
   } else {
     links.appendChild(document.createTextNode(" · detail_id: " + (row.detail_id || "brak")));
   }
@@ -343,7 +396,8 @@ async function loadDetail(id) {
     const n = nb[key];
     if (!n) { nav.appendChild(el("span")); return; }
     nav.appendChild(link("#r/" + n.id,
-      (key === "prev" ? "← " : "→ ") + (n.date || "bez daty") + "  " + n.title));
+      (key === "prev" ? "← " : "→ ") + (n.date || "bez daty") + "  " +
+      (n.title || "(bez tytułu)")));
   });
   art.appendChild(nav);
   list.appendChild(art);
@@ -352,7 +406,10 @@ async function loadDetail(id) {
 // ---- audit view ----------------------------------------------------------
 
 const AUDIT_CARDS = [
-  ["total", "wiersze"], ["wayback", "z capture"], ["platform_id", "z live/Q4"],
+  // "bez capture" is not "from a live source": 241 of those rows are archive
+  // rows whose attachment bytes were never cached, so no origin could be
+  // established for them. The counter says what it can prove.
+  ["total", "wiersze"], ["wayback", "z capture"], ["platform_id", "bez capture"],
   ["teaser", "teasery"], ["stub", "stuby"], ["short", "body < 300"],
   ["empty", "body puste"], ["nodate", "bez daty"], ["mojibake", "kodowanie"],
   ["plain", "bez formatowania"],

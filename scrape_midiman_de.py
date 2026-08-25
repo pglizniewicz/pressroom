@@ -33,7 +33,7 @@ far) are just a placeholder: a single big link to a separate page (e.g.
 messe03.htm) plus a one-line teaser, with the real content living on that
 linked page - verified live that messe03.htm is itself a genuine, richer
 press writeup, not a product page. For these, this scraper reuses the same
-fetch_detail()/stored_detail_id() contract already proven in
+fetch_detail()/stored_grade() contract already proven in
 scrape_midiman_news.py/scrape_maudio_news.py: a network hiccup never locks
 in a permanent teaser-only row, only a confirmed dead end does, and a
 teaser row is retried and upgraded on every future run until real content
@@ -70,7 +70,7 @@ from urllib.parse import urljoin
 import requests
 from bs4 import BeautifulSoup
 
-from db import stored_detail_id
+from db import stored_grade
 import db
 import richtext
 from progress import Stats
@@ -252,7 +252,7 @@ def scrape(limit: int = None) -> None:
 
     for (title, date), e in best.items():
         url = e["url"]
-        existing = stored_detail_id(conn, url)
+        existing = stored_grade(conn, url)
         if existing is not None and existing != "teaser":
             stats.skipped()
             continue
@@ -273,7 +273,7 @@ def scrape(limit: int = None) -> None:
                 # the linked page's, so only the body is upgraded.
                 db.upgrade_release(conn, url, detail_id=parsed["detail_id"],
                                    body=parsed["body"], body_html=parsed["body_html"],
-                                   commit=False)
+                                   grade="full", commit=False)
                 stats.upgraded()
             else:
                 db.store_release(conn, SOURCE, url, title=title, date=date,
@@ -294,7 +294,7 @@ def scrape(limit: int = None) -> None:
         if e["body"]:
             db.store_release(conn, SOURCE, url, title=title, date=date,
                              body=e["body"], body_html=e.get("body_html"),
-                             detail_id="teaser")
+                             grade="teaser")
             stats.teaser()
         else:
             stats.dead()

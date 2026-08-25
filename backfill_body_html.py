@@ -29,7 +29,7 @@ Two modes, because the corpus splits cleanly in two:
                 fetch that one capture and reparse it. Closes the gap between
                 the other two modes - such a row is invisible to --from-cache
                 (nothing to parse) and its own scraper skips it (it already
-                has a real detail_id, so stored_detail_id() calls it done).
+                is graded 'full', so its own scraper calls it done).
                 Caches on the way through, so it is a one-time cost.
 
   --retext      recompute `body` from the `body_html` already stored, for
@@ -56,6 +56,7 @@ Usage:
 """
 
 import argparse
+import functools
 import re
 
 import requests
@@ -178,16 +179,35 @@ def safe_to_write(old_body: str, new_body: str) -> tuple:
     return False, f"ubytek w srodku ({d['removed']:.0%})"
 
 
-def pending(conn, sources, limit=None, force=False):
+# A row is "relocated" when the capture its body came from is not a capture of
+# its own url. Spelled out here rather than compared in Python because pending()
+# has to select on it; it is the same address wayback.snapshot_url builds.
+_RELOCATED_SQL = ("AND c.origin_url <> 'https://web.archive.org/web/' || "
+                  "r.detail_id || 'id_/' || r.url ")
+
+
+def pending(conn, sources, limit=None, force=False, relocated=False):
     """(url, source, detail_id) for every row still stored as a flat blob, or
     every row of those sources when `force` - which is cheap now that every
     page fetched since 2026-08-21 is in page_cache, so a re-extraction after a
-    parser fix costs no requests at all."""
+    parser fix costs no requests at all.
+
+    `relocated` narrows it to the rows whose body came off a *different* page
+    than their own url (body_origin records which), i.e. exactly the rows a
+    derived capture key cannot reach. Worth its own selector because
+    "re-extract those" is a precise job: --force alone would rewrite every
+    other row of the source in the same run.
+    """
     placeholders = ",".join("?" * len(sources))
-    sql = (f"SELECT url, source, detail_id FROM releases "
-           f"WHERE source IN ({placeholders}) "
-           f"{'' if force else 'AND body_html IS NULL '}"
-           f"ORDER BY source, id")
+    sql = "SELECT r.url, r.source, r.detail_id FROM releases r "
+    if relocated:
+        sql += "JOIN body_origin c ON c.url = r.url "
+    sql += f"WHERE r.source IN ({placeholders}) "
+    if not force:
+        sql += "AND r.body_html IS NULL "
+    if relocated:
+        sql += _RELOCATED_SQL
+    sql += "ORDER BY r.source, r.id"
     if limit:
         sql += f" LIMIT {int(limit)}"
     return conn.execute(sql, tuple(sources)).fetchall()
@@ -284,12 +304,31 @@ SYNTHETIC_URL_SOURCES = {"midiman_de"}
 
 
 def capture_url(detail_id: str, url: str) -> str:
-    """The page_cache key wayback.fetch_snapshot stores a detail capture under.
-    Only a 14-digit timestamp is one; 'teaser', 'stub' and the Q4 platform ids
-    are not."""
-    if not detail_id or len(detail_id) != 14 or not detail_id.isdigit():
-        return ""
-    return f"https://web.archive.org/web/{detail_id}id_/{url}"
+    """The page_cache key for a capture of this row's own url, or "" when the
+    detail_id is not a capture timestamp at all (the live sources' platform ids,
+    or no reference).
+
+    Both halves belong to wayback.py; this is the two of them in the order every
+    caller here needs them, which is why it stays a named function rather than
+    being spelled out at four call sites. It is a *derivation* though, and only
+    right when the capture is of the row's own url - prefer origin_key(), which
+    asks the database first."""
+    return wayback.snapshot_url(detail_id, url) if wayback.is_timestamp(detail_id) else ""
+
+
+def origin_key(conn, url: str, detail_id: str) -> str:
+    """The page_cache key for this row's body, recorded if we know it.
+
+    body_origin answers for 1522 rows, including the 149 whose text came off a
+    *different* page - a listing, a print view, another release's page - which a
+    derivation from (detail_id, url) can only get wrong. It also covers the
+    attachment rows, whose real capture timestamp differs from the listing
+    timestamp their detail_id holds. Falls back to the derivation so a row the
+    provenance pass has not reached yet still works.
+    """
+    row = conn.execute("SELECT origin_url FROM body_origin WHERE url = ?",
+                       (url,)).fetchone()
+    return row[0] if row else capture_url(detail_id, url)
 
 
 def run_live(conn, sources, limit=None, force=False) -> None:
@@ -320,11 +359,42 @@ def run_live(conn, sources, limit=None, force=False) -> None:
     stats.summary()
 
 
-def run_cached(conn, sources, limit=None, force=False) -> None:
+def _chars_no_bullets(text: str) -> str:
+    """Every non-whitespace character, bullets dropped. Whitespace *placement*
+    is the one thing this comparison forgives, which is the same call
+    text_delta makes and for the same reason: `8 th` -> `8th` and
+    `GeForce \u2122` -> `GeForce\u2122` are the parser getting it right, not text
+    changing."""
+    return "".join((text or "").replace("\u2022", "").split())
+
+
+def strict_same_text(old_body: str, new_body: str) -> tuple:
+    """(ok, why) for the --relocated path: the ONLY difference allowed is
+    whitespace placement and the `\u2022` markers to_text() puts on list items.
+
+    safe_to_write is the wrong gate there and this cost 64 rows before it was
+    understood. A relocated row's capture is of a *listing*, a print view, or
+    another release's page; handing such a capture to a whole-page parse_detail
+    yields the longest article on it, which for a listing is somebody else's
+    release. safe_to_write let that through - it refuses text lost from the
+    *middle*, and wholesale replacement by a longer text reads as the
+    teaser-to-article upgrade it explicitly allows. Five midiman_de rows ended
+    up sharing one body that belonged to none of them.
+
+    Character-sequence equality cannot be fooled that way: another release's
+    text is a different sequence, so the only writes this admits are the ones
+    where the current parser reproduces exactly what is stored, character for
+    character, with only spaces moved.
+    """
+    return (_chars_no_bullets(old_body) == _chars_no_bullets(new_body),
+            "inny ciag znakow")
+
+
+def run_cached(conn, sources, limit=None, force=False, relocated=False) -> None:
     """Reparse from page_cache only. Never touches the network, so a row whose
     capture was never cached is `skipped`, not `uncertain` - there is nothing
     here for a rerun to retry until the capture itself is fetched."""
-    rows = pending(conn, sources, limit, force)
+    rows = pending(conn, sources, limit, force, relocated)
     stats = Stats(total=len(rows))
     print(f"[body_html] {len(rows)} rows pending; reparsing whatever "
           f"page_cache already holds", flush=True)
@@ -340,7 +410,16 @@ def run_cached(conn, sources, limit=None, force=False) -> None:
         if source not in CACHED_PARSERS:
             stats.skipped()
             continue
-        key = capture_url(detail_id, url)
+        key = origin_key(conn, url, detail_id)
+        if (not relocated and source in LISTING_SOURCES
+                and key and key != capture_url(detail_id, url)):
+            # The recorded origin is a page holding many releases, and
+            # CACHED_PARSERS[source] parses a whole page: it would hand back the
+            # biggest article on that listing, which belongs to another row.
+            # --listings is the url-keyed pass that can tell them apart, and
+            # --relocated has a gate strict enough not to care.
+            stats.skipped()
+            continue
         row = conn.execute("SELECT content FROM page_cache WHERE url = ?",
                            (key,)).fetchone() if key else None
         if row is None:
@@ -356,12 +435,21 @@ def run_cached(conn, sources, limit=None, force=False) -> None:
             # template variant it does not cover. Not retryable by refetching.
             stats.dead()
             continue
-        ok, why = safe_to_write(stored.get(url, ""), body)
+        gate = strict_same_text if relocated else safe_to_write
+        ok, why = gate(stored.get(url, ""), body)
         if not ok:
             held.append((url, why))
             stats.skipped()
             continue
         db.upgrade_release(conn, url, body=body, body_html=body_html)
+        # Record the address this text was actually read from, in the same
+        # transaction as the text. Not clear_body_origin, which the first cut
+        # of this had: the key this mode reads *is* the recorded entry, so
+        # clearing it deletes a true statement and takes the row's archive link
+        # with it (38 rows lost their link that way before the count gave it
+        # away). Recording it again is a no-op on the common path and the point
+        # on any path where the key came from elsewhere.
+        db.record_body_origin(conn, url, key)
         stats.upgraded()
 
     stats.summary()
@@ -410,6 +498,10 @@ def _midiman_de_entries(conn):
                 continue
             url = (f"http://www.midiman.de/press/"
                    f"{scrape_midiman_de._slugify(e['title'])}-{e['date']}")
+            # The capture the entry was parsed out of, carried so run_listings
+            # can record where the body came from instead of leaving that to a
+            # later inference pass.
+            e["capture_url"] = cap_url
             if url not in out or len(e["body"]) > len(out[url]["body"]):
                 out[url] = e
     return out
@@ -427,20 +519,56 @@ def _terratec_early_entries(conn):
         html = row[0].decode("cp1252", errors="replace")
         for e in scrape_terratec_early.extract_entries(html, page):
             if e.get("body_html"):
+                e["capture_url"] = page["wayback_url"]
                 out[e["url"]] = e
+    return out
+
+
+def _terratec_new_entries(conn, lang):
+    """(url -> entry) for terratec_new_<lang>, out of every cached capture of
+    that language's two listing pages.
+
+    Not a synthetic URL like midiman_de's - these hrefs really were on the
+    page - but the same predicament: for 15 of these rows archive.org has zero
+    captures of the article itself (CDX confirms it, and --wayback records the
+    dead end), so the listing capture the text came from is the only place the
+    formatting can still be read out of.
+    """
+    out = {}
+    for listing in scrape_terratec_new.LANGS[lang]["listing_urls"]:
+        for cap_url, content in conn.execute(
+                "SELECT url, content FROM page_cache WHERE url LIKE '%id_/' || ?",
+                (listing,)):
+            m = re.search(r"/web/(\d{14})id_/", cap_url)
+            try:
+                entries = scrape_terratec_new.extract_entries(
+                    content, listing, m.group(1) if m else None)
+            except Exception as e:
+                print(f"\n    {cap_url}: {e}")
+                continue
+            for e in entries:
+                url = e.get("url")
+                if not url or not e.get("body_html"):
+                    continue
+                e["capture_url"] = cap_url
+                if url not in out or len(e["body"]) > len(out[url]["body"]):
+                    out[url] = e
     return out
 
 
 LISTING_SOURCES = {
     "midiman_de": _midiman_de_entries,
     "terratec_early": _terratec_early_entries,
+    "terratec_new_de": functools.partial(_terratec_new_entries, lang="de"),
+    "terratec_new_en": functools.partial(_terratec_new_entries, lang="en"),
 }
 
 
-def run_listings(conn, limit=None) -> None:
+def run_listings(conn, limit=None, force=False) -> None:
     """Re-extract sources whose body never came from a page of its own.
 
-    midiman_de's inline releases only ever existed *inside* a listing page, so
+    Two shapes end up here. midiman_de's inline releases only ever existed
+    *inside* a listing page, so
     the scraper mints `/press/{slug}-{date}` for them. CACHED_PARSERS cannot
     reach those rows - it is keyed by the row's own capture, and that capture
     does not exist - which is why they were the one source --seed-cache had to
@@ -451,26 +579,55 @@ def run_listings(conn, limit=None) -> None:
     scraper builds. No network. Only ever an UPDATE: a parse that matches no
     stored URL is dropped rather than inserted, so re-extraction cannot mint
     rows under URLs nobody has seen.
+
+    terratec_new_de/_en are the other shape: real article URLs that archive.org
+    never captured, so --from-cache has nothing keyed to them and --wayback can
+    only confirm the dead end. Their listing captures hold the full release
+    text, which is why these rows had a body at all.
+
+    Two guards, both of which this mode was missing until 2026-08-22 and both
+    of which cost data the moment terratec_new joined it:
+
+    - **only rows with `body_html IS NULL`**, the same cursor every other mode
+      uses. Without it the pass walked all 159 terratec_new rows, including the
+      135 whose body came from the article's *own* capture.
+    - **never a shorter body than the one stored.** A listing entry is not
+      automatically the better copy: on this CMS the listing carries the full
+      text for recent releases and a truncated one for older entries, so 122
+      full articles were overwritten by their teasers. `safe_to_write` cannot
+      catch that - it refuses text vanishing from the *middle*, and a lost tail
+      is `edges_only`, which is exactly what dropped nav is. Same guard as
+      run_wayback's, for the same reason.
     """
     for source, collect in LISTING_SOURCES.items():
         stored = dict(conn.execute(
             "SELECT url, COALESCE(body, '') FROM releases WHERE source = ?", (source,)))
+        pending_urls = {u for (u,) in conn.execute(
+            "SELECT url FROM releases WHERE source = ? AND body_html IS NULL", (source,))}
+        target = stored if force else pending_urls
         found = collect(conn)
-        items = [(u, e) for u, e in found.items() if u in stored]
+        items = [(u, e) for u, e in found.items() if u in target]
         if limit:
             items = items[:limit]
         print(f"[listings] {source}: {len(found)} sparsowanych, "
-              f"{len(items)} pasuje do {len(stored)} wierszy", flush=True)
+              f"{len(items)} pasuje do {len(target)} wierszy "
+              f"{'w źródle' if force else 'bez formatowania'}", flush=True)
 
         stats = Stats(source, total=len(items))
         held = []
         for url, e in items:
+            if len(e["body"]) < len(stored[url]):
+                held.append((url, "krótszy niż zapisany"))
+                stats.skipped()
+                continue
             ok, why = safe_to_write(stored[url], e["body"])
             if not ok:
                 held.append((url, why))
                 stats.skipped()
                 continue
             db.upgrade_release(conn, url, body=e["body"], body_html=e["body_html"])
+            if e.get("capture_url"):
+                db.record_body_origin(conn, url, e["capture_url"])
             stats.upgraded()
 
         stats.summary(conn)
@@ -585,6 +742,11 @@ def run_wayback(conn, sources, limit=None, force=False) -> None:
             continue
         db.upgrade_release(conn, url, body=body, body_html=body_html,
                            detail_id=new_detail_id)
+        # This body came out of a capture of the row's own url, fetched just
+        # now, so whatever was recorded before (a listing, an older capture)
+        # has stopped describing it. Record what it actually was.
+        db.record_body_origin(conn, url, key if new_detail_id is None
+                               else wayback.snapshot_url(new_detail_id, url))
         stats.upgraded()
 
     stats.summary()
@@ -601,9 +763,13 @@ def main() -> None:
     p.add_argument("--seed-cache", action="store_true",
                    help="fetch captures into page_cache only; parses nothing, writes nothing")
     p.add_argument("--listings", action="store_true",
-                   help="re-extract listing-derived sources (midiman_de) from cached listings")
+                   help="re-extract listing-derived sources (midiman_de, "
+                        "terratec_early, terratec_new_*) from cached listings")
     p.add_argument("--retext", action="store_true",
                    help="recompute body from the stored body_html, no network")
+    p.add_argument("--relocated", action="store_true",
+                   help="only rows whose body came off a different page than "
+                        "their own url (see body_origin)")
     p.add_argument("--force", action="store_true",
                    help="re-extract rows that already have body_html (free "
                         "for anything in page_cache)")
@@ -611,7 +777,7 @@ def main() -> None:
 
     conn = db.connect()
     if args.listings:
-        run_listings(conn, args.limit)
+        run_listings(conn, args.limit, args.force)
         conn.close()
         return
     if args.retext:
@@ -641,7 +807,7 @@ def main() -> None:
     elif args.wayback:
         run_wayback(conn, sources, args.limit, args.force)
     elif args.from_cache:
-        run_cached(conn, sources, args.limit, args.force)
+        run_cached(conn, sources, args.limit, args.force, args.relocated)
     else:
         run_live(conn, sources, args.limit, args.force)
     conn.close()

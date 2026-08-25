@@ -90,7 +90,27 @@ CDX_TIMEOUT = 30
 CDX_BULK_TIMEOUT = 60
 
 
+TS_LEN = 14
+
+
+def is_timestamp(value) -> bool:
+    """Whether `value` is a Wayback capture timestamp (14 digits).
+
+    The single implementation. This test used to be spelled out in seven places
+    - two regexes, a GLOB, `len() == 14 and isdigit()` twice, a bare isdigit(),
+    and a string compare in the browser - each of them deciding on its own what
+    a `detail_id` meant. The readers no longer ask at all (body_origin records
+    the capture, releases.grade records the verdict); what is left are the
+    archive-facing scripts, which legitimately need to turn a timestamp into a
+    page_cache key and now do it through here.
+    """
+    return bool(value) and str(value).isdigit() and len(str(value)) == TS_LEN
+
+
 def snapshot_url(timestamp: str, original_url: str) -> str:
+    """The capture address, and the key page_cache stores its bytes under. The
+    `id_` marker asks archive.org for the original bytes without its own
+    toolbar injected; strip it (serve.py) for a link meant for a human."""
     return f"https://web.archive.org/web/{timestamp}id_/{original_url}"
 
 
@@ -298,9 +318,11 @@ def fetch_snapshot(conn: sqlite3.Connection, session: requests.Session, url: str
         pass
 
     conn.execute(
-        "INSERT OR IGNORE INTO page_cache (url, content, id_content_type, fw_guessed_charset, bs4_encoding) "
-        "VALUES (?, ?, ?, ?, ?)",
-        (url, content, id_content_type, fw_guessed_charset, bs4_encoding),
+        "INSERT OR IGNORE INTO page_cache (url, content, id_content_type, "
+        "fw_guessed_charset, bs4_encoding, content_sha256, fetched_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (url, content, id_content_type, fw_guessed_charset, bs4_encoding,
+         db.content_hash(content), time.time()),
     )
     conn.commit()
     time.sleep(CONTENT_SLEEP)

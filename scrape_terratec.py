@@ -28,6 +28,92 @@ SOURCE = "terratec"
 
 DATE_RE = re.compile(r"Press Release,\s*(\d{1,2}\.\d{1,2}\.\d{2,4})", re.IGNORECASE)
 
+# The dateline that sits immediately above the headline, in all three languages
+# this one hand-built site was published in: terratec.net English, its
+# /press/*_fr.htm French pages, and terratec.de German (which
+# backfill_terratec_de_and_net_gaps.py imports find_headline for). Used to
+# locate the headline, never the date - DATE_RE and DATE_RE_DE own that.
+MARKER_RE = re.compile(r"press\s*release|communiqu\w*\s+de\s+presse|presseinfo", re.I)
+
+_HEADINGS = ("h1", "h2", "h3", "h4")
+
+# What ends a bare-text headline. Deliberately not "any block": <tr>/<td> are
+# the container being walked into, so stopping on those would end the walk
+# before any text. Stopping on <p> is the point of the rule - a cell that opens
+# with a paragraph has no headline, and descending into it would title the row
+# with the release's first sentence instead.
+_HEADLINE_ENDS = {"p", "h1", "h2", "h3", "h4", "table", "ul", "ol",
+                  "div", "blockquote"}
+
+# A bare-text headline longer than this is prose that slipped past the rule
+# above, not a headline. The longest real one across both sources is 119
+# characters.
+MAX_HEADLINE = 250
+
+
+def find_headline(soup) -> str:
+    """The release's headline, for the terratec.net/terratec.de page family.
+
+    Called only when the caller's own bold-tag rule came up empty, so it can
+    never change a title that already parses - measured over every cached
+    capture of both sources: 193 identical, 8 filled, 0 changed.
+
+    Three shapes, because the site was hand-authored over five years and the
+    headline is not marked up the same way in all of it:
+
+      1. the first non-empty bold after the dateline that is not itself a
+         dateline. Both halves matter. Taking `bold_tags[i + 1]` blindly stored
+         "" whenever a capture put an empty <b> between the two (3 rows); and on
+         the French pages the very next bold is the "Communiqué de Presse"
+         download-link label, which would otherwise become the title of all
+         four of them.
+      2. the first h1-h4 in the <tr> after the dateline's <tr>. The 2000-era
+         pages put the headline in a heading and never bolded it.
+      3. that same <tr>'s leading text, before its first paragraph. The
+         1998-era pages leave the headline as a bare text node after a <br>.
+
+    "" when none of them finds anything: five captures under these two sources
+    are 290-byte placeholder pages carrying no article at all, and one French
+    release opens straight into a <p> with no headline of any kind - which
+    shape 3 refuses on purpose rather than titling the row with its lead
+    sentence.
+    """
+    bolds = soup.find_all(["b", "strong"])
+    marker = None
+    for i, tag in enumerate(bolds):
+        if MARKER_RE.search(tag.get_text(" ", strip=True)):
+            marker = tag
+            for nxt in bolds[i + 1:]:
+                text = " ".join(nxt.get_text(strip=True).split())
+                if text and not MARKER_RE.search(text):
+                    return text
+            break
+    if marker is None:
+        return ""
+
+    row = marker.find_parent("tr")
+    box = row.find_next_sibling("tr") if row is not None else None
+    if box is None:
+        return ""
+
+    for heading in box.find_all(_HEADINGS):
+        text = " ".join(heading.get_text(strip=True).split())
+        if text:
+            return text
+
+    # Blank strings are skipped rather than collected: the <tr>'s own
+    # indentation is its first descendant, and counting it as content ended the
+    # walk on the <td> that follows before any headline had been seen.
+    parts = []
+    for node in box.descendants:
+        if isinstance(node, str):
+            if node.strip():
+                parts.append(node)
+        elif node.name in _HEADLINE_ENDS:
+            break
+    text = " ".join("".join(parts).split())
+    return text if len(text) <= MAX_HEADLINE else ""
+
 
 def is_html_page(original_url: str) -> bool:
     return original_url.lower().split("?", 1)[0].endswith((".htm", ".html"))
@@ -67,6 +153,8 @@ def parse_snapshot(content: bytes) -> dict:
             if i + 1 < len(bold_tags):
                 title = bold_tags[i + 1].get_text(strip=True)
             break
+    if not title:
+        title = find_headline(soup)
 
     return {"title": title, "date": date, "body": body, "body_html": body_html}
 

@@ -44,13 +44,13 @@ import re
 
 import db
 import encoding
+import wayback
 
-# Only a 14-digit detail_id is a Wayback timestamp. The Q4 sources (amd, intel)
-# and the live Creative scrape store that platform's own numeric detail id, and
-# pasting one into a /web/<ts>id_/ URL does not fail - archive.org helpfully
-# serves the nearest capture of *something*, which is how this check first
-# "compared" a row against an unrelated page.
-_TS_LEN = 14
+# Which detail_ids name a capture is wayback.is_timestamp's call, not this
+# file's. It matters here because pasting a platform id into a /web/<ts>id_/
+# URL does not fail - archive.org helpfully serves the nearest capture of
+# *something*, which is how this check first "compared" a row against an
+# unrelated page.
 
 # Crude on purpose: this only has to make a capture's prose greppable, not
 # parse it - bs4 stays out of here so the offline path needs no third-party
@@ -73,7 +73,7 @@ def damaged(text: str) -> bool:
 
 
 def _is_timestamp(detail_id) -> bool:
-    return bool(detail_id) and str(detail_id).isdigit() and len(str(detail_id)) == _TS_LEN
+    return wayback.is_timestamp(detail_id)
 
 
 def cached_bytes(conn, detail_id, url):
