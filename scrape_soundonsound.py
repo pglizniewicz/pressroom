@@ -72,6 +72,7 @@ from db import already_stored
 from encoding import decode_html
 from fetch import fetch_cached
 import db
+import reextract
 import richtext
 from progress import Stats
 
@@ -169,11 +170,12 @@ def collect(conn, session, pages: int = None) -> dict:
     return found
 
 
-def scrape(limit: int = None, pages: int = None, list_only: bool = False) -> None:
+def scrape(limit: int = None, pages: int = None, list_only: bool = False,
+           catch: dict = None) -> None:
     conn = db.connect()
     session = requests.Session()
 
-    found = collect(conn, session, pages)
+    found = [] if reextract.no_crawl(catch) else collect(conn, session, pages)
     print(f"\n[{SOURCE}] {len(found)} unikalnych artykułów w obu listach", flush=True)
     if list_only:
         conn.close()
@@ -206,6 +208,7 @@ def scrape(limit: int = None, pages: int = None, list_only: bool = False) -> Non
             stats.skipped()
 
     stats.summary(conn)
+    reextract.run(conn, SOURCE, catch, fetch_body=fetch_body, session=session)
     conn.close()
 
 
@@ -215,5 +218,7 @@ if __name__ == "__main__":
     p.add_argument("--pages", type=int, help="only this many listing pages per facet")
     p.add_argument("--list-only", action="store_true",
                    help="walk the listings and report the count, store nothing")
+    reextract.add_flags(p)
     args = p.parse_args()
-    scrape(limit=args.limit, pages=args.pages, list_only=args.list_only)
+    scrape(limit=args.limit, pages=args.pages, list_only=args.list_only,
+           catch=reextract.options(args))

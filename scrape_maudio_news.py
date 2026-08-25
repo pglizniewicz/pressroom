@@ -58,6 +58,7 @@ from db import stored_grade
 from dates import iso_date
 from encoding import decode_html
 import db
+import reextract
 import richtext
 from progress import Stats
 import wayback
@@ -157,11 +158,11 @@ def discover_listing(conn: sqlite3.Connection) -> list:
     return list(by_slug.values())
 
 
-def scrape(limit: int = None) -> None:
+def scrape(limit: int = None, catch: dict = None) -> None:
     conn = db.connect()
     session = requests.Session()
 
-    entries = discover_listing(conn)
+    entries = [] if reextract.no_crawl(catch) else discover_listing(conn)
     print(f"[{SOURCE}] {len(entries)} distinct articles found across all listing pages", flush=True)
     if limit:
         entries = entries[:limit]
@@ -214,11 +215,14 @@ def scrape(limit: int = None) -> None:
             stats.dead()
 
     stats.summary(conn)
+    reextract.run(conn, SOURCE, catch, parser=parse_detail, session=session,
+                  twins_too=True)
     conn.close()
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Scrape M-Audio's m-audio.com/news blog via the Wayback Machine")
     parser.add_argument("--limit", type=int, default=None, help="Cap number of articles processed (testing)")
+    reextract.add_flags(parser)
     args = parser.parse_args()
-    scrape(limit=args.limit)
+    scrape(limit=args.limit, catch=reextract.options(args))

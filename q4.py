@@ -29,6 +29,7 @@ from bs4 import BeautifulSoup
 
 from dates import iso_date
 import db
+import reextract
 from progress import Stats
 from encoding import decode_html
 from fetch import HEADERS, SLEEP, fetch_cached
@@ -117,15 +118,18 @@ def scrape(
     start: int = 1,
     container_sel: str = "article.media-container",
     title_link_sel: str = "div.media-title a",
+    catch: dict = None,
 ) -> None:
     base_url = re.match(r"(https?://[^/]+)", list_url).group(1)
 
     conn = db.connect(db_path)
     session = requests.Session()
 
-    print("Detecting total page count...", flush=True)
-    total = get_total_pages(session, list_url)
-    time.sleep(SLEEP)
+    total = 0
+    if not reextract.no_crawl(catch):
+        print("Detecting total page count...", flush=True)
+        total = get_total_pages(session, list_url)
+        time.sleep(SLEEP)
 
     end_page = start + pages - 1 if pages else total
     end_page = min(end_page, total)
@@ -152,8 +156,13 @@ def scrape(
             try:
                 body, body_html = fetch_body(conn, session, item["url"])
             except Exception as e:
+                # Write nothing. An inserted empty row is worse than no row:
+                # already_stored() would skip it on every future run, so one
+                # timeout would cost the release permanently. A network error is
+                # not a verdict - report it and let the rerun pick it up.
                 print(f"\n    ERROR fetching {item['url']}: {e}")
-                body, body_html = "", ""
+                stats.uncertain()
+                continue
 
             if db.store_release(conn, source, item["url"], title=item["title"],
                                 date=item["date"], body=body, body_html=body_html,
@@ -163,11 +172,17 @@ def scrape(
         print()
 
     stats.summary(conn)
+    # Phase 2 for the tag this run owns. fetch_body goes through fetch_cached,
+    # so a page already in page_cache costs no request.
+    reextract.run(conn, source, catch, fetch_body=fetch_body, session=session)
     conn.close()
 
 
 def make_arg_parser(description: str) -> argparse.ArgumentParser:
+    """The CLI both Q4 scrapers share, phase-2 flags included: the two shims
+    over this module have no argparse of their own."""
     p = argparse.ArgumentParser(description=description)
     p.add_argument("--pages", type=int, default=None, help="Number of pages to scrape")
     p.add_argument("--start", type=int, default=1, help="Start from this page number")
+    reextract.add_flags(p)
     return p

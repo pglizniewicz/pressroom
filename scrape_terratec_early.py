@@ -17,6 +17,7 @@ from bs4 import BeautifulSoup
 
 from dates import iso_date
 import db
+import reextract
 import richtext
 import wayback
 
@@ -121,9 +122,17 @@ def extract_entries(html: str, page: dict) -> list:
     return entries
 
 
-def scrape() -> None:
+def scrape(catch: dict = None) -> None:
     conn = db.connect()
     session = requests.Session()
+
+    # Both listing captures are required for the cross-language dedup below, so
+    # this crawl cannot be half-done - which is why the no-network flags skip
+    # straight to phase 2 rather than running the loop over an empty list.
+    if reextract.no_crawl(catch):
+        reextract.run(conn, SOURCE, catch, collect=cached_entries, session=session)
+        conn.close()
+        return
 
     all_entries = []
     for page in PAGES:
@@ -173,8 +182,31 @@ def scrape() -> None:
     conn.commit()
     total = db.source_total(conn, SOURCE)
     print(f"\nInserted {new_count} rows ({skipped_de} German duplicates of English entries skipped). Total: {total}")
+    # Listing-only: every row is an anchor into one of two pages, so there is no
+    # per-row capture to reparse and no parser to pass. This is also the only
+    # upgrade path these rows have ever had - the crawl above can INSERT but
+    # never improve a row it already stored.
+    reextract.run(conn, SOURCE, catch, collect=cached_entries, session=session)
     conn.close()
 
+
+
+def cached_entries(conn) -> dict:
+    """(url -> entry) for terratec_early, for reextract. Every row is an anchor
+    (`#p20`) into one of two listing pages, so one capture yields many rows -
+    which is also why only a url-keyed collector can separate them."""
+    out = {}
+    for page in PAGES:
+        row = conn.execute("SELECT content FROM page_cache WHERE url = ?",
+                           (page["wayback_url"],)).fetchone()
+        if row is None:
+            continue
+        html = row[0].decode("cp1252", errors="replace")
+        for e in extract_entries(html, page):
+            if e.get("body_html"):
+                e["origin_url"] = page["wayback_url"]
+                out[e["url"]] = e
+    return out
 
 if __name__ == "__main__":
     scrape()

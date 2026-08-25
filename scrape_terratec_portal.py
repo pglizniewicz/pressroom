@@ -19,6 +19,7 @@ Kept as distinct sources, same as creative/creative_gnw.
 Usage:
   python scrape_terratec_portal.py             # both portals, every archived article
   python scrape_terratec_portal.py --limit 5   # only the first 5 per portal (testing)
+  python scrape_terratec_portal.py --offline   # only catch up from page_cache
 """
 
 import argparse
@@ -29,9 +30,10 @@ import requests
 from bs4 import BeautifulSoup
 
 from fetch import SLEEP
-from db import already_stored
+from db import already_stored, stored_grade
 from dates import iso_date
 import db
+import reextract
 import richtext
 from progress import Stats
 import wayback
@@ -188,12 +190,249 @@ def parse_snapshot(content: bytes) -> dict:
     return {"title": title, "date": date, "body": body, "body_html": body_html}
 
 
-def scrape_portal(source: str, prefix: str, limit: int = None) -> None:
+# The yearly category listings (file=index&catid=N&allstories=1) - one archived
+# capture per category, id_ baked in, matching every other hardcoded-url table
+# here. This is the channel that finds sids the timemap prefix search never
+# surfaced at all, and it is irreplaceable archaeology: nobody is going to redo
+# the sweep that found these twelve captures.
+CATEGORY_PAGES = [
+    ("http://pressde.terratec.net:80/", "terratec_pressde",
+     "https://web.archive.org/web/20031115085312id_/http://pressde.terratec.net:80/modules.php?op=modload&name=News&file=index&catid=13&topic=&allstories=1&menu=300"),
+    ("http://pressde.terratec.net:80/", "terratec_pressde",
+     "https://web.archive.org/web/20031115084858id_/http://pressde.terratec.net/modules.php?op=modload&name=News&file=index&catid=14&topic=&allstories=1&menu=304"),
+    ("http://pressde.terratec.net:80/", "terratec_pressde",
+     "https://web.archive.org/web/20031213100854id_/http://pressde.terratec.net:80/modules.php?op=modload&name=News&file=index&catid=15&topic=&allstories=1&amp"),
+    ("http://pressde.terratec.net:80/", "terratec_pressde",
+     "https://web.archive.org/web/20041010061159id_/http://pressde.terratec.net/modules.php?op=modload&name=News&file=index&catid=17&topic=&allstories=1&amp"),
+    ("http://pressde.terratec.net:80/", "terratec_pressde",
+     "https://web.archive.org/web/20070730011217id_/http://pressde.terratec.net/modules.php?op=modload&name=News&file=index&catid=19&topic=&allstories=1"),
+    ("http://pressde.terratec.net:80/", "terratec_pressde",
+     "https://web.archive.org/web/20070730010823id_/http://pressde.terratec.net/modules.php?op=modload&name=News&file=index&catid=20&topic=&allstories=1"),
+    ("http://pressde.terratec.net:80/", "terratec_pressde",
+     "https://web.archive.org/web/20070730010351id_/http://pressde.terratec.net/modules.php?op=modload&name=News&file=index&catid=18&topic=&allstories=1&menu=2"),
+    ("http://pressen.terratec.net:80/", "terratec_pressen",
+     "https://web.archive.org/web/20031001235452id_/http://pressen.terratec.net/modules.php?op=modload&name=News&file=index&catid=15&topic=&allstories=1&menu=2"),
+    ("http://pressen.terratec.net:80/", "terratec_pressen",
+     "https://web.archive.org/web/20041010063929id_/http://pressen.terratec.net:80/modules.php?op=modload&name=News&file=index&catid=16&topic=&allstories=1&amp"),
+    ("http://pressen.terratec.net:80/", "terratec_pressen",
+     "https://web.archive.org/web/20070808232502id_/http://pressen.terratec.net/modules.php?op=modload&name=News&file=index&catid=17&topic=&allstories=1&menu=2&menu=307"),
+    ("http://pressen.terratec.net:80/", "terratec_pressen",
+     "https://web.archive.org/web/20070808232455id_/http://pressen.terratec.net/modules.php?op=modload&name=News&file=index&catid=18&topic=&allstories=1&menu=2&menu=309"),
+    ("http://pressen.terratec.net:80/", "terratec_pressen",
+     "https://web.archive.org/web/20070630063657id_/http://pressen.terratec.net/modules.php?op=modload&name=News&file=index&catid=19&topic=&allstories=1&menu=2"),
+]
+
+
+def extract_teasers(content: bytes) -> dict:
+    """Return {sid: (date, title, teaser_text)} for every article on this page."""
+    # cp1252 stated, never sniffed: these pages predate UTF-8 and declare no
+    # charset, so left to guess bs4 read them as ISO-8859-1 and stored the
+    # cp1252 punctuation range as C1 control characters (see
+    # repair_encoding.py, which had to undo exactly that).
+    soup = BeautifulSoup(content, "html.parser", from_encoding="cp1252")
+    teasers = {}
+
+    for a in soup.select("a.pn-title"):
+        href = a.get("href", "")
+        m_sid = SID_RE.search(href)
+        if not m_sid:
+            continue
+        sid = int(m_sid.group(1))
+
+        m_title = TITLE_RE.match(a.get_text(strip=True))
+        if not m_title:
+            continue
+        date_str, title = m_title.group(1), m_title.group(2).strip()
+        date = iso_date(date_str, dayfirst=True)
+
+        title_tr = a.find_parent("tr")
+        content_tr = title_tr.find_next_sibling("tr") if title_tr else None
+        teaser = teaser_html = ""
+        if content_tr:
+            content_html = str(content_tr)
+            idx = content_html.find('<span class="note">')
+            if idx != -1:
+                content_html = content_html[:idx]
+            teaser, teaser_html = richtext.extract(
+                BeautifulSoup(content_html, "html.parser"))
+
+        teasers[sid] = (date, title, teaser, teaser_html)
+
+    return teasers
+
+
+def stored_sids(conn, source: str) -> set:
+    return {int(m.group(1)) for url in db.source_urls(conn, source)
+            if (m := SID_RE.search(url))}
+
+
+def print_only_sids(prefix: str, have: set) -> list:
+    """Sids whose print.php view is archived, minus the ones already stored.
+
+    The third discovery channel. Some articles have a working capture of
+    `print.php?sid=N` and none of the article page itself, and this reads them
+    out of the same timemap response `list_articles` already asks for - so it
+    costs no extra CDX query.
+    """
+    sids = set()
+    for entry in wayback.list_snapshots_or_exit(prefix):
+        url = entry["original"]
+        if "/print.php" not in url:
+            continue
+        if m := SID_RE.search(url):
+            sids.add(int(m.group(1)))
+    return sorted(sids - have)
+
+
+def recover_article(conn, session, prefix: str, sid) -> tuple:
+    """((timestamp, parsed), confirmed) for one sid: the article page first, then
+    its print view.
+
+    `confirmed` is False when any attempt hit a network error, so the caller must
+    not record a dead end - a probe failure is not a verdict. Both urls are
+    parsed with this module's own parse_snapshot: measured over all 81 cached
+    print.php captures, it handles the print template, and the separate
+    print-only parser this replaces differed by 1-4 characters of whitespace.
+    """
+    uncertain = False
+    for url in (f"{prefix}modules.php?op=modload&name=News&file=article&sid={sid}",
+                f"{prefix}print.php?sid={sid}"):
+        try:
+            found = wayback.get_latest_working_snapshot(url)
+        except Exception:
+            uncertain = True
+            continue
+        if not found:
+            continue
+        snapshot_url, timestamp = found
+        try:
+            content = wayback.fetch_snapshot(conn, session, snapshot_url, timeout=20)
+            parsed = parse_snapshot(content)
+        except Exception:
+            uncertain = True
+            continue
+        if parsed.get("title"):
+            return (timestamp, parsed, snapshot_url), True
+    return None, not uncertain
+
+
+def from_categories(conn, session, source: str, prefix: str) -> None:
+    """The category-listing channel: every sid that appears on a yearly listing,
+    recovered in full where possible and stored as its teaser where not.
+
+    A teaser-grade row is retried on every run and upgraded in place the moment
+    the full article can be reached - which is why this was never a one-shot. A
+    network error is reported `uncertain`, never allowed to lock in a teaser.
+    """
+    teasers = {}
+    for page_prefix, page_source, url in CATEGORY_PAGES:
+        if page_source != source:
+            continue
+        try:
+            content = wayback.fetch_snapshot(conn, session, url, timeout=20)
+        except Exception as e:
+            print(f"\n  ERROR fetching category page: {e}")
+            continue
+        teasers.update(extract_teasers(content))
+    if not teasers:
+        return
+
+    print(f"[{source}] {len(teasers)} sids z rocznych listingow", flush=True)
+    stats = Stats(source, total=len(teasers))
+    for sid, (t_date, t_title, t_text, t_html) in teasers.items():
+        article_url = f"{prefix}modules.php?op=modload&name=News&file=article&sid={sid}"
+        existing = stored_grade(conn, article_url)
+        if existing is not None and existing != "teaser":
+            stats.skipped()
+            continue
+
+        recovered, confirmed = recover_article(conn, session, prefix, sid)
+        if recovered:
+            timestamp, parsed, snapshot_url = recovered
+            if existing == "teaser":
+                db.upgrade_release(conn, article_url, detail_id=timestamp,
+                                   title=parsed["title"], date=parsed["date"],
+                                   body=parsed["body"],
+                                   body_html=parsed["body_html"] or None,
+                                   grade="full", origin_url=snapshot_url)
+                stats.upgraded()
+            else:
+                db.store_release(conn, source, article_url, title=parsed["title"],
+                                 date=parsed["date"], body=parsed["body"],
+                                 body_html=parsed["body_html"] or None,
+                                 detail_id=timestamp, origin_url=snapshot_url)
+                stats.added()
+            continue
+
+        # Ordered before the teaser check on purpose: a failed probe is not a
+        # verdict, so an already-stored teaser is `uncertain` (a rerun retries
+        # it) rather than `skipped`.
+        if not confirmed:
+            stats.uncertain()
+            continue
+        if existing == "teaser":
+            stats.skipped()
+            continue
+        if t_text:
+            db.store_release(conn, source, article_url, title=t_title, date=t_date,
+                             body=t_text, body_html=t_html or None, grade="teaser")
+            stats.teaser()
+        else:
+            stats.dead()
+
+    stats.summary(conn)
+
+
+def from_print_views(conn, session, source: str, prefix: str) -> None:
+    """The print.php channel: sids whose only archived page is the print view."""
+    sids = print_only_sids(prefix, stored_sids(conn, source))
+    if not sids:
+        return
+    print(f"[{source}] {len(sids)} sids tylko w widoku print.php", flush=True)
+    stats = Stats(source, total=len(sids))
+    for sid in sids:
+        print_url = f"{prefix}print.php?sid={sid}"
+        try:
+            found = wayback.get_latest_working_snapshot(print_url)
+        except Exception as e:
+            print(f"\n  ERROR probing {print_url}: {e}")
+            time.sleep(SLEEP * 2)
+            stats.uncertain()
+            continue
+        if not found:
+            stats.dead()
+            continue
+        snapshot_url, timestamp = found
+        try:
+            content = wayback.fetch_snapshot(conn, session, snapshot_url, timeout=20)
+            parsed = parse_snapshot(content)
+        except Exception as e:
+            print(f"\n  ERROR fetching {snapshot_url}: {e}")
+            stats.uncertain()
+            continue
+        if not parsed.get("title"):
+            stats.dead()
+            continue
+        # Stored under the print url, because that is the page that existed:
+        # the article url has no capture, and minting a row under an address
+        # nobody has seen is what SYNTHETIC_URL_SOURCES exists to warn about.
+        if db.store_release(conn, source, print_url, title=parsed["title"],
+                            date=parsed["date"], body=parsed["body"],
+                            body_html=parsed["body_html"] or None,
+                            detail_id=timestamp, origin_url=snapshot_url):
+            stats.added()
+        else:
+            stats.skipped()
+    stats.summary(conn)
+
+
+def scrape_portal(source: str, prefix: str, limit: int = None,
+                  catch: dict = None) -> None:
     conn = db.connect()
     session = requests.Session()
 
     print(f"[{source}] Listing archived articles under {prefix}", flush=True)
-    urls = list_articles(prefix)
+    urls = [] if reextract.no_crawl(catch) else list_articles(prefix)
     if limit:
         urls = urls[:limit]
     print(f"[{source}] {len(urls)} candidate articles", flush=True)
@@ -231,12 +470,21 @@ def scrape_portal(source: str, prefix: str, limit: int = None) -> None:
             stats.added()
 
     stats.summary(conn)
+
+    # Two more discovery channels, both of which used to be their own
+    # "backfill" script: the yearly category listings, and the sids whose only
+    # archived page is the print view.
+    if not reextract.no_crawl(catch):
+        from_categories(conn, session, source, prefix)
+        from_print_views(conn, session, source, prefix)
+
+    reextract.run(conn, source, catch, parser=parse_snapshot, session=session)
     conn.close()
 
 
-def scrape(limit: int = None) -> None:
+def scrape(limit: int = None, catch: dict = None) -> None:
     for source, prefix in PORTALS.items():
-        scrape_portal(source, prefix, limit=limit)
+        scrape_portal(source, prefix, limit=limit, catch=catch)
 
 
 if __name__ == "__main__":
@@ -244,5 +492,6 @@ if __name__ == "__main__":
         description="Scrape TerraTec's Presse @ TerraTec portals (English + German) via the Wayback Machine")
     parser.add_argument("--limit", type=int, default=None,
                         help="Only process the first N candidate articles per portal")
+    reextract.add_flags(parser)
     args = parser.parse_args()
-    scrape(limit=args.limit)
+    scrape(limit=args.limit, catch=reextract.options(args))

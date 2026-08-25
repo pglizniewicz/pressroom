@@ -55,7 +55,9 @@ from bs4 import BeautifulSoup
 from db import already_stored
 from dates import iso_date
 from encoding import decode_html
+import attachment_crawl
 import db
+import reextract
 import richtext
 from progress import Stats
 import wayback
@@ -146,12 +148,14 @@ def extract_entries(html: bytes, base_url: str, timestamp: str = None) -> list:
     return entries
 
 
-def scrape_domain(source: str, listing_url: str, limit: int = None) -> None:
+def scrape_domain(source: str, listing_url: str, limit: int = None,
+                  catch: dict = None) -> None:
     conn = db.connect()
     session = requests.Session()
 
     print(f"[{source}] Listing historical captures of {listing_url}", flush=True)
-    entries = wayback.sample_all_captures(conn, session, listing_url, extract_entries, limit=limit)
+    entries = [] if reextract.no_crawl(catch) else wayback.sample_all_captures(
+        conn, session, listing_url, extract_entries, limit=limit)
 
     best = {}  # (title, date) -> {url, body, body_html, detail_id}
     for e in entries:
@@ -176,16 +180,27 @@ def scrape_domain(source: str, listing_url: str, limit: int = None) -> None:
     conn.commit()
 
     stats.summary(conn)
+    # This CMS links out to .doc/.pdf files and the listing gives only a
+    # ~150-character teaser, so an attachment row's phase 2 is the only way it
+    # ever gets its real text. Every row of this source is one of those.
+    attachment_crawl.catch_up(conn, [source],
+                              network=bool((catch or {}).get("attachments")))
+    # No HTML parser for this tag - the listing teaser is all there ever was on
+    # the page, and the real text is in the attachment. What phase 2 can still
+    # do here is the twin fill: this CMS published some releases under two url
+    # schemes on one domain.
+    reextract.run(conn, source, catch, twins_too=True)
     conn.close()
 
 
-def scrape(limit: int = None) -> None:
+def scrape(limit: int = None, catch: dict = None) -> None:
     for source, listing_url in DOMAINS.items():
-        scrape_domain(source, listing_url, limit=limit)
+        scrape_domain(source, listing_url, limit=limit, catch=catch)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Scrape Midiman/M-Audio's media_pr press archive via the Wayback Machine")
     parser.add_argument("--limit", type=int, default=None, help="Only sample the first N historical captures per domain (testing)")
+    reextract.add_flags(parser)
     args = parser.parse_args()
-    scrape(limit=args.limit)
+    scrape(limit=args.limit, catch=reextract.options(args))

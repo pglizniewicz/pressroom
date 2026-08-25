@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Backfill teaser-grade rows from a twin row of the same source - no network.
+"""Fill a teaser body from its twin row in the same source. No network at all.
 
 The M-Audio CMS published the same release under two URL schemes on the same
 domain, and both got crawled, so the corpus holds pairs like:
@@ -23,13 +23,17 @@ Pairing is within one source only. Across sources the same release lives on
 several mirrors under unrelated URL schemes by design, and their bodies are
 genuinely different documents - merging those would invent a fact.
 
-Usage:
-  python backfill_twin_bodies.py --dry-run
-  python backfill_twin_bodies.py --dry-run --source maudio_com_media_news
-  python backfill_twin_bodies.py
+A library: `fill(conn, source)` is the last step of phase 2 for the scrapers
+whose CMS published one release under two url schemes. It is here rather than in
+reextract.py because the text comes from **another row**, not from any capture -
+different source of truth, different gate, and the one place with a reason to
+call db.clear_body_origin().
+
+Deliberately non-destructive. Nothing is deleted and nothing is merged:
+`releases.url` stays the dedup key, and both urls genuinely existed, so both rows
+stay. Only the short row's body changes.
 """
 
-import argparse
 import collections
 
 import db
@@ -93,17 +97,27 @@ def find_pairs(conn, source=None):
     return pairs, rejected, undated
 
 
-def backfill(dry_run: bool, source: str = None) -> None:
-    conn = db.connect()
+def fill(conn, source: str = None, *, dry_run: bool = False) -> int:
+    """Fill every teaser in `source` that has a better twin. Returns rows written.
+
+    Called at the end of a scraper's run, so a fresh crawl that lands one url
+    scheme before the other needs no follow-up pass. Idempotent: once the short
+    row holds the twin's text there is no gap left to find, and a rerun reports
+    nothing to do.
+    """
     pairs, rejected, undated = find_pairs(conn, source)
 
     per_source = collections.Counter()
+    if pairs:
+        print(f"[{source or 'twins'}] bliźniaki do uzupełnienia:", flush=True)
     for short, best in pairs:
         per_source[short["source"]] += 1
         print(f"  #{short['id']} {short['source']} {short['len']:5} -> "
               f"{best['len']:5} znaków (od #{best['id']}, detail={best['detail_id']})")
         print(f"      {short['title'][:88]}")
 
+    if not pairs and not rejected:
+        return 0
     print(f"\ndo uzupełnienia: {len(pairs)} wierszy")
     for src, n in per_source.most_common():
         print(f"  {src:24} {n}")
@@ -112,8 +126,7 @@ def backfill(dry_run: bool, source: str = None) -> None:
 
     if dry_run:
         print("\n[dry-run] nic nie zapisano")
-        conn.close()
-        return
+        return 0
 
     written = 0
     for short, best in pairs:
@@ -127,13 +140,12 @@ def backfill(dry_run: bool, source: str = None) -> None:
         if db.upgrade_release(conn, short["url"], body=body, detail_id=detail,
                               grade="full"):
             written += 1
-    print(f"\nuzupełniono {written} wierszy z bliźniaków")
-    conn.close()
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--dry-run", action="store_true", help="Report changes without writing")
-    parser.add_argument("--source", help="Limit to one source tag")
-    args = parser.parse_args()
-    backfill(dry_run=args.dry_run, source=args.source)
+            # This text came out of another row, not out of a capture of this
+            # one. Whatever address was recorded for it has stopped describing
+            # the body, so drop it rather than leave a false statement - the
+            # only caller clear_body_origin has ever had.
+            db.clear_body_origin(conn, short["url"], commit=False)
+    conn.commit()
+    if written:
+        print(f"\nuzupełniono {written} wierszy z bliźniaków")
+    return written

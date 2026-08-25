@@ -23,6 +23,7 @@ from fetch import HEADERS, SLEEP, fetch_cached
 import richtext
 from db import already_stored
 import db
+import reextract
 from progress import Stats
 
 BASE_URL = "https://sg.creative.com"
@@ -71,7 +72,8 @@ def fetch_body(conn, session: requests.Session, url: str) -> tuple:
     return richtext.extract(col)
 
 
-def scrape(from_year: int = FIRST_YEAR, to_year: int = None) -> None:
+def scrape(from_year: int = FIRST_YEAR, to_year: int = None,
+           catch: dict = None) -> None:
     current_year = to_year or int(time.strftime("%Y"))
 
     conn = db.connect()
@@ -99,8 +101,13 @@ def scrape(from_year: int = FIRST_YEAR, to_year: int = None) -> None:
             try:
                 body, body_html = fetch_body(conn, session, item["url"])
             except Exception as e:
+                # Write nothing. An inserted empty row is worse than no row:
+                # already_stored() would skip it on every future run, so one
+                # timeout would cost the release permanently. A network error is
+                # not a verdict - report it and let the rerun pick it up.
                 print(f"\n    ERROR fetching {item['url']}: {e}")
-                body, body_html = "", ""
+                stats.uncertain()
+                continue
 
             if db.store_release(conn, SOURCE, item["url"], title=item["title"],
                                 date=item["date"], body=body, body_html=body_html,
@@ -110,6 +117,9 @@ def scrape(from_year: int = FIRST_YEAR, to_year: int = None) -> None:
         print()
 
     stats.summary(conn)
+    # fetch_body goes through fetch_cached, so a page already in page_cache
+    # costs nothing: this is both the offline reparse and the live retry.
+    reextract.run(conn, SOURCE, catch, fetch_body=fetch_body, session=session)
     conn.close()
 
 
@@ -117,5 +127,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Scrape Creative Technology press releases")
     parser.add_argument("--from-year", type=int, default=FIRST_YEAR, help="Start year (default: 1999)")
     parser.add_argument("--to-year", type=int, default=None, help="End year (default: current year)")
+    reextract.add_flags(parser)
     args = parser.parse_args()
-    scrape(from_year=args.from_year, to_year=args.to_year)
+    scrape(from_year=args.from_year, to_year=args.to_year,
+           catch=reextract.options(args))

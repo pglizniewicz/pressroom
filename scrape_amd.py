@@ -11,6 +11,7 @@ Usage:
 
 from q4 import make_arg_parser, scrape
 from db import DB_PATH
+import reextract
 
 LIST_URL = "https://ir.amd.com/news-events/press-releases"
 
@@ -22,6 +23,7 @@ if __name__ == "__main__":
         db_path=DB_PATH,
         pages=args.pages,
         start=args.start,
+        catch=reextract.options(args),
         container_sel="div.media-body",
         title_link_sel="div.media-heading a",
     )

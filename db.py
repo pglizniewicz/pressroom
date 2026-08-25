@@ -10,10 +10,23 @@ Not an ORM: plain sqlite3, plain SQL strings, one function per statement
 shape. The point is that each statement exists exactly once.
 """
 
+import collections
 import hashlib
+import re
 import sqlite3
 import time
 from pathlib import Path
+
+# The one non-stdlib-looking import here, and it is safe: encoding.py imports
+# `codecs` and `re` and nothing else. Invariant 4 forbids requests/bs4 in this
+# module so the two readers stay dependency-free; it does not forbid a
+# dependency-free sibling. Bodies are repaired in richtext.extract() instead
+# (see _repaired), so what arrives here is a title, or text with no markup twin.
+import encoding
+
+# What the write path had to undo, by method. Read and printed by
+# progress.Stats.summary(), and by verify_encoding.py.
+REPAIRS = collections.Counter()
 
 DB_PATH = Path(__file__).parent / "pressroom.db"
 
@@ -350,10 +363,62 @@ def connect(db_path=None) -> sqlite3.Connection:
     return conn
 
 
+# A capture address, i.e. the only thing body_origin may hold. Spelled out here
+# because this is where a bad value would be written, and because db.py may not
+# import wayback (which would import requests). The guard answers the fear that
+# kept provenance in a separate pass for a week: "passing a platform id by
+# mistake would silently mint dead links". A Q4 numeric id, a Drupal node id or
+# a bare row url now raises at the write site instead. Measured against all
+# 1727 entries that existed when this landed: every one passes.
+_CAPTURE_ADDRESS_RE = re.compile(r"^https?://web\.archive\.org/web/\d{14}id_/.+")
+
+
+def is_capture_address(value) -> bool:
+    return bool(value) and bool(_CAPTURE_ADDRESS_RE.match(str(value)))
+
+
+def _repaired(text):
+    """A stored value with a wrong decode undone, or the value unchanged.
+
+    Applied at the write rather than by a pass afterwards, because part of this
+    damage is *upstream* and therefore recurs on every refetch: ir.amd.com
+    serves \xc2\x99 - valid UTF-8 for the C1 control U+0099 - where it means
+    (tm), so decoding it correctly still yields a control character. A refetch
+    used to bring 10 amd rows and 24 creative rows straight back after a repair
+    had fixed them, and the only thing standing between that and the database
+    was somebody remembering to re-run a script.
+
+    `encoding.repair_text` returns None unless the inversion is unambiguous, so
+    "leave it alone" is the default and #4978's three 0x81 bytes - which cp1252
+    does not define - stay refused. Repairs are counted in REPAIRS so a run that
+    fixes something says so; silence here would be the wrong kind of quiet.
+
+    Only ever rewrites characters in 0x80-0x9F and the mojibake lead set, so a
+    tag cannot be touched. Bodies with markup are repaired one level up, in
+    richtext.extract(), where the repair happens *before* to_text() and the
+    invariant `body == to_text(body_html)` therefore holds by construction.
+    """
+    if not text:
+        return text
+    fixed = encoding.repair_text(text)
+    if not fixed:
+        return text
+    REPAIRS[fixed[1]] += 1
+    return fixed[0]
+
+
+def _record_origin(conn, url: str, origin_url) -> None:
+    if origin_url is None:
+        return
+    if not is_capture_address(origin_url):
+        raise ValueError(f"origin_url is not a capture address: {origin_url!r}")
+    record_body_origin(conn, url, origin_url, commit=False)
+
+
 def store_release(conn: sqlite3.Connection, source: str, url: str, *,
                   title: str = "", date: str = "", body: str = "",
                   body_html=None, detail_id=None, grade: str = "full",
-                  commit: bool = True) -> bool:
+                  origin_url=None, commit: bool = True) -> bool:
     """INSERT OR IGNORE one release, keyed on `url` (UNIQUE).
 
     Returns True only if a row was actually inserted; False means the url was
@@ -370,7 +435,15 @@ def store_release(conn: sqlite3.Connection, source: str, url: str, *,
     used to be written *into* detail_id, which is the union this split undid.
     """
     cur = conn.execute(_INSERT_SQL,
-                       (source, detail_id, title, date, url, body, body_html, grade))
+                       (source, detail_id, _repaired(title), date, url,
+                        _repaired(body) if body_html is None else body,
+                        body_html, grade))
+    # Provenance only when the row actually came into being. A url the UNIQUE
+    # constraint made this a no-op for holds a body some other pass wrote, and
+    # claiming our capture as its origin would be a false statement about text
+    # we did not store.
+    if cur.rowcount > 0:
+        _record_origin(conn, url, origin_url)
     if commit:
         conn.commit()
     return cur.rowcount > 0
@@ -378,7 +451,8 @@ def store_release(conn: sqlite3.Connection, source: str, url: str, *,
 
 def upgrade_release(conn: sqlite3.Connection, url: str, *,
                     body=None, body_html=None, title=None, date=None,
-                    detail_id=None, grade=None, commit: bool = True) -> bool:
+                    detail_id=None, grade=None, origin_url=None,
+                    commit: bool = True) -> bool:
     """Upgrade an existing row in place - a teaser/stub replaced by recovered
     full text. None means "leave that column alone", so the call site states
     which columns the upgrade is allowed to touch:
@@ -398,7 +472,14 @@ def upgrade_release(conn: sqlite3.Connection, url: str, *,
     Returns True if a row matched `url`.
     """
     cur = conn.execute(_UPGRADE_SQL,
-                       (detail_id, title, date, body, body_html, grade, url))
+                       (detail_id, _repaired(title), date,
+                        _repaired(body) if body_html is None else body,
+                        body_html, grade, url))
+    # Same rule as store_release, one step further: the entry describes where a
+    # *body* came from, so a call that only moves a title or a date must not
+    # touch it.
+    if cur.rowcount > 0 and (body is not None or body_html is not None):
+        _record_origin(conn, url, origin_url)
     if commit:
         conn.commit()
     return cur.rowcount > 0

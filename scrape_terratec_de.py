@@ -1,5 +1,29 @@
 #!/usr/bin/env python3
-"""Backfill from 5 archived press-release index pages that link out to
+"""TerraTec's German press office, terratec.de/presse - and the gaps its
+newer sibling left behind.
+
+The primary pass for source="terratec_de", and the only one there has ever been:
+this file was called backfill_terratec_de_and_net_gaps.py for a long time, which
+described the order it was written in rather than what it does.
+
+It stamps **two** tags, which is ordinary here (six scrapers do): the .de pages
+are entirely its own territory, while the three .net index pages only corroborate
+what source="terratec" already holds, so those contribute *gaps* - an article the
+other scraper never found gets stored under its tag, not under a new one.
+
+Cross-language duplicates between terratec_de and the English content are
+deliberately NOT auto-deduped: matching across languages is unreliable, so
+everything is stored with correct provenance and the "prefer the newer office's
+English version" call is made by hand.
+
+Discovery has two channels, and the second exists because the first is
+incomplete: 5 archived index pages that link out to articles, plus 23 files that
+exist in the full Wayback directory listing but were linked from no index page at
+all (confirmed by a full site:terratec.de/presse/pressemit/ timemap diff against
+pressroom.db). The 23 used to be a separate script; a url list is archaeology
+worth keeping, the loop around it was a duplicate.
+
+Was: 5 archived press-release index pages that link out to
 individual articles:
   - terratec.de/presse/{pressearchiv,pressemit}.htm  (German office)
   - terratec.net/press/{pressarchive,pressreleases,pressreleases}.htm (newer office)
@@ -16,9 +40,12 @@ terratec.json curation, same as every prior cross-source dedup in this
 project.
 
 Usage:
-  python backfill_terratec_de_and_net_gaps.py
+  python scrape_terratec_de.py
+  python scrape_terratec_de.py --limit 5          # cap candidates (testing)
+  python scrape_terratec_de.py --offline          # only catch up from cache
 """
 
+import argparse
 import re
 import sqlite3
 import time
@@ -30,6 +57,7 @@ from fetch import SLEEP
 from db import already_stored
 from dates import iso_date
 import db
+import reextract
 import richtext
 from progress import Stats
 from scrape_terratec import find_headline, parse_snapshot as parse_net_snapshot
@@ -52,6 +80,38 @@ INDEX_PAGES = [
 # German-domain pages say "TerraTec PresseInfo vom DD.MM.YYYY", in addition to
 # the "Presseinformation vom" style already seen on the very-early static page.
 DATE_RE_DE = re.compile(r"Presse(?:Info|information) vom\s*(\d{1,2}\.\d{1,2}\.\d{2,4})", re.IGNORECASE)
+
+
+# Files that exist in the full Wayback directory listing for
+# terratec.de/presse/pressemit/ but were linked from none of the index pages
+# above - found by a timemap diff against the database, which is not a
+# measurement anyone will repeat. `already_stored` gates them, so they cost one
+# cheap query each on every later run.
+DIRECTORY_URLS = [
+    "http://www.terratec.de:80/presse/pressemit/5800wasser.htm",
+    "http://www.terratec.de:80/presse/pressemit/ad2netag.htm",
+    "http://www.terratec.de:80/presse/pressemit/Cameo_200_DV.htm",
+    "http://www.terratec.de:80/presse/pressemit/cameo_grabster.htm",
+    "http://www.terratec.de:80/presse/pressemit/car4000.htm",
+    "http://www.terratec.de:80/presse/pressemit/car_4000.htm",
+    "http://www.terratec.de:80/presse/pressemit/Cinergy_400_TV.htm",
+    "http://www.terratec.de:80/presse/pressemit/DR_Box_1.htm",
+    "http://www.terratec.de:80/presse/pressemit/drbox1.htm",
+    "http://www.terratec.de:80/presse/pressemit/DRBox1_2.htm",
+    "http://www.terratec.de:80/presse/pressemit/ews96m.htm",
+    "http://www.terratec.de:80/presse/pressemit/ews96m2.htm",
+    "http://www.terratec.de:80/presse/pressemit/homearena_2_1.htm",
+    "http://www.terratec.de:80/presse/pressemit/homearenastereo.htm",
+    "http://www.terratec.de:80/presse/pressemit/ifa.htm",
+    "http://www.terratec.de:80/presse/pressemit/MidiMaster_usb.htm",
+    "http://www.terratec.de:80/presse/pressemit/mp3_cd_player.htm",
+    "http://www.terratec.de:80/presse/pressemit/ppa-studio.htm",
+    "http://www.terratec.de:80/presse/pressemit/sixpack.htm",
+    "http://www.terratec.de:80/presse/pressemit/tt_besonic.htm",
+    "http://www.terratec.de:80/presse/pressemit/tvalue-radio.htm",
+    "http://www.terratec.de:80/presse/pressemit/TXR_335.htm",
+    "http://www.terratec.de:80/presse/pressemit/TXR_665.htm",
+]
 
 
 def extract_links(content: bytes, base_url: str) -> list:
@@ -123,7 +183,7 @@ def already_have_net_filenames(conn: sqlite3.Connection) -> set:
     return {url.rsplit("/", 1)[-1].lower() for url in db.source_urls(conn, "terratec")}
 
 
-def backfill() -> None:
+def scrape(limit: int = None, catch: dict = None) -> None:
     conn = db.connect()
     session = requests.Session()
 
@@ -140,6 +200,11 @@ def backfill() -> None:
         for e in extract_links(content, base_url):
             e["source"] = source
             all_entries.setdefault(e["url"], e)
+
+    # The second discovery channel: files no index page linked to.
+    for url in DIRECTORY_URLS:
+        all_entries.setdefault(url, {"url": url, "title": "", "date": "",
+                                     "source": "terratec_de"})
 
     net_have = already_have_net_filenames(conn)
     candidates = []
@@ -194,8 +259,20 @@ def backfill() -> None:
 
     for s in stats.values():
         s.summary(conn)
+    # Two tags, two parsers: the German pages and the .net gap rows are
+    # different templates, and phase 2 has to reparse each with the one that
+    # produced it.
+    reextract.run(conn, "terratec_de", catch, parser=parse_de_snapshot,
+                  session=session)
+    reextract.run(conn, "terratec", catch, parser=parse_net_snapshot,
+                  session=session)
     conn.close()
 
 
 if __name__ == "__main__":
-    backfill()
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--limit", type=int, default=None,
+                        help="Cap candidate articles fetched (testing)")
+    reextract.add_flags(parser)
+    args = parser.parse_args()
+    scrape(limit=args.limit, catch=reextract.options(args))

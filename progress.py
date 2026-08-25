@@ -149,3 +149,12 @@ class Stats:
             total = f". Total in DB: {db.source_total(conn, self.source)}"
 
         print(f"\n{prefix}{body}{total}")
+        # What the write path had to undo on the way past. Printed here rather
+        # than reported by a separate pass, because the alternative was a rule
+        # ("re-run the encoding repair after anything that refetches") that a
+        # human had to remember, and one forgotten run put the damage back into
+        # 34 rows. Silence means there was nothing to fix.
+        if db.REPAIRS:
+            fixed = ", ".join(f"{n}x {m}" for m, n in db.REPAIRS.most_common())
+            print(f"{prefix}naprawione kodowanie: {fixed}")
+            db.REPAIRS.clear()

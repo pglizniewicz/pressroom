@@ -1,6 +1,19 @@
 #!/usr/bin/env python3
-"""Backfill full press-release text for Midiman/M-Audio rows whose `url` points
-at an external .pdf or .doc attachment rather than an HTML page.
+"""Phase 2 for the rows whose `url` points at a .pdf or .doc file, not a page.
+
+The second contract beside reextract.py, and it is a different one: there is no
+HTML parser here (the extractor *is* the parser), the bytes are addressed through
+body_origin or a mirror domain rather than through the row's own detail_id, and
+the gates are strict_same_text for a re-extraction and same_words for the
+text-to-markup conversion.
+
+A library: `catch_up()` is what scrape_midiman_pressdb.py and
+scrape_midiman_media_pr.py call, and everything free happens by default. The
+**network crawl is opt-in** (`--attachments`), and that is the one honest
+exception to "a plain rerun gets everything": nothing in the database records
+"CDX has no capture of this url, ever", so a full pass costs ~3 hours to
+rediscover 30 confirmed-dead rows and 211 whose own url was never archived. 219
+logged attempts bought nothing the last two times.
 
 Two CMS generations link out this way, and neither scraper follows the link, so
 both store only the short listing-page teaser:
@@ -78,29 +91,24 @@ Out of scope: `promni.pdf`/`MORE5.pdf` belong to the earlier scrape_midiman.py
 era (2001 static pages, different source tags) and were re-confirmed to have
 zero Wayback captures anywhere - nothing to backfill.
 
-Usage:
-  python backfill_midiman_attachments.py            # every source
-  python backfill_midiman_attachments.py --limit 5   # cap rows per source (testing)
-  python backfill_midiman_attachments.py --source midiman_net_media_pr
+Called by the two scrapers that own these tags, never run on its own.
 """
 
 import argparse
-import collections
 import re
 import subprocess
 
 import requests
 
 from encoding import decode_html
+import bodygate
 import db
 from progress import Stats
 # _wordchars is the repo's single implementation of "compare two extractions of
 # the same text": it drops indentation, line wrapping, bullets and the ordinals
 # to_text() prepends. Imported rather than copied, private name and all.
-from backfill_body_html import _wordchars
 # One implementation of "only whitespace may differ", shared with
 # backfill_body_html's --relocated path rather than copied.
-from backfill_body_html import strict_same_text
 # What an attachment's bytes mean is attachments.py's concern; this file owns
 # the crawl. extract_text/normalize/PDF_MAGIC/OLE2_MAGIC moved there when
 # calibrate_attachments.py became a second caller for them.
@@ -214,7 +222,7 @@ def reextract_from_cache(limit: int = None, sources: list = None) -> None:
             print(f"\n  {kind} extractor produced no text for {url}")
             stats.dead()
             continue
-        ok, why = strict_same_text(old_body or "", text)
+        ok, why = bodygate.strict_same_text(old_body or "", text)
         if not ok:
             held.append((url, why))
             stats.skipped()
@@ -234,67 +242,6 @@ def reextract_from_cache(limit: int = None, sources: list = None) -> None:
         for url, why in held[:10]:
             print(f"  {why:26} {url}")
     conn.close()
-
-
-def richtext_gate(text: str, body: str, dropped: list, list_items: int) -> tuple:
-    """(ok, why) for replacing an attachment's flat text with its structured form.
-
-    Compares the **multiset of word characters** - backfill_body_html._wordchars,
-    the repo's one implementation of "the same text, extracted differently" -
-    and that choice is the fourth attempt, each earlier one refused by a
-    measurement rather than by taste:
-
-    - **character sequence** refused 13 of 73 rows for losing nothing: the two
-      routes order fragments differently, because `pdftotext -layout` puts a
-      superscript and a `®` on their own lines while the structured route puts
-      them back beside the word they belong to.
-    - **subsequence** (text_delta's kept/clean) breaks on the same reordering,
-      and the text route is not the reference here - it is the other reading of
-      the same bytes.
-    - **word coverage** refused 10, all of them joins: `Composer` + `®` +
-      `system` arriving as one word `Composer®system`.
-
-    A multiset of characters is blind to order and to joins, which is exactly
-    what a converter is allowed to change, and still cannot pass a document that
-    lost a paragraph - those characters appear nowhere.
-
-    Two allowances, both named and bounded:
-
-    - the blocks the converter deliberately dropped, which it must name
-      (attachments.rotated_text - the sideways banner, the only difference
-      between the routes on 33 of the 81 cached PDFs);
-    - **markers that became structure**: `1)`..`6)` absorbed into an <ol> and the
-      Courier `o` of a second-level bullet absorbed into <li>. Measured: 3 rows,
-      6 digits and 9 `o`s. Bounded by the number of list items, so it can never
-      excuse a missing word.
-    """
-    want = collections.Counter(_wordchars(text)) \
-        - collections.Counter(_wordchars(" ".join(dropped)))
-    got = collections.Counter(_wordchars(body))
-
-    def only_markers(diff):
-        """Whether a difference is nothing but list markers.
-
-        Both directions need this allowance, and the second one took a
-        measurement to find. `_wordchars` strips an ordinal only at the start of
-        a line, and the two routes break lines in different places - so prose
-        reading `Mac OS 10.1 Drivers` has its digits stripped on one side and
-        kept on the other (#5049, 4 digits). Bounded by the list items either
-        way, at two characters each, so it can never excuse a missing word.
-        """
-        return (all(ch.isdigit() or ch == "o" for ch in diff)
-                and sum(diff.values()) <= max(list_items, 0) * 2)
-
-    invented = got - want
-    if invented and not only_markers(invented):
-        sample = "".join(sorted(invented))[:24]
-        return False, f"{sum(invented.values())} znakow z niczego ({sample!r})"
-
-    missing = want - got
-    if missing and not only_markers(missing):
-        sample = "".join(sorted(missing))[:24]
-        return False, f"brak {sum(missing.values())} znakow ({sample!r})"
-    return True, ""
 
 
 # Rows whose own attachment bytes are in page_cache, addressed through the
@@ -347,7 +294,7 @@ def write_richtext(limit: int = None, sources: list = None, dry_run: bool = Fals
             decisions.append((rid, url, "converter returned nothing"))
             stats.dead()
             continue
-        ok, why = richtext_gate(text, body, attachments.rotated_text(content),
+        ok, why = bodygate.same_words(text, body, attachments.rotated_text(content),
                                 body_html.count("<li>"))
         if not ok:
             decisions.append((rid, url, why))
@@ -530,39 +477,22 @@ def backfill(limit: int = None, sources: list = None, only_short: bool = False,
         backfill_source(source, limit=limit, only_short=only_short)
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Backfill full .pdf/.doc attachment text for Midiman/M-Audio releases")
-    parser.add_argument("--limit", type=int, default=None,
-                        help="Only process the first N attachment rows per source")
-    parser.add_argument("--source", help="Only this source (default: all five)")
-    parser.add_argument("--no-own-bytes", action="store_true",
-                        help="crawl the rows whose bytes we only hold under a "
-                             "mirror domain, to get a capture of their own url")
-    parser.add_argument("--missing-bytes", action="store_true",
-                        help="crawl only the rows whose attachment bytes are in "
-                             "page_cache under no name at all")
-    parser.add_argument("--richtext", action="store_true",
-                        help="store the structured form of cached PDF attachments; "
-                             "no network, PDFs only, no silent fallback")
-    parser.add_argument("--dry-run", action="store_true",
-                        help="with --richtext: measure and report, write nothing")
-    parser.add_argument("--from-cache", action="store_true",
-                        help="re-extract from bytes page_cache already holds; "
-                             "no network, and only whitespace may change")
-    parser.add_argument("--only-short", action="store_true",
-                        help=f"Skip rows whose body already exceeds {RECOVERED_LENGTH} "
-                             "characters - makes a retry pass minutes instead of hours")
-    args = parser.parse_args()
-    if args.richtext:
-        write_richtext(limit=args.limit,
-                       sources=[args.source] if args.source else None,
-                       dry_run=args.dry_run)
-        raise SystemExit(0)
-    if args.from_cache:
-        reextract_from_cache(limit=args.limit,
-                             sources=[args.source] if args.source else None)
-        raise SystemExit(0)
-    backfill(limit=args.limit, sources=[args.source] if args.source else None,
-             missing_bytes=args.missing_bytes, no_own_bytes=args.no_own_bytes,
-             only_short=args.only_short)
+def catch_up(conn, sources: list, *, network: bool = False, limit: int = None) -> None:
+    """Phase 2 for attachment rows of `sources`. Free work first, always.
+
+    Offline: re-extract the bytes page_cache already holds (layout included),
+    then convert every cached PDF to our HTML subset. Both are gated, both are
+    idempotent, and a rerun right after one reports all dots.
+
+    `network=True` adds the crawl: for the rows still short, walk the captures of
+    this url and its mirror-domain siblings. Opt-in because the yield is
+    measured at zero - see the module docstring.
+    """
+    # These three open their own connection (they always have), so the
+    # caller's has to be settled first: two writers on one SQLite file is fine
+    # sequentially and a lock error otherwise.
+    conn.commit()
+    reextract_from_cache(limit=limit, sources=sources)
+    write_richtext(limit=limit, sources=sources)
+    if network:
+        backfill(limit=limit, sources=sources, only_short=True)

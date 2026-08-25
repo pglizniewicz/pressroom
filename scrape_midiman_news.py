@@ -78,6 +78,7 @@ from db import already_stored, stored_grade
 from dates import iso_date
 from encoding import decode_html
 import db
+import reextract
 import richtext
 from progress import Stats
 import wayback
@@ -278,7 +279,7 @@ def discover_prefix_ids(source: str, base: str) -> set:
     return ids
 
 
-def scrape_domain(source: str, base: str, limit: int = None,
+def scrape_domain(source: str, base: str, limit: int = None, catch: dict = None,
                   prefix_crawl: bool = True) -> None:
     conn = db.connect()
     session = requests.Session()
@@ -375,12 +376,16 @@ def scrape_domain(source: str, base: str, limit: int = None,
         stats.added()
 
     stats.summary(conn)
+    reextract.run(conn, source, catch, parser=parse_detail, session=session,
+                  twins_too=True)
     conn.close()
 
 
-def scrape(limit: int = None, prefix_crawl: bool = True, sources: list = None) -> None:
+def scrape(limit: int = None, prefix_crawl: bool = True, sources: list = None,
+           catch: dict = None) -> None:
     for source in sources or DOMAINS:
-        scrape_domain(source, DOMAINS[source], limit=limit, prefix_crawl=prefix_crawl)
+        scrape_domain(source, DOMAINS[source], limit=limit,
+                      prefix_crawl=prefix_crawl, catch=catch)
 
 
 if __name__ == "__main__":
@@ -392,5 +397,7 @@ if __name__ == "__main__":
                         help="Skip the ID= prefix-crawl discovery")
     parser.add_argument("--source", action="append", choices=sorted(DOMAINS),
                         help="Only this source; repeatable (default: all four domains)")
+    reextract.add_flags(parser)
     args = parser.parse_args()
-    scrape(limit=args.limit, prefix_crawl=args.prefix_crawl, sources=args.source)
+    scrape(limit=args.limit, prefix_crawl=args.prefix_crawl,
+           sources=args.source, catch=reextract.options(args))

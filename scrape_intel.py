@@ -11,9 +11,11 @@ Usage:
 
 from q4 import make_arg_parser, scrape
 from db import DB_PATH
+import reextract
 
 LIST_URL = "https://www.intc.com/news-events/press-releases"
 
 if __name__ == "__main__":
     args = make_arg_parser("Scrape Intel IR press releases").parse_args()
-    scrape(source="intel", list_url=LIST_URL, db_path=DB_PATH, pages=args.pages, start=args.start)
+    scrape(source="intel", list_url=LIST_URL, db_path=DB_PATH, pages=args.pages,
+           start=args.start, catch=reextract.options(args))

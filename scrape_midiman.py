@@ -55,6 +55,7 @@ from bs4 import BeautifulSoup
 from fetch import SLEEP
 from db import already_stored
 import db
+import reextract
 import richtext
 from progress import Stats
 import wayback
@@ -188,13 +189,14 @@ def parse_snapshot(content: bytes) -> dict:
     return {"title": title, "date": date, "body": body, "body_html": body_html}
 
 
-def scrape(limit: int = None, prefix_crawl: bool = True) -> None:
+def scrape(limit: int = None, prefix_crawl: bool = True,
+           catch: dict = None) -> None:
     conn = db.connect()
     session = requests.Session()
 
     candidates = {}  # (source, url) -> title
 
-    for page in INDEX_PAGES:
+    for page in ([] if reextract.no_crawl(catch) else INDEX_PAGES):
         print(f"[{page['source']}] Fetching index {page['wayback_url']}", flush=True)
         try:
             content = wayback.fetch_snapshot(conn, session, page["wayback_url"], timeout=20)
@@ -268,6 +270,10 @@ def scrape(limit: int = None, prefix_crawl: bool = True) -> None:
 
     for s in stats.values():
         s.summary(conn)
+    # Phase 2 once per tag: three tags come out of this one CMS generation, and
+    # the tag is what says which rows a run owns.
+    for tag in sorted({p["source"] for p in INDEX_PAGES}):
+        reextract.run(conn, tag, catch, parser=parse_snapshot, session=session)
     conn.close()
 
 
@@ -280,5 +286,7 @@ if __name__ == "__main__":
         action="store_false",
         help="Skip prefix-crawling the press/ folders; only use the 5 known index pages",
     )
+    reextract.add_flags(parser)
     args = parser.parse_args()
-    scrape(limit=args.limit, prefix_crawl=args.prefix_crawl)
+    scrape(limit=args.limit, prefix_crawl=args.prefix_crawl,
+           catch=reextract.options(args))

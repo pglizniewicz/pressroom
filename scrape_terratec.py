@@ -19,6 +19,7 @@ from fetch import SLEEP
 from db import already_stored
 from dates import iso_date
 import db
+import reextract
 import richtext
 from progress import Stats
 import wayback
@@ -159,12 +160,13 @@ def parse_snapshot(content: bytes) -> dict:
     return {"title": title, "date": date, "body": body, "body_html": body_html}
 
 
-def scrape(limit: int = None) -> None:
+def scrape(limit: int = None, catch: dict = None) -> None:
     conn = db.connect()
     session = requests.Session()
 
     print(f"[{SOURCE}] Listing archived pages under {PREFIX}", flush=True)
-    snapshots = [s for s in wayback.list_snapshots_or_exit(PREFIX) if is_html_page(s["original"])]
+    snapshots = [] if reextract.no_crawl(catch) else [
+        s for s in wayback.list_snapshots_or_exit(PREFIX) if is_html_page(s["original"])]
     if limit:
         snapshots = snapshots[:limit]
     print(f"[{SOURCE}] {len(snapshots)} candidate press pages", flush=True)
@@ -203,11 +205,13 @@ def scrape(limit: int = None) -> None:
             stats.added()
 
     stats.summary(conn)
+    reextract.run(conn, SOURCE, catch, parser=parse_snapshot, session=session)
     conn.close()
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Scrape TerraTec press releases via the Wayback Machine")
     parser.add_argument("--limit", type=int, default=None, help="Only process the first N candidate pages")
+    reextract.add_flags(parser)
     args = parser.parse_args()
-    scrape(limit=args.limit)
+    scrape(limit=args.limit, catch=reextract.options(args))

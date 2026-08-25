@@ -176,6 +176,38 @@ def is_attachment(content: bytes) -> bool:
     return kind_of(content) in ("pdf", "doc")
 
 
+# The extensions that mean "this url is a file, not a page". A predicate about
+# the *address*, next to the predicate about the bytes, because the two are the
+# same question asked before and after a fetch - and because three modules used
+# to import it from a scraper, which pointed the dependency the wrong way.
+# db.py spells the same rule in SQL (`_FLAG_SQL["plain"]`) because it may not
+# import this module; change one and change the other.
+ATTACHMENT_EXTS = (".pdf", ".doc")
+
+
+def is_attachment_url(url: str) -> bool:
+    """Whether this address names a file rather than an HTML page."""
+    return (url or "").lower().split("?", 1)[0].endswith(ATTACHMENT_EXTS)
+
+
+# Everything else a fetch can return that is not text to parse. Kept beside
+# PDF_MAGIC/OLE2_MAGIC rather than in the caller: one table, both directions of
+# the question - "is this an attachment I can extract" and "is this safe to
+# hand to an HTML parser".
+_BINARY_MAGIC = (PDF_MAGIC, OLE2_MAGIC, b"PK\x03\x04",
+                 b"\x1f\x8b", b"GIF8", b"\x89PNG", b"\xff\xd8\xff")
+
+
+def looks_like_html(content: bytes) -> bool:
+    """Whether these bytes are worth handing to an HTML parser at all.
+
+    BeautifulSoup never refuses input: give it a PDF and it returns a document
+    whose get_text() is the binary decoded as characters. There is no parse
+    error to catch, so the check has to happen before the parse.
+    """
+    return bool(content) and not content.lstrip()[:8].startswith(_BINARY_MAGIC)
+
+
 def normalize(text: str) -> str:
     r"""Tidy an extractor's output without flattening it.
 

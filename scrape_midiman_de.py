@@ -72,6 +72,7 @@ from bs4 import BeautifulSoup
 
 from db import stored_grade
 import db
+import reextract
 import richtext
 from progress import Stats
 import wayback
@@ -226,7 +227,7 @@ def parse_generic_page(content: bytes) -> dict:
     return {"body": body, "body_html": body_html}
 
 
-def scrape(limit: int = None) -> None:
+def scrape(limit: int = None, catch: dict = None) -> None:
     conn = db.connect()
     session = requests.Session()
 
@@ -234,7 +235,8 @@ def scrape(limit: int = None) -> None:
 
     for page_url in PAGES:
         print(f"[{SOURCE}] Listing historical captures of {page_url}", flush=True)
-        entries = wayback.sample_all_captures(conn, session, page_url, parse_page, limit=limit)
+        entries = [] if reextract.no_crawl(catch) else wayback.sample_all_captures(
+            conn, session, page_url, parse_page, limit=limit)
         for e in entries:
             key = (e["title"], e["date"])
             cur = best.get(key)
@@ -300,11 +302,49 @@ def scrape(limit: int = None) -> None:
             stats.dead()
 
     stats.summary(conn)
+    # Both shapes: this CMS has article captures of its own *and* releases that
+    # only ever existed inside a listing, whose urls this scraper minted.
+    reextract.run(conn, SOURCE, catch, parser=parse_generic_page,
+                  collect=cached_entries, session=session)
     conn.close()
 
+
+
+def cached_entries(conn) -> dict:
+    """(url -> entry) out of every cached midiman.de capture, for reextract.
+
+    Here rather than in the re-extraction library because finding the releases
+    inside these pages is this CMS's own knowledge - BLOCK_RE, the inline/linkout
+    split, and the fact that an inline release's url has to be *rebuilt* the same
+    way the crawl minted it. A copy of that in a shared module is the kind of
+    duplicate that goes stale silently.
+
+    Entries carry `origin_url`: the capture they were parsed out of, so the write
+    can record where the body came from instead of leaving it to a later
+    inference pass.
+    """
+    out = {}
+    for cap_url, content in conn.execute(
+            "SELECT url, content FROM page_cache WHERE url LIKE '%midiman.de%'"):
+        m = re.search(r"/web/(\d{14})id_/", cap_url)
+        try:
+            entries = parse_page(content, "http://www.midiman.de/",
+                                 m.group(1) if m else None)
+        except Exception as e:
+            print(f"\n    {cap_url}: {e}")
+            continue
+        for e in entries:
+            if e.get("kind") != "inline" or not e.get("body_html"):
+                continue
+            url = f"http://www.midiman.de/press/{_slugify(e['title'])}-{e['date']}"
+            e["origin_url"] = cap_url
+            if url not in out or len(e["body"]) > len(out[url]["body"]):
+                out[url] = e
+    return out
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Scrape MIDIMAN/M-Audio's German press archive (midiman.de) via the Wayback Machine")
     parser.add_argument("--limit", type=int, default=None, help="Only sample the first N historical captures per page (testing)")
+    reextract.add_flags(parser)
     args = parser.parse_args()
-    scrape(limit=args.limit)
+    scrape(limit=args.limit, catch=reextract.options(args))

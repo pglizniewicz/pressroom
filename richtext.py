@@ -33,6 +33,9 @@ import re
 
 from bs4 import BeautifulSoup, Comment, NavigableString
 
+import db
+import encoding
+
 # Thrown away with their contents. `form` is here because several of these
 # CMS templates put a search box inside the article container itself.
 _DROP = {"script", "style", "noscript", "form", "iframe", "object", "embed",
@@ -457,6 +460,25 @@ def to_text(html: str) -> str:
 def extract(node) -> tuple:
     """(body, body_html) for one article container - the call every scraper
     makes. Returns ("", "") for a missing container so a caller can keep its
-    existing "no body found" branch."""
+    existing "no body found" branch.
+
+    A wrong decode is undone here, on the markup, **before** the text is
+    rendered from it. That ordering is the whole point: `body` is by definition
+    `to_text(body_html)`, and repairing the two independently could break that
+    invariant - `encoding.undo_mojibake` accepts a round trip only when every
+    qualifying codepage agrees, and text with tags in it can answer that
+    differently from text without. Repairing once, upstream of the split, cannot
+    disagree with itself.
+
+    Why at the write at all: some of this damage is upstream and survives a
+    correct decode (ir.amd.com serves \xc2\x99 - valid UTF-8 for U+0099 - where
+    it means a trademark sign), so it comes back on every refetch. It used to be
+    undone by a pass someone had to remember to re-run; a refetch that reopened
+    10 amd rows and 24 creative rows is the record of what that cost.
+    """
     html = clean(node)
+    fixed = encoding.repair_text(html)
+    if fixed:
+        html = fixed[0]
+        db.REPAIRS[fixed[1]] += 1
     return to_text(html), html

@@ -30,6 +30,7 @@ import richtext
 from db import already_stored
 from dates import iso_date
 import db
+import reextract
 from progress import Stats
 
 def make_session():
@@ -104,7 +105,7 @@ def fetch_body(conn, session: requests.Session, url: str) -> tuple:
     return richtext.extract(body)
 
 
-def scrape(pages: int = None) -> None:
+def scrape(pages: int = None, catch: dict = None) -> None:
     conn = db.connect()
     session = make_session()
 
@@ -112,8 +113,9 @@ def scrape(pages: int = None) -> None:
 
     stats = Stats(SOURCE)
     page = 1
+    stop = reextract.no_crawl(catch)
 
-    while True:
+    while not stop:
         if pages and page > pages:
             break
         print(f"  Page {page}", end="  ", flush=True)
@@ -137,8 +139,13 @@ def scrape(pages: int = None) -> None:
             try:
                 body, body_html = fetch_body(conn, session, item["url"])
             except Exception as e:
+                # Write nothing. An inserted empty row is worse than no row:
+                # already_stored() would skip it on every future run, so one
+                # timeout would cost the release permanently. A network error is
+                # not a verdict - report it and let the rerun pick it up.
                 print(f"\n    ERROR fetching {item['url']}: {e}")
-                body, body_html = "", ""
+                stats.uncertain()
+                continue
 
             if db.store_release(conn, SOURCE, item["url"], title=item["title"],
                                 date=item["date"], body=body, body_html=body_html,
@@ -149,11 +156,13 @@ def scrape(pages: int = None) -> None:
         page += 1
 
     stats.summary(conn)
+    reextract.run(conn, SOURCE, catch, fetch_body=fetch_body, session=session)
     conn.close()
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Scrape GlobeNewswire Creative Labs, Inc. press releases")
     parser.add_argument("--pages", type=int, default=None, help="Number of pages to scrape (default: all)")
+    reextract.add_flags(parser)
     args = parser.parse_args()
-    scrape(pages=args.pages)
+    scrape(pages=args.pages, catch=reextract.options(args))

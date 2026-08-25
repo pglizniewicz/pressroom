@@ -52,9 +52,28 @@ import scrape_midiman_de
 import scrape_midiman_media_pr
 import scrape_midiman_news
 import scrape_midiman_pressdb
+import scrape_midiman
+import scrape_maudio_news
+import scrape_terratec
+import scrape_terratec_de
 import scrape_terratec_new
 import scrape_terratec_portal
-from backfill_body_html import CACHED_PARSERS, looks_like_html
+
+# source -> parser, for the sources whose reproduction is a plain whole-page
+# parse. The re-extraction library takes its parser from the caller, so this is
+# the one place left that has to dispatch by tag without being a scraper - which
+# is the right place for it: a verifier that reproduces bodies must know each
+# source's parser. Declared next to candidate_bodies, which handles the sources
+# whose reproduction needs more than one call.
+CACHED_PARSERS = {
+    "terratec": scrape_terratec.parse_snapshot,
+    "terratec_de": scrape_terratec_de.parse_de_snapshot,
+    "midiman_com": scrape_midiman.parse_snapshot,
+    "midiman_net": scrape_midiman.parse_snapshot,
+    "maudio_com": scrape_midiman.parse_snapshot,
+    "maudio_com_news": scrape_maudio_news.parse_detail,
+    "midiman_de": scrape_midiman_de.parse_generic_page,
+}
 
 
 def squash(text: str) -> str:
@@ -182,7 +201,7 @@ def run(source: str = None, inferred_only: bool = False) -> None:
             tally[(kind, "bytes not cached")] += 1
             continue
         content = got[0]
-        if not attachments.is_attachment(content) and not looks_like_html(content):
+        if not attachments.is_attachment(content) and not attachments.looks_like_html(content):
             tally[(kind, "bytes are neither html nor an attachment")] += 1
             problems.append((rid, src, "bytes are neither", capture))
             continue

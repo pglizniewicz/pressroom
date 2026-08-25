@@ -28,6 +28,7 @@ from dateutil import parser as du
 from fetch import SLEEP
 from db import already_stored
 import db
+import reextract
 import richtext
 from progress import Stats
 import wayback
@@ -180,7 +181,7 @@ def extract_entries(content: bytes, base_url: str = None, timestamp: str = None)
     return entries
 
 
-def scrape_lang(lang: str, limit: int = None) -> None:
+def scrape_lang(lang: str, limit: int = None, catch: dict = None) -> None:
     cfg = LANGS[lang]
     source = cfg["source"]
     conn = db.connect()
@@ -202,7 +203,8 @@ def scrape_lang(lang: str, limit: int = None) -> None:
     print(f"[{source}] Sampling listing-page history", flush=True)
     for listing_url in cfg["listing_urls"]:
         print(f"  {listing_url}", flush=True)
-        entries = wayback.sample_all_captures(conn, session, listing_url, extract_entries)
+        entries = [] if reextract.no_crawl(catch) else wayback.sample_all_captures(
+        conn, session, listing_url, extract_entries)
         for e in entries:
             consider(e["url"], e["title"], e["date"], e["body"], e["body_html"],
                      e["detail_id"])
@@ -290,12 +292,45 @@ def scrape_lang(lang: str, limit: int = None) -> None:
     conn.commit()
 
     stats.summary(conn)
+    reextract.run(conn, source, catch, parser=parse_detail, session=session,
+                  collect=lambda c, _l=lang: cached_entries(c, _l))
     conn.close()
 
+
+
+def cached_entries(conn, lang: str) -> dict:
+    """(url -> entry) out of every cached capture of that language's two listing
+    pages, for reextract.
+
+    Not a synthetic url like midiman_de's - these hrefs really were on the page -
+    but the same predicament: for 15 of these rows archive.org has zero captures
+    of the article itself (CDX confirms it), so the listing capture the text came
+    from is the only place the formatting can still be read out of.
+    """
+    out = {}
+    for listing in LANGS[lang]["listing_urls"]:
+        for cap_url, content in conn.execute(
+                "SELECT url, content FROM page_cache WHERE url LIKE '%id_/' || ?",
+                (listing,)):
+            m = re.search(r"/web/(\d{14})id_/", cap_url)
+            try:
+                entries = extract_entries(content, listing, m.group(1) if m else None)
+            except Exception as e:
+                print(f"\n    {cap_url}: {e}")
+                continue
+            for e in entries:
+                url = e.get("url")
+                if not url or not e.get("body_html"):
+                    continue
+                e["origin_url"] = cap_url
+                if url not in out or len(e["body"]) > len(out[url]["body"]):
+                    out[url] = e
+    return out
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Scrape TerraTec's 2007-2013 CMS-era press site")
     parser.add_argument("lang", choices=["en", "de"])
     parser.add_argument("--limit", type=int, default=None, help="Cap prefix-crawl candidates (testing)")
+    reextract.add_flags(parser)
     args = parser.parse_args()
-    scrape_lang(args.lang, limit=args.limit)
+    scrape_lang(args.lang, limit=args.limit, catch=reextract.options(args))
