@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""One-off scrape of TerraTec's earliest press page (terratec.de, 1996-1997) -
+"""TerraTec's earliest press page (terratec.de, 1996-1997) -
 a single hand-authored HTML page listing every release with anchor tags,
 plus a short-lived English mirror covering just the earliest 5 entries.
 
@@ -10,6 +10,7 @@ Usage:
   python scrape_terratec_early.py
 """
 
+import argparse
 import re
 
 import requests
@@ -209,4 +210,7 @@ def cached_entries(conn) -> dict:
     return out
 
 if __name__ == "__main__":
-    scrape()
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    reextract.add_flags(parser)
+    args = parser.parse_args()
+    scrape(catch=reextract.options(args))
