@@ -122,7 +122,10 @@ def article_body(soup, heading: str) -> tuple[str, str | None]:
         return "", None
 
     work = BeautifulSoup(str(td), "html.parser")
-    norm = lambda t: " ".join(t.split())
+
+    def norm(t):
+        return " ".join(t.split())
+
     target = norm(heading)
 
     for tag in work.find_all(True):

@@ -19,7 +19,6 @@ this file too, but only by basename - `release/entity/schema.py` passes there as
 long as some `schema.py` exists anywhere, which is exactly the subtly-wrong case.
 """
 
-import pathlib
 import re
 import unittest
 

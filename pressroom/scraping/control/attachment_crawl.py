@@ -94,14 +94,9 @@ zero Wayback captures anywhere - nothing to backfill.
 Called by the two scrapers that own these tags, never run on its own.
 """
 
-import argparse
-import re
-import subprocess
-
 import requests
 
 from pressroom.capture.control import address
-from pressroom.text.control.decoding import decode_html
 from pressroom.release.control import gate
 from pressroom.database.control import connection
 from pressroom.provenance.entity import origin

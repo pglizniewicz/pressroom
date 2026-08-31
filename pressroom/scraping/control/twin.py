@@ -39,7 +39,6 @@ import collections
 from pressroom.capture.control import address
 from pressroom.provenance.entity import origin
 from pressroom.release.control import storage
-from pressroom.capture.control import archive
 
 # A row counts as needing help below this; the repo's audit view uses the same
 # 300 characters to call a body teaser-grade.

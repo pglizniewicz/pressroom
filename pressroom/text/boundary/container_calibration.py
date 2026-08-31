@@ -21,8 +21,6 @@ Usage:
 
 import argparse
 import collections
-import re
-import sqlite3
 
 from bs4 import BeautifulSoup
 

@@ -42,12 +42,10 @@ Usage:
 import argparse
 import collections
 
-from bs4 import BeautifulSoup
 
 from pressroom.attachment.control import conversion
 from pressroom.database.control import connection
 from pressroom.provenance.entity import origin
-from pressroom.text.control import richtext
 from pressroom.maudio.control import (
     golive,
     media_news,

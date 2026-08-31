@@ -79,3 +79,21 @@ include = ["pressroom*"]
 # browser/boundary/http.py, so they have to travel with the package.
 [tool.setuptools.package-data]
 "pressroom.browser.boundary" = ["static/*"]
+
+# ruff, on its own defaults - 88 columns, double quotes, and target-version read
+# straight out of requires-python above. The formatter needs no configuration at
+# all; this section exists only to pin the lint selection.
+[tool.ruff.lint]
+# ruff's own default set - pyflakes plus the pycodestyle rules that catch real
+# breakage. Pinned rather than inherited, so a change to ruff's defaults is not
+# silently a change to this repo.
+#
+# It earns its place: F821 found three calls to `snapshot_url` in
+# capture/control/archive.py that imported nothing of the kind, in code
+# pressroom-verify-names reports clean (it only inspects `module.attr` forms) and
+# the hermetic suite never reaches (they are network paths).
+#
+# E501 is deliberately out. After formatting, 26 lines still exceed 88, and every
+# one of them is an HTML template, a SQL string, a User-Agent or a message meant
+# for a human - things the formatter will not split and should not.
+select = ["E4", "E7", "E9", "F"]

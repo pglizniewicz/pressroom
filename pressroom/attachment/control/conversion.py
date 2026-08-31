@@ -29,9 +29,8 @@ plain_text().
 import re
 import statistics
 import subprocess
-import warnings
 
-from bs4 import BeautifulSoup, XMLParsedAsHTMLWarning
+from bs4 import BeautifulSoup
 
 from pressroom.text.control.decoding import decode_html
 from pressroom.text.control import richtext

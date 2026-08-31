@@ -44,7 +44,6 @@ import re
 
 from pressroom.database.control import connection
 from pressroom.release.control import query
-from pressroom.release.control import storage
 from pressroom.text.control import decoding
 
 _TAG_RE = re.compile(r"<[^>]+>")

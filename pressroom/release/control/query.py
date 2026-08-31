@@ -307,13 +307,13 @@ def list_sources(conn: sqlite3.Connection) -> list[dict[str, object]]:
 
 # --- The CLI reader's one query --------------------------------------------
 
-_CLI_SQL = f"""
+_CLI_SQL = """
     SELECT r.source, r.date, r.title, r.url, r.body,
            snippet(releases_fts, 1, '>>>', '<<<', '…', 24) AS excerpt
     FROM releases_fts
     JOIN releases r ON releases_fts.rowid = r.id
     WHERE releases_fts MATCH ?
-      {{source_clause}}
+      {source_clause}
     ORDER BY bm25(releases_fts)
     LIMIT ?
 """
