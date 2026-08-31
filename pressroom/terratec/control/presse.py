@@ -242,6 +242,12 @@ def scrape(limit: int = None, catch: dict = None) -> None:
             continue
         candidates.append(e)
 
+    # After both discovery channels and the .net dedup, so --limit caps what is
+    # actually fetched rather than what was discovered - and before the count
+    # below, so the printed number is the one the run will honour.
+    if limit:
+        candidates = candidates[:limit]
+
     print(
         f"\n{len(candidates)} candidate articles to fetch "
         f"({sum(1 for c in candidates if c['source'] == 'terratec_de')} terratec_de, "

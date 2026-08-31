@@ -191,7 +191,7 @@ def _own_cells(tr):
     return [c for c in tr.find_all(["td", "th"]) if c.find_parent("tr") is tr]
 
 
-def _demote_layout_tables(soup) -> None:
+def _demote_layout_tables(soup) -> bool:
     """Turn single-column tables into plain blocks.
 
     Every one of these sites laid its pages out in nested tables, so an

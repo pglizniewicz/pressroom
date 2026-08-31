@@ -96,9 +96,9 @@ class AllowlistTest(unittest.TestCase):
 
     def _rich_tags(self):
         source = APP_JS.read_text()
-        body = re.search(r"const RICH_TAGS = \{(.*?)\n\};", source, re.S).group(1)
+        body = re.search(r"const RICH_TAGS = \{(.*?)\n};", source, re.S).group(1)
         out = {}
-        for tag, attrs in re.findall(r"(\w+)\s*:\s*\[([^\]]*)\]", body):
+        for tag, attrs in re.findall(r"(\w+)\s*:\s*\[([^]]*)\]", body):
             out[tag] = [a.strip().strip('"') for a in attrs.split(",") if a.strip()]
         return out
 

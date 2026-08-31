@@ -429,6 +429,7 @@ def catch_up_network_source(
 
     for url, old_body in rows:
         text = ""
+        origin_url = None
         # A network error - or a search capped before trying every capture -
         # is not evidence that the attachment was never archived, so track it
         # separately. Otherwise a run with no connectivity, or a URL with more

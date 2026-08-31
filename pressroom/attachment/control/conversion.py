@@ -47,7 +47,7 @@ _TIMEOUT = 30
 
 # A list marker at the start of a line. Two families, because they map to two
 # elements: bullets to <ul>, numbers to <ol>.
-BULLET_RE = re.compile(r"^[•·⁃▪●\u2022]\s+|^[-*]\s+")
+BULLET_RE = re.compile(r"^[•·⁃▪●]\s+|^[-*]\s+")
 ORDERED_RE = re.compile(r"^\(?(\d{1,2})[.)]\s+")
 # Word's second-level bullet renders as a Courier "o". Accepted as a marker
 # ONLY inside an already-open list and only when the line is indented past that

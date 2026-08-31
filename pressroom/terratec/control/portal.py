@@ -155,7 +155,6 @@ def parse_snapshot(content: bytes) -> Detail:
         date_fmt = "%Y-%m"
 
     date_str = ""
-    title = ""
     if m:
         date_str, title = m.group(1), m.group(2).strip()
     else:

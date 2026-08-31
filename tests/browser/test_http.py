@@ -10,6 +10,7 @@ the link does not open.
 
 import json
 import threading
+import urllib.error
 import urllib.request
 from http.server import ThreadingHTTPServer
 

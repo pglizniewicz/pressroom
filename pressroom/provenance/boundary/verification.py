@@ -133,7 +133,7 @@ def candidate_bodies(
     return [parser(content).get("body") or ""] if parser else None
 
 
-def verdict(body: str, candidates: list) -> str:
+def verdict(body: str, candidates: list | None) -> str:
     if candidates is None:
         return "no parser for this source"
     if not candidates:
