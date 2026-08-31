@@ -38,8 +38,10 @@ def record(
 ) -> None:
     """Append one attempt, whatever it resulted in.
 
-    Swallows its own failure by design: a connection opened before the
-    migration ran must not turn a working scrape into a traceback.
+    Swallows its own failure by design. A connection that never went through
+    init_db() - a bare sqlite3.connect, or a connect_ro() handle - has no
+    wayback_calls to write to, and a side channel for later analysis must never
+    be able to break an actual scrape. Do not turn this into a raise.
     """
     try:
         conn.execute(

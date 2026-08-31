@@ -4,18 +4,17 @@
 how that address was established is not stored - it is derivable, which is why
 the table has two columns and no score:
 
-  computed    capture_url is exactly `web/<detail_id>id_/<url>`, i.e. the
+  computed    origin_url is exactly `web/<detail_id>id_/<url>`, i.e. the
               address the row implies. Nothing was checked when it was written.
   located     the row's url is a .pdf/.doc and its bytes were found under that
               path, possibly on a sibling domain of the same scraper.
   inferred    neither - the page had to be found by looking for the body's text
               among the captures sharing that timestamp.
 
-This script replaces the inference with a proof. `body_origin` briefly carried
-`matched`, the fraction of text probes that hit, and that number was neither
-necessary nor sufficient: 88 of the 149 score below 1.0 and are right, while
-four attachment rows scored a perfect 1.0 and were wrong - their "capture" was
-the original server's error page.
+This script replaces the inference with a proof. A score - the fraction of text
+probes that hit - is neither necessary nor sufficient: a body can probe below
+1.0 and be right, and an attachment row can probe a perfect 1.0 and be wrong,
+its "capture" being the original server's error page.
 
 The proof is reproduction: run the source's own parser over the recorded
 capture and compare the result to what the row stores. Nothing about the pairing
@@ -166,15 +165,14 @@ def attachment_verdict(body: str, body_html, content: bytes) -> str:
     return "MISMATCH"
 
 
-def origin_class(url: str, detail_id, capture_url: str) -> str:
+def origin_class(url: str, detail_id, origin_url: str) -> str:
     """'computed' | 'located' | 'inferred' - how this address was established.
 
-    Derived rather than stored: the three cases are distinguishable from the
-    address itself, which is what made body_origin.matched redundant. Checked
-    against it before it was dropped: the inferred class matched it on all 149
-    rows and on no others.
+    Derived rather than stored, which is why body_origin has two columns and no
+    third saying how each entry was arrived at: the three cases are
+    distinguishable from the address itself.
     """
-    if capture_url == f"https://web.archive.org/web/{detail_id}id_/{url}":
+    if origin_url == f"https://web.archive.org/web/{detail_id}id_/{url}":
         return "computed"
     if url.lower().endswith((".pdf", ".doc")):
         return "located"

@@ -40,6 +40,26 @@ no longer one". Two rules replaced them:
   show <sha>:repair_cache_hashes.py`), `CLAUDE.md` holds the rule it
   established.
 
+The schema migrations went the same way and for the same reason. Every table's
+`entity/` module carried an upgrade path beside its `CREATE TABLE` — a
+`rename_before_create` for the two tables that had been renamed, a `migrate`
+adding whichever columns were missing and dropping the two that were no longer
+wanted, and one `PRAGMA user_version` step rebuilding an index built when only
+`releases_ai` existed. All of it was already dead: there is one database, on one
+machine, and it had every column, every rename and the stamped version. Code
+that can lift a database out of a state nothing is in is not caution, it is a
+fiction of versioning — and it cost something real, because the version-stamped
+rebuild announced itself on every *fresh* database (`user_version` starts at 0),
+which is why the suite and `tests/refresh.py` both had to suppress stdout to
+stay readable.
+
+What the removal deliberately keeps is the archaeology, here and in the other
+records: `captures.md` on `wayback_cache`, `provenance.md` on `body_capture`'s
+two removed columns, `grade-and-detail-id.md` on the sentinels that used to live
+in `detail_id`. The names belong in the file someone opens to ask *why the
+shape is what it is*; they no longer belong in code that pretends it might meet
+them again.
+
 ## The read-only passes are a third kind of boundary
 
 **The read-only passes are a third kind of boundary, next to a scraper and a

@@ -8,7 +8,8 @@ see index.py for the third.
    columns and it starts snippeting titles with no error at all.
 2. **All three triggers must exist**, and updates and deletes must use the
    external-content 'delete' command form with the OLD values.
-3. See index.sync_fts_triggers.
+3. A bulk change made outside the triggers leaves the index stale, and the next
+   UPDATE then corrupts it - see index.rebuild_fts.
 
 `releases.url` is the dedup key (UNIQUE) and inserts are INSERT OR IGNORE, so a
 rerun of any crawl is free. Gate any "new" counter on store_release()'s bool
@@ -16,11 +17,11 @@ return - an unconditional increment after it reports phantom inserts on every
 rerun.
 """
 
-# Bumped when a migration needs to run once per database.
-# 1 = rebuild releases_fts (see index.sync_fts_triggers).
-SCHEMA_VERSION = 1
-
 SCHEMA_SQL = """
+    -- Column order is the order the file on disk has, which is what a
+    -- positional read would see. Nothing here reads positionally today
+    -- (row_factory is sqlite3.Row and there is no SELECT * in the tree), but
+    -- this declaration is the only description of that file, so it matches it.
     CREATE TABLE IF NOT EXISTS releases (
         id        INTEGER PRIMARY KEY AUTOINCREMENT,
         source    TEXT NOT NULL,
@@ -29,23 +30,23 @@ SCHEMA_SQL = """
         date      TEXT,
         url       TEXT UNIQUE,
         body      TEXT,
-        -- How good this row is: 'full' | 'teaser' | 'stub' (entity/grade.py).
-        -- Its own column since 2026-08-22, because it spent a long time inside
-        -- `detail_id`, where a *verdict about the body* sat in a field meant
-        -- for a *reference to where the body came from*. Seven places had to
-        -- re-derive which of the two a given value was, by counting digits.
-        -- 'full' is only ever as good as what the scraper knew: the media_pr
-        -- and pressdb sources store a capture timestamp on a row whose body is
-        -- just the listing blurb, so a 'full' grade there means "not marked
-        -- otherwise", and length(body) remains the honest check.
-        grade     TEXT NOT NULL DEFAULT 'full',
         -- The same content as `body`, but as the small HTML subset
         -- text/control/richtext.py emits: paragraphs, lists, headings, links,
         -- images, tables. NULL means the row predates that change and still
         -- renders as preformatted text. Deliberately not indexed: FTS reads
         -- `body`, which is derived from this column and therefore can never
         -- disagree with it.
-        body_html TEXT
+        body_html TEXT,
+        -- How good this row is: 'full' | 'teaser' | 'stub' (entity/grade.py).
+        -- Its own column, and not a sentinel inside `detail_id`: a *verdict
+        -- about the body* does not belong in a field meant for a *reference to
+        -- where the body came from*, and every reader of the packed form had
+        -- to re-derive which of the two a value was. Nothing parses detail_id.
+        -- 'full' is only ever as good as what the scraper knew: the media_pr
+        -- and pressdb sources store a capture timestamp on a row whose body is
+        -- just the listing blurb, so a 'full' grade there means "not marked
+        -- otherwise", and length(body) remains the honest check.
+        grade     TEXT NOT NULL DEFAULT 'full'
     );
 
     -- External-content FTS5 index: stores no text of its own, reads it live
@@ -59,10 +60,10 @@ SCHEMA_SQL = """
     );
 """
 
-# All three are required to keep releases_fts in sync. Until SCHEMA_VERSION 1
-# only releases_ai existed, so every "UPDATE releases SET body = ..." left the
-# recovered text unsearchable, and every out-of-band DELETE (e.g. from a GUI
-# DB tool) left an orphaned index entry - which also skews bm25() corpus
+# All three are required to keep releases_fts in sync. Only releases_ai existed
+# once, so every "UPDATE releases SET body = ..." left the recovered text
+# unsearchable, and every out-of-band DELETE (e.g. from a GUI DB tool) left an
+# orphaned index entry - which also skews bm25() corpus
 # statistics for *every* query, not just the affected rows. FTS5 reports none
 # of this: 'integrity-check' passes, because the index is internally
 # consistent, it simply doesn't know the content table moved underneath it.
@@ -110,41 +111,11 @@ UPGRADE_SQL = """
 """
 
 
-def migrate(conn) -> None:
-    """Add the two columns that arrived after this table did, then move the
-    grade sentinels out of `detail_id`.
-
-    Idempotent by construction rather than by a version flag: each ALTER is
-    guarded on the column being absent, and the UPDATE matches nothing once it
-    has run. `detail_id` is set to NULL for the moved rows because
-    'teaser'/'stub' never *were* references - the scraper had no capture to
-    name, which is exactly what the row was recording.
-    """
-    cols = {row[1] for row in conn.execute("PRAGMA table_info(releases)")}
-    if "body_html" not in cols:
-        conn.execute("ALTER TABLE releases ADD COLUMN body_html TEXT")
-    if "grade" not in cols:
-        # A DEFAULT on ALTER TABLE fills every existing row without firing the
-        # FTS update trigger, which is right: title and body are untouched.
-        conn.execute(
-            "ALTER TABLE releases ADD COLUMN grade TEXT NOT NULL DEFAULT 'full'"
-        )
-    conn.commit()
-
-    moved = conn.execute(
-        "UPDATE releases SET grade = detail_id, detail_id = NULL "
-        "WHERE detail_id IN ('teaser', 'stub')"
-    ).rowcount
-    if moved:
-        print(f"Migrated {moved} rows: detail_id -> grade", flush=True)
-    conn.commit()
-
-
 # --- The query shapes both readers share -----------------------------------
 #
 # Neither reader owns SQL of its own: the CLI and the browser go through
 # control/query.py, and every statement lives once. These are read-only by
-# construction - none of them takes a connection it could migrate.
+# construction - none of them changes a row.
 
 # The two damage shapes: 'â€' is UTF-8 read as something 8-bit, a raw C1
 # control character is cp1252 read as ISO-8859-1 (0x99 tm, 0x92 apostrophe,

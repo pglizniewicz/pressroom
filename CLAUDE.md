@@ -83,8 +83,8 @@ matter in practice are:
 - **the boundary is what an outside actor reaches** — a command line, an HTTP
   request. Nothing else runs a scraper or serves a page.
 - **control may be called across components; entity owns a table.** A
-  component's entity layer holds its table's DDL, its migrations and the
-  statements that change it, and nothing else creates that table.
+  component's entity layer holds its table's DDL and the statements that
+  change it, and nothing else creates that table.
 
 Adding shared logic means a **new component named for its concern**, never a
 grab-bag (`common.py` was split for exactly this reason, and `db.py` after it).
@@ -134,7 +134,10 @@ renderer change; `--seed-cache` fetches captures and parses nothing.
 reintroducing one is the smell.** A pass that has to be re-run after a crawl
 belongs in the write path or in the scraper; a fix that is genuinely finished
 gets deleted, because git holds the code and this file holds the rule it
-established.
+established. **The same goes for the schema: there are no migrations.** Each
+`entity/` layer's `SCHEMA_SQL` is the whole truth about its table; there is one
+database, it is current, and a schema change is an edit to that DDL plus
+whatever one-off SQL you type by hand — never a `migrate()` left in the tree.
 
 **The read-only passes are a third kind of boundary, next to a scraper and a
 reader. They write nothing, ever.** `pressroom-verify-*` checks that a claim
@@ -163,17 +166,17 @@ reproduce bodies, and nothing imports it back.
    carry its own copy of that query.
 2. **All three FTS triggers must exist** (`releases_ai`/`au`/`ad`), and updates
    and deletes must use the external-content `'delete'` command form with the
-   OLD values. Only `releases_ai` existed once, and every UPDATE-based backfill
-   left its recovered text unsearchable while `'integrity-check'` kept passing.
+   OLD values. Only `releases_ai` existed once, and every UPDATE-based recovery
+   left its text unsearchable while `'integrity-check'` kept passing.
    **`integrity-check` passing is not evidence of a healthy index** — it only
    checks internal consistency, not agreement with `releases`. Verify with
    orphan/missing counts and token probes instead.
-3. **Never create `releases_au` ahead of a rebuild.** Its `'delete'` subtracts
-   postings for `old.body`'s tokens, and on a stale row those are not the
-   tokens actually indexed — so an update would actively corrupt the index.
-   `release/control/index.py`'s `sync_fts_triggers()` keeps repair-then-install
-   in one function so the ordering can't be got wrong, and
-   `database/control/migration.py` calls it last.
+3. **A bulk change to `releases` made outside the triggers is followed
+   immediately by `index.rebuild_fts()`, before anything updates a row.** The
+   change leaves the index stale, and `releases_au`'s `'delete'` then subtracts
+   postings for `old.body`'s tokens, which on a stale row are not the tokens
+   actually indexed — so the next update actively corrupts the index rather than
+   merely leaving it wrong. FTS5 verifies none of this.
 4. **The path a reader walks imports stdlib only.** That is
    `database/control/`, every `entity/` layer, `release/control/query.py`,
    `taxonomy/` and `text/control/decoding.py`. The two readers are deliberately
@@ -181,8 +184,8 @@ reproduce bodies, and nothing imports it back.
    never import `capture/control/politeness.py`, `q4` or a source component
    into either reader.
    **A reader opens the database through `connect_ro()`, never `connect()`** —
-   the latter runs `init_db()`, i.e. migrations and FTS triggers, which a
-   browser has no business doing. `?mode=ro` turns an accidental write into an
+   the latter runs `init_db()`, i.e. `CREATE TABLE` and the FTS triggers, which
+   a browser has no business doing. `?mode=ro` turns an accidental write into an
    OperationalError instead of a silently damaged index.
 5. **`releases.url` is the dedup key** (UNIQUE) and inserts are
    `INSERT OR IGNORE`. Gate any "new" counter on `store_release()`'s bool

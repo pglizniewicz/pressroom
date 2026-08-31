@@ -5,8 +5,8 @@ one: stdlib http.server, a JSON API, and one static page of vanilla JS. No
 framework, no build step, nothing added to pyproject.toml.
 
 What it deliberately does NOT do: write. It opens the database through
-connect_ro(), never connect(), so it never calls init_db(), never migrates,
-never touches the FTS triggers, and an accidental write is an OperationalError
+connect_ro(), never connect(), so it never calls init_db(), never creates a
+table, never touches the FTS triggers, and an accidental write is an OperationalError
 from SQLite rather than a quietly corrupted index. It binds 127.0.0.1 only -
 there is no auth because there is no remote listener.
 

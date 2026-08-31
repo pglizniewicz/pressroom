@@ -3,7 +3,7 @@
 Three things every file here needs and exactly one of them is subtle:
 
   temp_db()   a real pressroom.db, empty, in a tempfile - built by the same
-              migration the scrapers run, and seeded through the write path
+              init_db() the scrapers run, and seeded through the write path
               rather than by raw SQL, so what is under test is what runs.
   fixture()   an archived capture, as **bytes**. Never str: choosing the
               charset is the caller's decision everywhere in this repo, and a
@@ -20,7 +20,6 @@ network-crawling sources offline.
 
 import contextlib
 import gzip
-import io
 import json
 import os
 import pathlib
@@ -70,7 +69,7 @@ def golden(name: str):
 
 
 class DbCase(unittest.TestCase):
-    """A TestCase with `self.conn` on an empty, migrated pressroom.db.
+    """A TestCase with `self.conn` on an empty pressroom.db.
 
     `connection.DB_PATH` is redirected for the duration, because the modules a
     scraper calls read it at call time; restored in tearDown so one test cannot
@@ -91,14 +90,7 @@ class DbCase(unittest.TestCase):
         # path's own opener, so a test runs against the same connection the
         # scrapers get - row_factory included. A fixture on a differently
         # configured connection tests a database this repo does not have.
-        #
-        # Quiet: sync_fts_triggers announces its one-off repair on every
-        # database whose user_version is 0, and a brand-new one always is - so
-        # the line is printed once per test and says nothing. The test that
-        # cares about that repair (release/test_index.py) builds its own
-        # connection and reads the output.
-        with contextlib.redirect_stdout(io.StringIO()):
-            self.conn = connection.connect(self.db_path)
+        self.conn = connection.connect(self.db_path)
         self.addCleanup(self.conn.close)
 
     # Seeding goes through storage.store_release rather than an INSERT of its

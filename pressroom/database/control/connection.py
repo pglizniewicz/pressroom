@@ -1,8 +1,8 @@
 """Opening pressroom.db, in the two ways this repo allows.
 
-Knows no table. That is the whole point of keeping it apart from migration.py:
-a reader can open the database without dragging in a single component that owns
-a schema.
+Knows no table. That is the whole point of keeping it apart from creation.py:
+an opener that names a table would have every reader reading the schema to find
+out how to open a file.
 
 Both ways set `row_factory = sqlite3.Row`, so a query may read its columns by
 name. It is stdlib and it is not an ORM, a query builder or a row dataclass -
@@ -17,7 +17,7 @@ import os
 import sqlite3
 from pathlib import Path
 
-from pressroom.database.control import migration
+from pressroom.database.control import creation
 
 # The repo root, four levels up: connection.py / control / database / pressroom.
 # The depth is load-bearing - moving this module without fixing the count gives
@@ -34,7 +34,7 @@ def connect(db_path=None) -> sqlite3.Connection:
     """Open pressroom.db with the schema ensured."""
     conn = sqlite3.connect(db_path or DB_PATH)
     conn.row_factory = sqlite3.Row
-    migration.init_db(conn)
+    creation.init_db(conn)
     return conn
 
 
@@ -42,8 +42,8 @@ def connect_ro(db_path=None) -> sqlite3.Connection:
     """Open pressroom.db read-only, for a reader that must not be able to
     change it.
 
-    Deliberately NOT connect(): that calls init_db(), which migrates and
-    installs FTS triggers. A browser has no business doing either, and
+    Deliberately NOT connect(): that calls init_db(), which runs CREATE TABLE
+    and installs FTS triggers. A browser has no business doing either, and
     ?mode=ro makes an accidental write an OperationalError from SQLite rather
     than a corrupted index nobody notices. check_same_thread=False because the
     browser hands each request thread its own connection.

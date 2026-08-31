@@ -232,7 +232,7 @@ class ServerTest(support.DbCase):
         self.assertIn("teasr", json.loads(caught.exception.read())["error"])
 
     def test_the_server_opens_the_database_read_only(self):
-        """A browser has no business migrating anything, and every request
+        """A browser has no business writing anything, and every request
         thread gets its own connection."""
         self.get("/api/search")
         self.assertIsNotNone(self.json("/api/quality"))

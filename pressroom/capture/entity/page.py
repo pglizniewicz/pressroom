@@ -6,28 +6,25 @@ capture say what the page *claimed* - so a wrong choice is diagnosable later
 without a refetch.
 
 In the database, not on disk: auxiliary data belongs in the database, and this
-is what makes a parser fix free. The table was called `wayback_cache` while
-only the archive path used it; the four live sources went straight through
-`session.get`, and when the extraction turned out to be wrong all four had to
-be crawled again from scratch. It is named for what it actually holds now, and
-a scraper that fetches a page any other way is a bug.
+is what makes a parser fix free. It is also what four live sources cost before
+they used it - they went straight through `session.get`, and when the
+extraction turned out to be wrong all four had to be crawled again from
+scratch. A scraper that fetches a page any other way is a bug.
 """
 
 import hashlib
 
 SCHEMA_SQL = """
+    -- Column order is the order the file on disk has, which is what a
+    -- positional read would see. Nothing here reads positionally today
+    -- (row_factory is sqlite3.Row and there is no SELECT * in the tree), but
+    -- this declaration is the only description of that file, so it matches it.
     CREATE TABLE IF NOT EXISTS page_cache (
         url                TEXT PRIMARY KEY,
         content            BLOB NOT NULL,
         id_content_type    TEXT,
         fw_guessed_charset TEXT,
         bs4_encoding       TEXT,
-        -- When these bytes were fetched (time.time()). NULL on the 6345 entries
-        -- written before this column existed, which is the honest answer: the
-        -- table never recorded it, and the question "when did this file arrive"
-        -- had no answer at all - not even "before the call log started", since
-        -- a cache hit is not logged as an attempt.
-        fetched_at         REAL,
         -- sha256 of `content`. Not a storage trick - the blobs stay, and
         -- deduplicating them would be the thing that makes sharding this table
         -- awkward later. It is an *identity* fact: the same attachment was
@@ -35,53 +32,16 @@ SCHEMA_SQL = """
         -- column existed the only way to ask "are these the same bytes" was to
         -- match filenames, which quietly paired a row with a different release
         -- that happened to share a file name (#5343).
-        content_sha256     TEXT
+        content_sha256     TEXT,
+        -- When these bytes were fetched (time.time()). NULL wherever the table
+        -- never recorded it, which is the honest answer: the question "when did
+        -- this file arrive" had no answer at all there - not even "before the
+        -- call log started", since a cache hit is not logged as an attempt.
+        fetched_at         REAL
     );
+
+    CREATE INDEX IF NOT EXISTS page_cache_sha ON page_cache(content_sha256);
 """
-
-_ADDED_COLUMNS = (
-    ("id_content_type", "TEXT"),
-    ("fw_guessed_charset", "TEXT"),
-    ("bs4_encoding", "TEXT"),
-    ("content_sha256", "TEXT"),
-    ("fetched_at", "REAL"),
-)
-
-
-def rename_before_create(conn) -> None:
-    """wayback_cache -> page_cache.
-
-    The table stopped being archive.org-only when the live scrapers started
-    caching their fetches through it, and a table whose name lies about its
-    contents is the kind of thing this repo pays for later. Must run before the
-    CREATE TABLE, which would otherwise make an empty page_cache alongside the
-    full wayback_cache and leave this rename permanently unable to fire.
-    """
-    names = {
-        row[0]
-        for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
-    }
-    if "wayback_cache" in names and "page_cache" not in names:
-        conn.execute("ALTER TABLE wayback_cache RENAME TO page_cache")
-        conn.commit()
-
-
-def migrate(conn) -> None:
-    """Add whichever diagnostic columns are missing, then the hash index.
-
-    SQLite has no "ADD COLUMN IF NOT EXISTS". The index comes after the ALTER
-    rather than living in SCHEMA_SQL: on an existing database the script runs
-    before the column is added, and CREATE INDEX on a column that is not there
-    yet fails the whole init.
-    """
-    existing = {row[1] for row in conn.execute("PRAGMA table_info(page_cache)")}
-    for col, coltype in _ADDED_COLUMNS:
-        if col not in existing:
-            conn.execute(f"ALTER TABLE page_cache ADD COLUMN {col} {coltype}")
-    conn.execute(
-        "CREATE INDEX IF NOT EXISTS page_cache_sha ON page_cache(content_sha256)"
-    )
-    conn.commit()
 
 
 def content_hash(content: bytes) -> str:

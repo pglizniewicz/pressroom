@@ -5,7 +5,7 @@ control/query.py next to the fts5 declaration whose column order it depends on.
 That ordinal (`snippet(releases_fts, 1, ...)` is `body`) used to be spelled out
 here as well, which is two places for one invariant that fails silently.
 
-Read-only: goes through connect_ro(), so it never migrates and cannot touch a
+Read-only: goes through connect_ro(), so it creates nothing and cannot touch a
 row or the index.
 
 Usage:

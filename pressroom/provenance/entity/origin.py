@@ -10,17 +10,13 @@ Its own table rather than a column on `releases`, because absence has to keep
 meaning "no archive link for this row" - which is the right answer for the live
 sources too.
 
-**Two columns and nothing else**, and it took two removals to get there.
-`page_url` agreed with `origin_url` in 158 of 158 rows, one being a prefix of
-the other; origin_url is the one worth keeping, because the page is a pure
-string split out of it while rebuilding it the other way would need
-releases.detail_id, which a recovery can rewrite underneath. And `matched` -
-the fraction of body probes found when an address had to be searched for - went
-once its three classes turned out to be derivable from the address itself. The
-number was never the useful thing: 88 of the 149 inferred rows scored below 1.0
-and are right, four attachment rows scored a perfect 1.0 and were wrong. What a
-reader wants is whether the body can be *produced* from those bytes, which is a
-different question and has its own script.
+**Two columns and nothing else.** The whole address is what is stored, and the
+page it is a capture of is derived from it by a pure string split (page_of);
+rebuilding the address the other way would need releases.detail_id, which a
+recovery can rewrite underneath. Nothing here scores how well the body matched:
+what a reader wants is whether the body can be *produced* from those bytes,
+which is a different question and has its own script
+(pressroom-verify-body-origin).
 """
 
 SCHEMA_SQL = """
@@ -31,40 +27,6 @@ SCHEMA_SQL = """
                                       -- also the page_cache key
     );
 """
-
-
-def rename_before_create(conn) -> None:
-    """body_capture -> body_origin, capture_url -> origin_url.
-
-    The old name glued a column of `releases` to a concept from `page_cache`
-    and read like a table storing captures *of* bodies; what it stores is where
-    each body came from. Must run before the CREATE TABLE for the same reason
-    page_cache's rename does: the script would otherwise create an empty
-    body_origin beside the populated body_capture, and a rename guarded on "the
-    target does not exist" would then never fire.
-    """
-    names = {
-        r[0]
-        for r in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
-    }
-    if "body_capture" in names and "body_origin" not in names:
-        conn.execute("ALTER TABLE body_capture RENAME TO body_origin")
-        conn.commit()
-    cols = {row[1] for row in conn.execute("PRAGMA table_info(body_origin)")}
-    if "capture_url" in cols and "origin_url" not in cols:
-        conn.execute("ALTER TABLE body_origin RENAME COLUMN capture_url TO origin_url")
-        conn.commit()
-
-
-def migrate(conn) -> None:
-    """Drop the two columns this table shipped with and no longer needs, per
-    the docstring above. Idempotent: each is guarded on being present."""
-    cols = {row[1] for row in conn.execute("PRAGMA table_info(body_origin)")}
-    if "page_url" in cols:
-        conn.execute("ALTER TABLE body_origin DROP COLUMN page_url")
-    if "matched" in cols:
-        conn.execute("ALTER TABLE body_origin DROP COLUMN matched")
-    conn.commit()
 
 
 def record(conn, url: str, origin_url: str, commit: bool = True) -> None:

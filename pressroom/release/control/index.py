@@ -10,27 +10,27 @@ from pressroom.release.entity import schema
 
 
 def rebuild_fts(conn) -> None:
-    """Reindex releases_fts from scratch. Needed after any bulk change to
-    `releases` made outside the triggers (and by the SCHEMA_VERSION 1
-    migration, which repairs indexes built when only releases_ai existed)."""
+    """Reindex releases_fts from scratch.
+
+    The recovery for a bulk change to `releases` made outside the triggers - an
+    UPDATE over many rows, or an out-of-band DELETE from a GUI DB tool. Run it
+    immediately, before anything updates a row: releases_au's 'delete'
+    subtracts postings for old.body's tokens, and on a stale row those are not
+    the tokens actually indexed, so the next UPDATE corrupts the index rather
+    than merely leaving it wrong. FTS5 verifies none of this.
+
+    No caller here on purpose - it is typed by hand after a bulk change, and
+    the sqlite3 CLI is not installed on this machine. The statement lives in one
+    place all the same.
+    """
     conn.execute("INSERT INTO releases_fts(releases_fts) VALUES('rebuild')")
     conn.commit()
 
 
-def sync_fts_triggers(conn) -> None:
-    """Repair the index if needed, then install the sync triggers.
+def install_fts_triggers(conn) -> None:
+    """Create the three triggers that keep releases_fts in sync, if absent.
 
-    Order matters and is why these two steps live in one function: creating
-    releases_au before the rebuild would let the next UPDATE actively corrupt
-    the index, because its 'delete' subtracts postings for old.body's tokens
-    and on a stale row those are not the tokens actually indexed. FTS5 does
-    not verify them.
+    Called last by database/control/creation.py, after every table exists: all
+    three reference `releases`.
     """
-    if conn.execute("PRAGMA user_version").fetchone()[0] < schema.SCHEMA_VERSION:
-        print("Rebuilding releases_fts (one-off search-index repair)...", flush=True)
-        conn.execute("INSERT INTO releases_fts(releases_fts) VALUES('rebuild')")
-        conn.execute(f"PRAGMA user_version = {schema.SCHEMA_VERSION}")
-        conn.commit()
-
     conn.executescript(schema.TRIGGERS_SQL)
-    conn.commit()

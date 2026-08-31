@@ -14,7 +14,7 @@ resolves to a real file.
 
 | component | owns |
 |---|---|
-| `database` | opening the file and the order migrations run in. No DDL of its own: `control/connection.py` knows no table, `control/migration.py` calls each owner's `SCHEMA_SQL`/`rename_before_create`/`migrate` in a fixed order |
+| `database` | opening the file and the order its tables are made in. No DDL of its own: `control/connection.py` knows no table, `control/creation.py` runs each owner's `SCHEMA_SQL` in a fixed order and installs the FTS triggers last |
 | `release` | the corpus. `entity/schema.py` = `releases` + the FTS index + the audit flags' SQL; `entity/grade.py` = the `full`/`teaser`/`stub` closed set; `control/storage.py` = every write; `control/index.py` = the FTS triggers; `control/query.py` = every read, both readers'; `control/gate.py` = may this text replace what is stored; `boundary/search.py` = the CLI reader |
 | `capture` | the bytes. `entity/page.py` = `page_cache` + `content_hash`/`same_bytes`; `entity/call_log.py` = `wayback_calls`; `control/archive.py` = everything that talks to archive.org (CDX + cached content fetches); `control/politeness.py` = `HEADERS`, `SLEEP`, `fetch_cached()` for a live site; `control/address.py` = capture addresses as pure strings |
 | `provenance` | which capture a body came from. `entity/origin.py` = `body_origin` + `record`/`clear`/`page_of`; `control/resolution.py` = `origin_key()`, `own_page()` — the question that picks the gate — and `cached()`; `boundary/verification.py` = the read-only proof |

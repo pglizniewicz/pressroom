@@ -2,9 +2,9 @@
 
 The CLI and the browser own no SQL of their own - the browser owns HTTP and
 nothing else, the CLI owns argument parsing and printing - so every statement
-they need lives here, once. Read-only by construction: none of these takes a
-connection it could migrate, and connect_ro() hands out one SQLite itself
-refuses to write through.
+they need lives here, once. Read-only by construction: none of these changes a
+row, and connect_ro() hands out a connection SQLite itself refuses to write
+through.
 
 snippet()'s ordinal 1 is `body`, positional per the fts5(title, body)
 declaration in entity/schema.py. That ordinal used to appear here *and* in the

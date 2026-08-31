@@ -24,9 +24,7 @@ so the fixture is a real release rather than a "page moved" stub).
 """
 
 import argparse
-import contextlib
 import gzip
-import io
 import json
 import pathlib
 import sqlite3
@@ -36,7 +34,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
 from pressroom.attachment.control import conversion  # noqa: E402
 from pressroom.capture.entity import page  # noqa: E402
-from pressroom.database.control import migration  # noqa: E402
+from pressroom.database.control import creation  # noqa: E402
 from pressroom.maudio.control import (
     media_news,
     media_pr,  # noqa: E402
@@ -356,11 +354,7 @@ def _seeded(url: str, content: bytes):
     cache exercises the parser *and* proves the cache path answers.
     """
     conn = sqlite3.connect(":memory:")
-    # Quiet: init_db announces the one-off FTS repair on every database whose
-    # user_version is 0, and a brand-new one always is. Harmless, and not this
-    # script's output.
-    with contextlib.redirect_stdout(io.StringIO()):
-        migration.init_db(conn)
+    creation.init_db(conn)
     conn.execute(
         "INSERT INTO page_cache (url, content, content_sha256) VALUES (?,?,?)",
         (url, content, page.content_hash(content)),

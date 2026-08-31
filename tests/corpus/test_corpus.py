@@ -250,8 +250,8 @@ class ProvenanceTest(CorpusCase):
         self.assertEqual(problems, [])
 
     def test_origin_class_is_derivable_from_the_address(self):
-        """Which is what made `body_origin.matched` redundant - it agreed with
-        the inferred class on all 149 rows and on no others."""
+        """Which is why body_origin has two columns and no third recording how
+        each entry was arrived at."""
         seen = set()
         for url, ts, capture in self.conn.execute(
             "SELECT r.url, r.detail_id, c.origin_url"
