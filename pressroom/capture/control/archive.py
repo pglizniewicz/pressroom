@@ -42,6 +42,7 @@ from bs4 import BeautifulSoup
 from pressroom.capture.entity import call_log
 from pressroom.database.control import connection
 from pressroom.capture.entity import page
+from pressroom.capture.control import address
 from pressroom.capture.control.politeness import HEADERS, SLEEP as CONTENT_SLEEP
 from pressroom.reporting.entity import outcome
 
@@ -330,7 +331,7 @@ def sample_all_captures(conn: sqlite3.Connection, session: requests.Session, url
 
     entries = []
     for ts in timestamps:
-        snap_url = snapshot_url(ts, url)
+        snap_url = address.snapshot_url(ts, url)
         try:
             content = fetch_snapshot(conn, session, snap_url, timeout=20)
             entries.extend(parse_fn(content, url, ts))
@@ -424,7 +425,7 @@ def fetch_first_matching_snapshot(conn: sqlite3.Connection, session: requests.Se
     had_error = False
     tried = []
     for ts in candidates:
-        snap_url = snapshot_url(ts, url)
+        snap_url = address.snapshot_url(ts, url)
         try:
             content = fetch_snapshot(conn, session, snap_url, timeout=timeout)
         except Exception as e:
@@ -457,4 +458,4 @@ def get_latest_working_snapshot(original_url: str):
     if not rows:
         return None
     timestamp = rows[0]["timestamp"]
-    return snapshot_url(timestamp, original_url), timestamp
+    return address.snapshot_url(timestamp, original_url), timestamp
