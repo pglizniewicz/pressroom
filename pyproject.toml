@@ -29,8 +29,10 @@ dependencies = [
 # extra to verify itself.
 globenewswire = ["curl_cffi"]
 
-# One entry point per thing anyone runs: sixteen scrapers, two readers, two
-# read-only checks, two calibration passes. Declared rather than left as
+# One entry point per thing anyone runs: sixteen scrapers, two readers, three
+# read-only checks, two calibration passes - 23, which tests/test_entry_points.py
+# asserts, because this sentence said 22 for as long as there were three
+# `verify` commands. Declared rather than left as
 # `python -m pressroom.terratec.boundary.portal`, because the layer path is an
 # implementation detail of where the code lives and has no business in a
 # documented command line.
@@ -40,6 +42,7 @@ pressroom-search              = "pressroom.release.boundary.search:main"
 pressroom-serve               = "pressroom.browser.boundary.http:main"
 
 # Read-only checks - run after anything that touches bodies or origins
+pressroom-verify-names        = "pressroom.integrity:main"
 pressroom-verify-body-origin  = "pressroom.provenance.boundary.verification:main"
 pressroom-verify-encoding     = "pressroom.text.boundary.encoding_check:main"
 
