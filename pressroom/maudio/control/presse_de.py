@@ -224,7 +224,9 @@ def split_subentries(block_html: str) -> list[str]:
     return segments
 
 
-def parse_page(content: bytes, base_url: str, timestamp: str = None) -> list[Entry]:
+def parse_page(
+    content: bytes, base_url: str, timestamp: str | None = None
+) -> list[Entry]:
     text = content.decode("cp1252", errors="replace")
     entries = []
     for block_html in BLOCK_RE.findall(text):
@@ -249,7 +251,7 @@ def parse_generic_page(content: bytes) -> Detail:
     return {"body": body, "body_html": body_html}
 
 
-def scrape(limit: int = None, catch: dict = None) -> None:
+def scrape(limit: int | None = None, catch: dict | None = None) -> None:
     conn = connection.connect()
     session = requests.Session()
 

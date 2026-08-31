@@ -162,7 +162,7 @@ def discover_listing(conn: sqlite3.Connection) -> list[Entry]:
     return list(by_slug.values())
 
 
-def scrape(limit: int = None, catch: dict = None) -> None:
+def scrape(limit: int | None = None, catch: dict | None = None) -> None:
     conn = connection.connect()
     session = requests.Session()
 

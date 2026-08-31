@@ -181,7 +181,7 @@ def origin_class(url: str, detail_id, capture_url: str) -> str:
     return "inferred"
 
 
-def run(source: str = None, inferred_only: bool = False) -> None:
+def run(source: str | None = None, inferred_only: bool = False) -> None:
     conn = connection.connect_ro()
     sql = """SELECT r.id, r.source, r.url, r.detail_id, COALESCE(r.body, ''), r.body_html,
                     c.origin_url
@@ -254,7 +254,7 @@ def run(source: str = None, inferred_only: bool = False) -> None:
 
 
 def main() -> None:
-    p = argparse.ArgumentParser(description=__doc__.strip().split("\n\n", 1)[0])
+    p = argparse.ArgumentParser(description=(__doc__ or "").strip().split("\n\n", 1)[0])
     p.add_argument("--source", help="limit to one source tag")
     p.add_argument(
         "--inferred-only",

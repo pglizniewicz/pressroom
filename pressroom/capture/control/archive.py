@@ -35,6 +35,7 @@ is how CDX_TIMEOUT ended up tuned twice on thin evidence before this existed.
 
 import sqlite3
 import time
+from typing import Any
 
 import requests
 from bs4 import BeautifulSoup
@@ -363,8 +364,8 @@ def sample_all_captures(
     session: requests.Session,
     url: str,
     parse_fn,
-    limit: int = None,
-) -> list[dict[str, object]]:
+    limit: int | None = None,
+) -> list[dict[str, Any]]:
     """Sample every historical HTTP-200 capture of `url` (a listing/dump
     page whose content grows over time - pressdb.php-style sources), calling
     `parse_fn(content, url, timestamp)` on each and returning the flat

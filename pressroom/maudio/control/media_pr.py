@@ -147,7 +147,9 @@ def extract_entries_template_b(soup: BeautifulSoup, base_url: str) -> list[Entry
     return entries
 
 
-def extract_entries(html: bytes, base_url: str, timestamp: str = None) -> list[Entry]:
+def extract_entries(
+    html: bytes, base_url: str, timestamp: str | None = None
+) -> list[Entry]:
     # decode_html rather than letting bs4 sniff: verified a no-op on every
     # currently cached capture, but two of them are already not valid utf-8,
     # so the chardet fallback is one stray byte away. See decoding.py.
@@ -161,7 +163,7 @@ def extract_entries(html: bytes, base_url: str, timestamp: str = None) -> list[E
 
 
 def scrape_domain(
-    source: str, listing_url: str, limit: int = None, catch: dict = None
+    source: str, listing_url: str, limit: int | None = None, catch: dict | None = None
 ) -> None:
     conn = connection.connect()
     session = requests.Session()
@@ -227,6 +229,6 @@ def scrape_domain(
     conn.close()
 
 
-def scrape(limit: int = None, catch: dict = None) -> None:
+def scrape(limit: int | None = None, catch: dict | None = None) -> None:
     for source, listing_url in DOMAINS.items():
         scrape_domain(source, listing_url, limit=limit, catch=catch)

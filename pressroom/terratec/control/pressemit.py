@@ -155,7 +155,7 @@ def parse_snapshot(content: bytes) -> Detail:
     return {"title": title, "date": date, "body": body, "body_html": body_html}
 
 
-def scrape(limit: int = None, catch: dict = None) -> None:
+def scrape(limit: int | None = None, catch: dict | None = None) -> None:
     conn = connection.connect()
     session = requests.Session()
 

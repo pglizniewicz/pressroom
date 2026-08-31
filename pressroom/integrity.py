@@ -90,7 +90,7 @@ def _rel(path) -> str:
 
 def main() -> None:
     argparse.ArgumentParser(
-        description=__doc__.strip().split("\n\n", 1)[0]
+        description=(__doc__ or "").strip().split("\n\n", 1)[0]
     ).parse_args()
 
     names = modules()

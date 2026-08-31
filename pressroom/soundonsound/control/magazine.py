@@ -141,7 +141,7 @@ def fetch_body(conn, session: requests.Session, url: str) -> tuple[str, str]:
     return richtext.extract(node)
 
 
-def collect(conn, session, pages: int = None) -> dict[str, Entry]:
+def collect(conn, session, pages: int | None = None) -> dict[str, Entry]:
     """Walk both facets -> {url: item}. Deduped across facets by url, which is
     also the DB's key, so the two lists cannot produce two rows."""
     found = {}
@@ -175,7 +175,10 @@ def collect(conn, session, pages: int = None) -> dict[str, Entry]:
 
 
 def scrape(
-    limit: int = None, pages: int = None, list_only: bool = False, catch: dict = None
+    limit: int | None = None,
+    pages: int | None = None,
+    list_only: bool = False,
+    catch: dict | None = None,
 ) -> None:
     conn = connection.connect()
     session = requests.Session()

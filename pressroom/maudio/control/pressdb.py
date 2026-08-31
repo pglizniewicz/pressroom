@@ -111,7 +111,9 @@ def parse_detail(html: bytes) -> Detail:
     return {"body": body, "body_html": body_html}
 
 
-def extract_entries(html: bytes, base_url: str, timestamp: str = None) -> list[Entry]:
+def extract_entries(
+    html: bytes, base_url: str, timestamp: str | None = None
+) -> list[Entry]:
     soup = BeautifulSoup(html, "html.parser", from_encoding="cp1252")
     entries = []
 
@@ -168,7 +170,7 @@ def extract_entries(html: bytes, base_url: str, timestamp: str = None) -> list[E
 
 
 def scrape_domain(
-    source: str, listing_url: str, limit: int = None, catch: dict = None
+    source: str, listing_url: str, limit: int | None = None, catch: dict | None = None
 ) -> None:
     conn = connection.connect()
     session = requests.Session()
@@ -275,6 +277,6 @@ def scrape_domain(
     conn.close()
 
 
-def scrape(limit: int = None, catch: dict = None) -> None:
+def scrape(limit: int | None = None, catch: dict | None = None) -> None:
     for source, listing_url in DOMAINS.items():
         scrape_domain(source, listing_url, limit=limit, catch=catch)

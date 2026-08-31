@@ -202,7 +202,7 @@ def already_have_net_filenames(conn: sqlite3.Connection) -> set[str]:
     }
 
 
-def scrape(limit: int = None, catch: dict = None) -> None:
+def scrape(limit: int | None = None, catch: dict | None = None) -> None:
     conn = connection.connect()
     session = requests.Session()
 

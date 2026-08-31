@@ -124,7 +124,7 @@ def extract_entries(html: str, page: dict) -> list[Entry]:
     return entries
 
 
-def scrape(catch: dict = None) -> None:
+def scrape(catch: dict | None = None) -> None:
     conn = connection.connect()
     session = requests.Session()
 

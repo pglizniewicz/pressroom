@@ -23,7 +23,9 @@ from pressroom.database.control.connection import DB_PATH, connect_ro
 from pressroom.release.control import query
 
 
-def search(q: str, sources: list = None, limit: int = 8, full: bool = False) -> None:
+def search(
+    q: str, sources: list | None = None, limit: int = 8, full: bool = False
+) -> None:
     if not DB_PATH.exists():
         print(f"Database not found at {DB_PATH}. Run any scraper first.")
         return
@@ -59,7 +61,9 @@ def search(q: str, sources: list = None, limit: int = 8, full: bool = False) -> 
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__.strip().split("\n\n", 1)[0])
+    parser = argparse.ArgumentParser(
+        description=(__doc__ or "").strip().split("\n\n", 1)[0]
+    )
     parser.add_argument(
         "query", help='Search query (FTS5 syntax: AND/OR/NOT, "phrases", prefix*)'
     )

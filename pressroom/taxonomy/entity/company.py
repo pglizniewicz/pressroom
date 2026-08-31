@@ -34,10 +34,12 @@ Two groupings that are decisions, not data:
   the cheaper inaccuracy.
 """
 
+from typing import Any
+
 # Declaration order is documentation (roughly: chip vendors, then the audio
 # brands); callers that care about size sort by count, which is what roll_up
 # does, so this order never has to be maintained against the corpus.
-COMPANIES = {
+COMPANIES: dict[str, tuple[str, list[str]]] = {
     "intel": ("Intel", ["intel"]),
     "amd": ("AMD", ["amd"]),
     "creative": ("Creative", ["creative", "creative_gnw"]),
@@ -120,7 +122,7 @@ def unknown_slugs(slugs) -> list[str]:
 _SUMS = ("count", "teaser", "short", "nodate", "mojibake", "plain")
 
 
-def roll_up(source_rows) -> list[dict[str, object]]:
+def roll_up(source_rows) -> list[dict[str, Any]]:
     """Fold db.list_sources() rows into one row per company.
 
     Takes the rows rather than a connection so this module stays free of the

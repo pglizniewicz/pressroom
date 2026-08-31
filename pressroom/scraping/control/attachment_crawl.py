@@ -184,7 +184,7 @@ CACHED_ATTACHMENT_SQL = """
 """
 
 
-def reextract_from_cache(limit: int = None, sources: list = None) -> None:
+def reextract_from_cache(limit: int | None = None, sources: list | None = None) -> None:
     r"""Re-extract attachment text from bytes page_cache already holds. No network.
 
     This exists because normalize()'s layout fix never reached the corpus.
@@ -264,7 +264,7 @@ RICHTEXT_SQL = """
 
 
 def write_richtext(
-    limit: int = None, sources: list = None, dry_run: bool = False
+    limit: int | None = None, sources: list | None = None, dry_run: bool = False
 ) -> None:
     """Store the structured form of every PDF attachment whose bytes we hold.
 
@@ -393,9 +393,9 @@ def missing_bytes_rows(conn) -> list[tuple[str, str]]:
 
 def catch_up_network_source(
     source: str,
-    limit: int = None,
+    limit: int | None = None,
     only_short: bool = False,
-    rows: list = None,
+    rows: list | None = None,
     in_db: bool = True,
 ) -> None:
     """One source's attachment rows, or an explicit `rows` list spanning several.
@@ -491,8 +491,8 @@ def catch_up_network_source(
 
 
 def catch_up_network(
-    limit: int = None,
-    sources: list = None,
+    limit: int | None = None,
+    sources: list | None = None,
     only_short: bool = False,
     missing_bytes: bool = False,
     no_own_bytes: bool = False,
@@ -527,7 +527,9 @@ def catch_up_network(
         catch_up_network_source(source, limit=limit, only_short=only_short)
 
 
-def catch_up(conn, sources: list, *, network: bool = False, limit: int = None) -> None:
+def catch_up(
+    conn, sources: list, *, network: bool = False, limit: int | None = None
+) -> None:
     """Phase 2 for attachment rows of `sources`. Free work first, always.
 
     Offline: re-extract the bytes page_cache already holds (layout included),

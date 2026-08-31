@@ -70,7 +70,7 @@ def fetch_body(conn, session: requests.Session, url: str) -> tuple[str, str]:
 
 
 def scrape(
-    from_year: int = FIRST_YEAR, to_year: int = None, catch: dict = None
+    from_year: int = FIRST_YEAR, to_year: int | None = None, catch: dict | None = None
 ) -> None:
     current_year = to_year or int(time.strftime("%Y"))
 

@@ -115,11 +115,11 @@ def fetch_body(conn, session: requests.Session, url: str) -> tuple[str, str]:
 def scrape(
     source: str,
     list_url: str,
-    pages: int = None,
+    pages: int | None = None,
     start: int = 1,
     container_sel: str = "article.media-container",
     title_link_sel: str = "div.media-title a",
-    catch: dict = None,
+    catch: dict | None = None,
 ) -> None:
     base_url = re.match(r"(https?://[^/]+)", list_url).group(1)
 

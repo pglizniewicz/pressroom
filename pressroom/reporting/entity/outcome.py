@@ -65,7 +65,7 @@ class Stats:
     everything works without it.
     """
 
-    def __init__(self, source: str = None, total: int = None):
+    def __init__(self, source: str | None = None, total: int | None = None):
         self.source = source
         self.total = total
         self.counts = dict.fromkeys(_OUTCOMES, 0)

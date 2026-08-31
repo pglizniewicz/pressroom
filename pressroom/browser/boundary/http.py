@@ -25,6 +25,7 @@ import sqlite3
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from typing import Any
 from urllib.parse import parse_qs, urlsplit
 
 from pressroom.taxonomy.entity import company
@@ -182,7 +183,7 @@ def _sources(params) -> list[str] | None:
 EMPTY_PAGE = {"results": [], "next": None, "truncated": False, "query_mode": None}
 
 
-def handle_search(conn, params) -> dict[str, object]:
+def handle_search(conn, params) -> dict[str, Any]:
     flags = _many(params, "flags")
     unknown = [f for f in flags if f not in VALID_FLAGS]
     if unknown:

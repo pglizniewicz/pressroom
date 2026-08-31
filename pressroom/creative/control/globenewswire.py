@@ -105,7 +105,7 @@ def fetch_body(conn, session: requests.Session, url: str) -> tuple[str, str]:
     return richtext.extract(body)
 
 
-def scrape(pages: int = None, catch: dict = None) -> None:
+def scrape(pages: int | None = None, catch: dict | None = None) -> None:
     conn = connection.connect()
     session = make_session()
 

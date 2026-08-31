@@ -64,7 +64,7 @@ PAGES = Option(
 START = Option("--start", type=int, default=1, help="start from this page number")
 
 
-def _summary(doc: str) -> str:
+def _summary(doc: str | None) -> str:
     """A module docstring's first paragraph, as one line.
 
     The boundary modules pass `__doc__` whole rather than slicing it, because
@@ -75,7 +75,7 @@ def _summary(doc: str) -> str:
     return " ".join(head.split())
 
 
-def run(crawl, doc: str, *options) -> None:
+def run(crawl, doc: str | None, *options) -> None:
     """Parse this scraper's command line and hand it to `crawl`.
 
     `doc` is the boundary module's `__doc__`: its first paragraph becomes the

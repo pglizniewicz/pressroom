@@ -507,7 +507,7 @@ def from_print_views(conn, session, source: str, prefix: str) -> None:
 
 
 def scrape_portal(
-    source: str, prefix: str, limit: int = None, catch: dict = None
+    source: str, prefix: str, limit: int | None = None, catch: dict | None = None
 ) -> None:
     conn = connection.connect()
     session = requests.Session()
@@ -570,6 +570,6 @@ def scrape_portal(
     conn.close()
 
 
-def scrape(limit: int = None, catch: dict = None) -> None:
+def scrape(limit: int | None = None, catch: dict | None = None) -> None:
     for source, prefix in PORTALS.items():
         scrape_portal(source, prefix, limit=limit, catch=catch)

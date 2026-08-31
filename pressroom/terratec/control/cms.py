@@ -131,7 +131,7 @@ def parse_detail(content: bytes) -> Detail:
 
 
 def extract_entries(
-    content: bytes, base_url: str = None, timestamp: str = None
+    content: bytes, base_url: str | None = None, timestamp: str | None = None
 ) -> list[Entry]:
     """Every <h2>Month YYYY - Title</h2> heading on the page, each paired
     with its containing block's link and body text. Works for both listing
@@ -203,7 +203,7 @@ def extract_entries(
     return entries
 
 
-def scrape_lang(lang: str, limit: int = None, catch: dict = None) -> None:
+def scrape_lang(lang: str, limit: int | None = None, catch: dict | None = None) -> None:
     cfg = LANGS[lang]
     source = cfg["source"]
     conn = connection.connect()

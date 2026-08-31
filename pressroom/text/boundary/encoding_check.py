@@ -85,7 +85,7 @@ def capture_words(conn, url: str) -> str:
     return _TAG_RE.sub(" ", decoding.decode_html(row[0]))
 
 
-def run(source: str = None, check_bytes: bool = False) -> None:
+def run(source: str | None = None, check_bytes: bool = False) -> None:
     conn = connection.connect_ro()
     sql = (
         "SELECT id, source, url, title, body, body_html FROM releases "
@@ -168,7 +168,7 @@ def run(source: str = None, check_bytes: bool = False) -> None:
 
 
 def main() -> None:
-    p = argparse.ArgumentParser(description=__doc__.strip().split("\n\n", 1)[0])
+    p = argparse.ArgumentParser(description=(__doc__ or "").strip().split("\n\n", 1)[0])
     p.add_argument("--source", help="limit to one source tag")
     p.add_argument(
         "--bytes",

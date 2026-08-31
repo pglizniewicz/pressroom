@@ -639,7 +639,7 @@ def confirm_force(conn, source: str, *, yes: bool = False) -> bool:
     return input("  kontynuowac? [y/N] ").strip().lower() in ("y", "yes", "t", "tak")
 
 
-def run(conn, source: str, opts: dict, **pieces) -> None:
+def run(conn, source: str, opts: dict | None, **pieces) -> None:
     """catch_up() driven by the flags a scraper parsed. One parameter and one
     call per scraper, so adding phase 2 to a scraper is two lines rather than
     six keyword arguments threaded through its own signature."""
@@ -649,7 +649,7 @@ def run(conn, source: str, opts: dict, **pieces) -> None:
     catch_up(conn, source, **pieces, **opts)
 
 
-def no_crawl(opts: dict) -> bool:
+def no_crawl(opts: dict | None) -> bool:
     """Whether the scraper's own discovery phase should be skipped entirely.
 
     True for the flags that mean "do not touch the network": --offline (catch up

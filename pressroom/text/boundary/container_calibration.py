@@ -153,7 +153,7 @@ def calibrate(source_filter=None, show=0) -> None:
 
 
 def main() -> None:
-    p = argparse.ArgumentParser(description=__doc__.strip().split("\n\n", 1)[0])
+    p = argparse.ArgumentParser(description=(__doc__ or "").strip().split("\n\n", 1)[0])
     p.add_argument("--source", help="limit to one source tag")
     p.add_argument("--show", type=int, default=0, help="print N per-capture samples")
     args = p.parse_args()

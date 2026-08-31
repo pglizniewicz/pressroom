@@ -30,7 +30,7 @@ def fetch_cached(
     session: requests.Session,
     url: str,
     timeout: int = 20,
-    sleep: float = None,
+    sleep: float | None = None,
 ) -> bytes:
     """Fetch a live page's raw bytes, caching them in page_cache on first hit.
 

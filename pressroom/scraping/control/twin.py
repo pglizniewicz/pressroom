@@ -107,7 +107,7 @@ def find_pairs(conn, source=None):
     return pairs, rejected, undated
 
 
-def fill(conn, source: str = None, *, dry_run: bool = False) -> int:
+def fill(conn, source: str | None = None, *, dry_run: bool = False) -> int:
     """Fill every teaser in `source` that has a better twin. Returns rows written.
 
     Called at the end of a scraper's run, so a fresh crawl that lands one url

@@ -12,6 +12,7 @@ CLI, which is two places for one invariant that fails silently.
 """
 
 import sqlite3
+from typing import Any
 
 from pressroom.release.entity.schema import FLAG_SQL, MOJIBAKE_SQL
 
@@ -38,7 +39,7 @@ _ROW_COLS = (
 _ROW_JOIN = " LEFT JOIN body_origin c ON c.url = r.url"
 
 
-def _row_dict(row) -> dict[str, object]:
+def _row_dict(row) -> dict[str, Any]:
     return {
         "id": row["id"],
         "source": row["source"],
@@ -101,7 +102,7 @@ def search_releases(
     flags=None,
     limit: int = 50,
     after=None,
-) -> dict[str, object]:
+) -> dict[str, Any]:
     """One page of releases, with or without a full-text query.
 
     An empty `q` is not a degenerate search but the browsing case: it skips
@@ -198,9 +199,7 @@ def get_release(conn: sqlite3.Connection, rid: int):
     }
 
 
-def neighbours(
-    conn: sqlite3.Connection, rid: int
-) -> dict[str, dict[str, object] | None]:
+def neighbours(conn: sqlite3.Connection, rid: int) -> dict[str, dict[str, Any] | None]:
     """The chronologically adjacent rows within the same source, for reading a
     source straight through. Ordered by (date, id) so the 85 dateless rows
     still have a stable position instead of dropping out of the sequence."""
@@ -268,7 +267,7 @@ def quality_counts(conn: sqlite3.Connection) -> dict[str, int]:
     return {k: (row[k] or 0) for k in row.keys()}
 
 
-def list_sources(conn: sqlite3.Connection) -> list[dict[str, object]]:
+def list_sources(conn: sqlite3.Connection) -> list[dict[str, Any]]:
     """Every source with its size, date span and gap counts - one GROUP BY for
     both the browse sidebar and the audit table's per-source breakdown."""
     rows = conn.execute(f"""

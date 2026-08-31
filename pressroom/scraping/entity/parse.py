@@ -24,16 +24,21 @@ the alias says the one true thing - a string-keyed mapping per release - and
 where the shape is fixed enough to name, it gets named next to the parser that
 emits it, same rule as that parser's markup notes.
 
+The values are `Any`, not `object`. Both say "not typed per key", but `object`
+says it about *reading* too: it makes `item["url"]` an error at every consumer,
+and this mapping exists to be read. Loose is the measurement; unreadable was an
+accident of spelling it.
+
 What every collector *does* have to provide is what the consumer reads, and
 `catch_up.from_listings` states it: `body`, `body_html`, `origin_url`, `title`,
 all through `.get()`. Nothing else is required of an entry.
 """
 
-from typing import TypedDict
+from typing import Any, TypedDict
 
 # A listing entry: one release as its own listing page describes it. Loose on
 # purpose - see the module docstring.
-type Entry = dict[str, object]
+type Entry = dict[str, Any]
 
 
 class Detail(TypedDict, total=False):

@@ -182,7 +182,9 @@ def _entries_short_news(soup: BeautifulSoup, base_url: str) -> list[Entry]:
     return entries
 
 
-def extract_entries(html: bytes, base_url: str, timestamp: str = None) -> list[Entry]:
+def extract_entries(
+    html: bytes, base_url: str, timestamp: str | None = None
+) -> list[Entry]:
     # decode_html, not raw bytes: these pages declare utf-8 and are utf-8
     # except for a few Word-pasted cp1252 bytes, which used to make bs4 fall
     # back to chardet and decode the whole file as windows-1250/1258.
@@ -252,7 +254,7 @@ def discover_listing_best(
     conn: sqlite3.Connection,
     source: str,
     base: str,
-    limit: int = None,
+    limit: int | None = None,
 ) -> dict[tuple[str, str], dict[str, str]]:
     session = requests.Session()
     best = {}  # (date, title) -> {href, teaser}
@@ -299,8 +301,8 @@ def discover_prefix_ids(source: str, base: str) -> set[str]:
 def scrape_domain(
     source: str,
     base: str,
-    limit: int = None,
-    catch: dict = None,
+    limit: int | None = None,
+    catch: dict | None = None,
     prefix_crawl: bool = True,
 ) -> None:
     conn = connection.connect()
@@ -444,10 +446,10 @@ def scrape_domain(
 
 
 def scrape(
-    limit: int = None,
+    limit: int | None = None,
     prefix_crawl: bool = True,
-    sources: list = None,
-    catch: dict = None,
+    sources: list | None = None,
+    catch: dict | None = None,
 ) -> None:
     for source in sources or DOMAINS:
         scrape_domain(

@@ -361,7 +361,7 @@ interleaving artefacts text {at} vs structured {ab}</p>
 
 
 def main() -> None:
-    p = argparse.ArgumentParser(description=__doc__.strip().split("\n\n", 1)[0])
+    p = argparse.ArgumentParser(description=(__doc__ or "").strip().split("\n\n", 1)[0])
     p.add_argument(
         "--preview",
         default="12",
