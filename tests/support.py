@@ -40,14 +40,13 @@ MANIFEST = HERE / "fixtures" / "manifest.json"
 
 # The real corpus, for the tests that can only run against it. Honours
 # PRESSROOM_DB the same way every command does.
-CORPUS_DB = pathlib.Path(os.environ.get("PRESSROOM_DB")
-                         or HERE.parent / "pressroom.db")
+CORPUS_DB = pathlib.Path(os.environ.get("PRESSROOM_DB") or HERE.parent / "pressroom.db")
 HAVE_CORPUS = CORPUS_DB.exists()
-needs_corpus = unittest.skipUnless(
-    HAVE_CORPUS, f"no corpus database at {CORPUS_DB}")
+needs_corpus = unittest.skipUnless(HAVE_CORPUS, f"no corpus database at {CORPUS_DB}")
 
 
 # --- fixtures ---------------------------------------------------------------
+
 
 def manifest() -> dict:
     return json.loads(MANIFEST.read_text()) if MANIFEST.exists() else {}
@@ -69,6 +68,7 @@ def golden(name: str):
 
 
 # --- a database -------------------------------------------------------------
+
 
 class DbCase(unittest.TestCase):
     """A TestCase with `self.conn` on an empty, migrated pressroom.db.
@@ -103,6 +103,7 @@ class DbCase(unittest.TestCase):
     # bypassed it would be testing a table this repo does not have.
     def seed(self, source="src", url=None, **kw):
         from pressroom.release.control import storage
+
         url = url or f"http://example.test/{source}/{self.id()}/{len(self.urls)}"
         storage.store_release(self.conn, source, url, **kw)
         self.urls.append(url)
@@ -124,20 +125,26 @@ class DbCase(unittest.TestCase):
         DDL and the hash.
         """
         from pressroom.capture.entity import page
+
         self.conn.execute(
             "INSERT OR REPLACE INTO page_cache (url, content, content_sha256)"
-            " VALUES (?,?,?)", (key, content, page.content_hash(content)))
+            " VALUES (?,?,?)",
+            (key, content, page.content_hash(content)),
+        )
         self.conn.commit()
 
     def row(self, url: str) -> dict:
         cur = self.conn.execute(
             "SELECT id, source, detail_id, title, date, url, body, grade, body_html"
-            "  FROM releases WHERE url = ?", (url,))
+            "  FROM releases WHERE url = ?",
+            (url,),
+        )
         got = cur.fetchone()
         return dict(zip([c[0] for c in cur.description], got)) if got else None
 
 
 # --- the network, refused ---------------------------------------------------
+
 
 class NetworkTouched(BaseException):
     """Deliberately not an Exception - see this module's docstring."""
@@ -152,6 +159,7 @@ def no_network():
     both - which also catches anything that reaches for urllib or http.client
     directly.
     """
+
     def refuse(*a, **kw):
         raise NetworkTouched(f"outbound request: {a[:2]}")
 

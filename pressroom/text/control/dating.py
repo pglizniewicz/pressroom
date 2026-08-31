@@ -10,8 +10,9 @@ here instead.
 from dateutil import parser as du
 
 
-def iso_date(value: str, *, dayfirst: bool = False, fuzzy: bool = False,
-             fmt: str = "%Y-%m-%d") -> str:
+def iso_date(
+    value: str, *, dayfirst: bool = False, fuzzy: bool = False, fmt: str = "%Y-%m-%d"
+) -> str:
     """Parse `value` into an ISO date string, or "" if it doesn't parse.
 
     Returning "" rather than raising is deliberate: a release whose date can't

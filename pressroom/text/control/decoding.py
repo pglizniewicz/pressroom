@@ -49,7 +49,7 @@ def _utf8_cp1252(err: UnicodeDecodeError):
     (0x81/0x8d/0x8f/0x90/0x9d) - one U+FFFD is a better outcome than an
     exception that loses the whole page.
     """
-    return err.object[err.start:err.end].decode(FALLBACK, errors="replace"), err.end
+    return err.object[err.start : err.end].decode(FALLBACK, errors="replace"), err.end
 
 
 codecs.register_error("utf8_cp1252", _utf8_cp1252)
@@ -86,8 +86,9 @@ C1_RE = re.compile("[" + chr(0x80) + "-" + chr(0x9F) + "]")
 # read as cp1258 gives A-breve, and 0xE2 starts the a-EUR-something family that
 # punctuation turns into.
 _MOJIBAKE_LEADS = "ÃÂĂâ"
-MOJIBAKE_RE = re.compile("[" + _MOJIBAKE_LEADS + "]"
-                         "[" + chr(0x80) + "-" + chr(0x17F) + chr(0x20AC) + "]")
+MOJIBAKE_RE = re.compile(
+    "[" + _MOJIBAKE_LEADS + "][" + chr(0x80) + "-" + chr(0x17F) + chr(0x20AC) + "]"
+)
 
 # Which 8-bit charset the text may have been read as, in the order worth
 # trying. Two actually occurred on terratec.net's German pages: cp1252, and -
@@ -145,7 +146,7 @@ def undo_mojibake(text: str):
     for codec in _MOJIBAKE_CODECS:
         try:
             out = text.encode(codec).decode("utf-8")
-        except (UnicodeEncodeError, UnicodeDecodeError):
+        except UnicodeEncodeError, UnicodeDecodeError:
             continue
         if MOJIBAKE_RE.search(out) or C1_RE.search(out) or "�" in out:
             continue

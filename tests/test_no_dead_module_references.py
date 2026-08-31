@@ -86,8 +86,9 @@ def _sources() -> list:
 class DeadModuleReferenceTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.existing = {p.name for p in ROOT.rglob("*.py")
-                        if "__pycache__" not in p.parts}
+        cls.existing = {
+            p.name for p in ROOT.rglob("*.py") if "__pycache__" not in p.parts
+        }
 
     def test_every_filename_in_prose_names_a_file_that_exists(self):
         for path in _sources():
@@ -99,15 +100,17 @@ class DeadModuleReferenceTest(unittest.TestCase):
                     with self.subTest(file=str(rel), line=lineno, name=name):
                         self.fail(
                             f"{rel}:{lineno} names {name}, which no longer "
-                            f"exists.\n    {line.strip()}")
+                            f"exists.\n    {line.strip()}"
+                        )
 
     def test_the_allowlist_has_no_entry_for_a_file_that_exists(self):
         """A retired name that comes back is a stale allowlist, and a stale
         allowlist is how the next rename gets through unnoticed."""
         for name in RETIRED:
             with self.subTest(name=name):
-                self.assertNotIn(name, self.existing,
-                                 f"{name} exists again; drop it from RETIRED")
+                self.assertNotIn(
+                    name, self.existing, f"{name} exists again; drop it from RETIRED"
+                )
 
 
 if __name__ == "__main__":

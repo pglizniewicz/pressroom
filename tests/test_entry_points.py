@@ -63,8 +63,10 @@ class EntryPointTest(unittest.TestCase):
                 families["calibrate"].append(name)
             else:
                 families["sources"].append(name)
-        self.assertEqual({k: len(v) for k, v in families.items()},
-                         {"readers": 2, "verify": 3, "calibrate": 2, "sources": 16})
+        self.assertEqual(
+            {k: len(v) for k, v in families.items()},
+            {"readers": 2, "verify": 3, "calibrate": 2, "sources": 16},
+        )
         self.assertEqual(len(self.scripts), 23)
 
     def test_every_source_boundary_has_a_command(self):
@@ -73,6 +75,7 @@ class EntryPointTest(unittest.TestCase):
         import pathlib
 
         import pressroom
+
         root = pathlib.Path(pressroom.__file__).parent
         targeted = {t.split(":")[0] for t in self.scripts.values()}
         for path in sorted(root.rglob("boundary/*.py")):
@@ -91,13 +94,18 @@ class InstalledTest(unittest.TestCase):
         has to be re-run or the script will not exist. This is what notices -
         the editable install's entry points against the file they came from."""
         from importlib import metadata
+
         try:
-            installed = {ep.name: ep.value
-                         for ep in metadata.distribution("pressroom").entry_points
-                         if ep.group == "console_scripts"}
+            installed = {
+                ep.name: ep.value
+                for ep in metadata.distribution("pressroom").entry_points
+                if ep.group == "console_scripts"
+            }
         except metadata.PackageNotFoundError:
             self.skipTest("pressroom is not installed in this environment")
         declared = tomllib.loads(PYPROJECT.read_text())["project"]["scripts"]
-        self.assertEqual(installed, declared,
-                         'stale editable install - re-run '
-                         '`uv pip install -e ".[globenewswire]"`')
+        self.assertEqual(
+            installed,
+            declared,
+            'stale editable install - re-run `uv pip install -e ".[globenewswire]"`',
+        )

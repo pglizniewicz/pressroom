@@ -39,7 +39,6 @@ terratec.json curation, same as every prior cross-source dedup in this
 project.
 """
 
-
 import re
 import sqlite3
 import time
@@ -55,27 +54,47 @@ from pressroom.release.control import storage
 from pressroom.scraping.control import catch_up
 from pressroom.text.control import richtext
 from pressroom.reporting.entity.outcome import Stats
-from pressroom.terratec.control.pressemit import find_headline, parse_snapshot as parse_net_snapshot
+from pressroom.terratec.control.pressemit import (
+    find_headline,
+    parse_snapshot as parse_net_snapshot,
+)
 from pressroom.capture.control import archive
 from pressroom.scraping.entity.parse import Detail, Entry
 
 
 INDEX_PAGES = [
-    ("http://www.terratec.de/presse/", "terratec_de",
-     "https://web.archive.org/web/20030303193557id_/http://www.terratec.de/presse/pressearchiv.htm"),
-    ("http://www.terratec.de/presse/", "terratec_de",
-     "https://web.archive.org/web/20030227043415id_/http://www.terratec.de/presse/pressemit.htm"),
-    ("http://www.terratec.net/press/", "terratec",
-     "https://web.archive.org/web/20030222201120id_/http://www.terratec.net/press/pressarchive.htm"),
-    ("http://www.terratec.net/press/", "terratec",
-     "https://web.archive.org/web/20030206053420id_/http://www.terratec.net/press/pressreleases.htm"),
-    ("http://www.terratec.net/press/", "terratec",
-     "https://web.archive.org/web/20030405064946id_/http://www.terratec.net/press/pressreleases.htm"),
+    (
+        "http://www.terratec.de/presse/",
+        "terratec_de",
+        "https://web.archive.org/web/20030303193557id_/http://www.terratec.de/presse/pressearchiv.htm",
+    ),
+    (
+        "http://www.terratec.de/presse/",
+        "terratec_de",
+        "https://web.archive.org/web/20030227043415id_/http://www.terratec.de/presse/pressemit.htm",
+    ),
+    (
+        "http://www.terratec.net/press/",
+        "terratec",
+        "https://web.archive.org/web/20030222201120id_/http://www.terratec.net/press/pressarchive.htm",
+    ),
+    (
+        "http://www.terratec.net/press/",
+        "terratec",
+        "https://web.archive.org/web/20030206053420id_/http://www.terratec.net/press/pressreleases.htm",
+    ),
+    (
+        "http://www.terratec.net/press/",
+        "terratec",
+        "https://web.archive.org/web/20030405064946id_/http://www.terratec.net/press/pressreleases.htm",
+    ),
 ]
 
 # German-domain pages say "TerraTec PresseInfo vom DD.MM.YYYY", in addition to
 # the "Presseinformation vom" style already seen on the very-early static page.
-DATE_RE_DE = re.compile(r"Presse(?:Info|information) vom\s*(\d{1,2}\.\d{1,2}\.\d{2,4})", re.IGNORECASE)
+DATE_RE_DE = re.compile(
+    r"Presse(?:Info|information) vom\s*(\d{1,2}\.\d{1,2}\.\d{2,4})", re.IGNORECASE
+)
 
 
 # Files that exist in the full Wayback directory listing for
@@ -124,11 +143,13 @@ def extract_links(content: bytes, base_url: str) -> list[Entry]:
         tds = row.find_all("td")
         date_str = tds[-1].get_text(strip=True) if len(tds) >= 2 else ""
         date = iso_date(date_str, dayfirst=True)
-        entries.append({
-            "title": a.get_text(" ", strip=True),
-            "date": date,
-            "url": base_url + a["href"],
-        })
+        entries.append(
+            {
+                "title": a.get_text(" ", strip=True),
+                "date": date,
+                "url": base_url + a["href"],
+            }
+        )
     return entries
 
 
@@ -176,7 +197,9 @@ def parse_de_snapshot(content: bytes) -> Detail:
 
 
 def already_have_net_filenames(conn: sqlite3.Connection) -> set[str]:
-    return {url.rsplit("/", 1)[-1].lower() for url in storage.source_urls(conn, "terratec")}
+    return {
+        url.rsplit("/", 1)[-1].lower() for url in storage.source_urls(conn, "terratec")
+    }
 
 
 def scrape(limit: int = None, catch: dict = None) -> None:
@@ -190,7 +213,7 @@ def scrape(limit: int = None, catch: dict = None) -> None:
     # goes on the candidate list, which is where it goes in every other scraper.
     offline = catch_up.no_crawl(catch)
 
-    for base_url, source, wayback_url in ([] if offline else INDEX_PAGES):
+    for base_url, source, wayback_url in [] if offline else INDEX_PAGES:
         print(f"Fetching {wayback_url}", flush=True)
         # Losing one of the five index pages just means fewer candidates, so
         # warn and carry on rather than aborting the whole backfill.
@@ -204,20 +227,27 @@ def scrape(limit: int = None, catch: dict = None) -> None:
             all_entries.setdefault(e["url"], e)
 
     # The second discovery channel: files no index page linked to.
-    for url in ([] if offline else DIRECTORY_URLS):
-        all_entries.setdefault(url, {"url": url, "title": "", "date": "",
-                                     "source": "terratec_de"})
+    for url in [] if offline else DIRECTORY_URLS:
+        all_entries.setdefault(
+            url, {"url": url, "title": "", "date": "", "source": "terratec_de"}
+        )
 
     net_have = already_have_net_filenames(conn)
     candidates = []
     for e in all_entries.values():
-        if e["source"] == "terratec" and e["url"].rsplit("/", 1)[-1].lower() in net_have:
+        if (
+            e["source"] == "terratec"
+            and e["url"].rsplit("/", 1)[-1].lower() in net_have
+        ):
             continue
         candidates.append(e)
 
-    print(f"\n{len(candidates)} candidate articles to fetch "
-          f"({sum(1 for c in candidates if c['source']=='terratec_de')} terratec_de, "
-          f"{sum(1 for c in candidates if c['source']=='terratec')} terratec)", flush=True)
+    print(
+        f"\n{len(candidates)} candidate articles to fetch "
+        f"({sum(1 for c in candidates if c['source'] == 'terratec_de')} terratec_de, "
+        f"{sum(1 for c in candidates if c['source'] == 'terratec')} terratec)",
+        flush=True,
+    )
 
     stats = {}
 
@@ -227,7 +257,9 @@ def scrape(limit: int = None, catch: dict = None) -> None:
             s.skipped()
             continue
 
-        parse_fn = parse_net_snapshot if e["source"] == "terratec" else parse_de_snapshot
+        parse_fn = (
+            parse_net_snapshot if e["source"] == "terratec" else parse_de_snapshot
+        )
 
         try:
             found = archive.get_latest_working_snapshot(e["url"])
@@ -238,8 +270,14 @@ def scrape(limit: int = None, catch: dict = None) -> None:
             continue
 
         if not found:
-            storage.store_release(conn, e["source"], e["url"], title=e["title"],
-                             date=e["date"], grade="stub")
+            storage.store_release(
+                conn,
+                e["source"],
+                e["url"],
+                title=e["title"],
+                date=e["date"],
+                grade="stub",
+            )
             s.stub()
             continue
 
@@ -254,9 +292,16 @@ def scrape(limit: int = None, catch: dict = None) -> None:
 
         title = parsed["title"] or e["title"]
         date = parsed["date"] or e["date"]
-        storage.store_release(conn, e["source"], e["url"], title=title, date=date,
-                         body=parsed["body"], body_html=parsed["body_html"],
-                         detail_id=timestamp)
+        storage.store_release(
+            conn,
+            e["source"],
+            e["url"],
+            title=title,
+            date=date,
+            body=parsed["body"],
+            body_html=parsed["body_html"],
+            detail_id=timestamp,
+        )
         s.added()
 
     for s in stats.values():
@@ -264,8 +309,6 @@ def scrape(limit: int = None, catch: dict = None) -> None:
     # Two tags, two parsers: the German pages and the .net gap rows are
     # different templates, and phase 2 has to reparse each with the one that
     # produced it.
-    catch_up.run(conn, "terratec_de", catch, parser=parse_de_snapshot,
-                  session=session)
-    catch_up.run(conn, "terratec", catch, parser=parse_net_snapshot,
-                  session=session)
+    catch_up.run(conn, "terratec_de", catch, parser=parse_de_snapshot, session=session)
+    catch_up.run(conn, "terratec", catch, parser=parse_net_snapshot, session=session)
     conn.close()

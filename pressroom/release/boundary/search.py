@@ -34,7 +34,9 @@ def search(q: str, sources: list = None, limit: int = 8, full: bool = False) -> 
         except sqlite3.OperationalError as e:
             print(f"Query error: {e}")
             if "no such table" in str(e):
-                print("Tip: the database has no search index yet - run any scraper once to build it")
+                print(
+                    "Tip: the database has no search index yet - run any scraper once to build it"
+                )
             else:
                 print("Tip: use quoted phrases, AND/OR/NOT, or prefix* for wildcards")
             return
@@ -58,10 +60,16 @@ def search(q: str, sources: list = None, limit: int = 8, full: bool = False) -> 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.strip().split("\n\n", 1)[0])
-    parser.add_argument("query", help="Search query (FTS5 syntax: AND/OR/NOT, \"phrases\", prefix*)")
-    parser.add_argument("--source", help="Filter by source(s), comma-separated: intel,amd")
+    parser.add_argument(
+        "query", help='Search query (FTS5 syntax: AND/OR/NOT, "phrases", prefix*)'
+    )
+    parser.add_argument(
+        "--source", help="Filter by source(s), comma-separated: intel,amd"
+    )
     parser.add_argument("--limit", type=int, default=8, help="Max results (default: 8)")
-    parser.add_argument("--full", action="store_true", help="Print full body of each result")
+    parser.add_argument(
+        "--full", action="store_true", help="Print full body of each result"
+    )
     args = parser.parse_args()
 
     sources = [s.strip() for s in args.source.split(",")] if args.source else None

@@ -16,10 +16,18 @@ from pressroom.soundonsound.control import magazine
 
 def main():
     command.run(
-        magazine.scrape, __doc__,
+        magazine.scrape,
+        __doc__,
         command.LIMIT,
-        command.Option("--pages", type=int, default=None,
-                       help="only this many listing pages per facet"),
-        command.Option("--list-only", action="store_true",
-                       help="walk the listings and report the count, store nothing"),
+        command.Option(
+            "--pages",
+            type=int,
+            default=None,
+            help="only this many listing pages per facet",
+        ),
+        command.Option(
+            "--list-only",
+            action="store_true",
+            help="walk the listings and report the count, store nothing",
+        ),
     )

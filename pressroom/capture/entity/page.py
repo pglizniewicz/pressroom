@@ -39,9 +39,13 @@ SCHEMA_SQL = """
     );
 """
 
-_ADDED_COLUMNS = (("id_content_type", "TEXT"), ("fw_guessed_charset", "TEXT"),
-                  ("bs4_encoding", "TEXT"), ("content_sha256", "TEXT"),
-                  ("fetched_at", "REAL"))
+_ADDED_COLUMNS = (
+    ("id_content_type", "TEXT"),
+    ("fw_guessed_charset", "TEXT"),
+    ("bs4_encoding", "TEXT"),
+    ("content_sha256", "TEXT"),
+    ("fetched_at", "REAL"),
+)
 
 
 def rename_before_create(conn) -> None:
@@ -53,8 +57,10 @@ def rename_before_create(conn) -> None:
     CREATE TABLE, which would otherwise make an empty page_cache alongside the
     full wayback_cache and leave this rename permanently unable to fire.
     """
-    names = {row[0] for row in conn.execute(
-        "SELECT name FROM sqlite_master WHERE type = 'table'")}
+    names = {
+        row[0]
+        for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
+    }
     if "wayback_cache" in names and "page_cache" not in names:
         conn.execute("ALTER TABLE wayback_cache RENAME TO page_cache")
         conn.commit()
@@ -72,8 +78,9 @@ def migrate(conn) -> None:
     for col, coltype in _ADDED_COLUMNS:
         if col not in existing:
             conn.execute(f"ALTER TABLE page_cache ADD COLUMN {col} {coltype}")
-    conn.execute("CREATE INDEX IF NOT EXISTS page_cache_sha "
-                 "ON page_cache(content_sha256)")
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS page_cache_sha ON page_cache(content_sha256)"
+    )
     conn.commit()
 
 
@@ -90,10 +97,15 @@ def same_bytes(conn, url: str) -> list[str]:
     from file names or paths. Empty when the entry is unique, or when its hash
     has not been filled in yet.
     """
-    row = conn.execute("SELECT content_sha256 FROM page_cache WHERE url = ?",
-                       (url,)).fetchone()
+    row = conn.execute(
+        "SELECT content_sha256 FROM page_cache WHERE url = ?", (url,)
+    ).fetchone()
     if not row or not row[0]:
         return []
-    return [u for (u,) in conn.execute(
-        "SELECT url FROM page_cache WHERE content_sha256 = ? AND url <> ?",
-        (row[0], url))]
+    return [
+        u
+        for (u,) in conn.execute(
+            "SELECT url FROM page_cache WHERE content_sha256 = ? AND url <> ?",
+            (row[0], url),
+        )
+    ]

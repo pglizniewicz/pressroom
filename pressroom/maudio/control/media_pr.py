@@ -41,7 +41,6 @@ underlying press history, kept separate since URL-based dedup can't cross
 domains.
 """
 
-
 from urllib.parse import urljoin
 
 import requests
@@ -79,8 +78,7 @@ def _dedupe_repeated_title(title: str) -> str:
     return title[:pos].strip() if pos != -1 else title
 
 
-def extract_entries_template_a(soup: BeautifulSoup,
-                               base_url: str) -> list[Entry]:
+def extract_entries_template_a(soup: BeautifulSoup, base_url: str) -> list[Entry]:
     entries = []
     for date_td in soup.find_all("td", class_="normaltextgraybold"):
         tr = date_td.find_parent("tr")
@@ -103,13 +101,19 @@ def extract_entries_template_a(soup: BeautifulSoup,
             if teaser_td:
                 teaser, teaser_html = richtext.extract(teaser_td)
 
-        entries.append({"title": title, "date": date, "url": url, "body": teaser,
-                        "body_html": teaser_html})
+        entries.append(
+            {
+                "title": title,
+                "date": date,
+                "url": url,
+                "body": teaser,
+                "body_html": teaser_html,
+            }
+        )
     return entries
 
 
-def extract_entries_template_b(soup: BeautifulSoup,
-                               base_url: str) -> list[Entry]:
+def extract_entries_template_b(soup: BeautifulSoup, base_url: str) -> list[Entry]:
     entries = []
     for div in soup.find_all("div", id="short-news"):
         title_div = div.find("div", id="news-title")
@@ -131,41 +135,62 @@ def extract_entries_template_b(soup: BeautifulSoup,
         if content_div:
             teaser, teaser_html = richtext.extract(content_div)
 
-        entries.append({"title": title, "date": date, "url": url, "body": teaser,
-                        "body_html": teaser_html})
+        entries.append(
+            {
+                "title": title,
+                "date": date,
+                "url": url,
+                "body": teaser,
+                "body_html": teaser_html,
+            }
+        )
     return entries
 
 
-def extract_entries(html: bytes, base_url: str,
-                    timestamp: str = None) -> list[Entry]:
+def extract_entries(html: bytes, base_url: str, timestamp: str = None) -> list[Entry]:
     # decode_html rather than letting bs4 sniff: verified a no-op on every
     # currently cached capture, but two of them are already not valid utf-8,
     # so the chardet fallback is one stray byte away. See decoding.py.
     soup = BeautifulSoup(decode_html(html), "html.parser")
-    entries = extract_entries_template_a(soup, base_url) + extract_entries_template_b(soup, base_url)
+    entries = extract_entries_template_a(soup, base_url) + extract_entries_template_b(
+        soup, base_url
+    )
     for e in entries:
         e["detail_id"] = timestamp
     return entries
 
 
-def scrape_domain(source: str, listing_url: str, limit: int = None,
-                  catch: dict = None) -> None:
+def scrape_domain(
+    source: str, listing_url: str, limit: int = None, catch: dict = None
+) -> None:
     conn = connection.connect()
     session = requests.Session()
 
     print(f"[{source}] Listing historical captures of {listing_url}", flush=True)
-    entries = [] if catch_up.no_crawl(catch) else archive.sample_all_captures(
-        conn, session, listing_url, extract_entries, limit=limit)
+    entries = (
+        []
+        if catch_up.no_crawl(catch)
+        else archive.sample_all_captures(
+            conn, session, listing_url, extract_entries, limit=limit
+        )
+    )
 
     best = {}  # (title, date) -> {url, body, body_html, detail_id}
     for e in entries:
         key = (e["title"], e["date"])
         cur = best.get(key)
         if cur is None or len(e["body"]) > len(cur["body"]):
-            best[key] = {"url": e["url"], "body": e["body"],
-                         "body_html": e["body_html"], "detail_id": e["detail_id"]}
+            best[key] = {
+                "url": e["url"],
+                "body": e["body"],
+                "body_html": e["body_html"],
+                "detail_id": e["detail_id"],
+            }
 
-    print(f"\n[{source}] {len(best)} distinct release entries found across all captures", flush=True)
+    print(
+        f"\n[{source}] {len(best)} distinct release entries found across all captures",
+        flush=True,
+    )
 
     stats = Stats(source, total=len(best))
     for (title, date), e in best.items():
@@ -173,9 +198,17 @@ def scrape_domain(source: str, listing_url: str, limit: int = None,
         if already_stored(conn, url):
             stats.skipped()
             continue
-        if storage.store_release(conn, source, url, title=title, date=date,
-                            body=e["body"], body_html=e["body_html"],
-                            detail_id=e["detail_id"], commit=False):
+        if storage.store_release(
+            conn,
+            source,
+            url,
+            title=title,
+            date=date,
+            body=e["body"],
+            body_html=e["body_html"],
+            detail_id=e["detail_id"],
+            commit=False,
+        ):
             stats.added()
     conn.commit()
 
@@ -183,8 +216,9 @@ def scrape_domain(source: str, listing_url: str, limit: int = None,
     # This CMS links out to .doc/.pdf files and the listing gives only a
     # ~150-character teaser, so an attachment row's phase 2 is the only way it
     # ever gets its real text. Every row of this source is one of those.
-    attachment_crawl.catch_up(conn, [source],
-                              network=bool((catch or {}).get("attachments")))
+    attachment_crawl.catch_up(
+        conn, [source], network=bool((catch or {}).get("attachments"))
+    )
     # No HTML parser for this tag - the listing teaser is all there ever was on
     # the page, and the real text is in the attachment. What phase 2 can still
     # do here is the twin fill: this CMS published some releases under two url

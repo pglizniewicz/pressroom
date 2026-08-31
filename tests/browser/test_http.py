@@ -20,10 +20,13 @@ from tests import support
 
 ROW = "http://www.midiman.net/images/press/BX5_PR.pdf"
 OWN = "https://web.archive.org/web/20030212170800id_/" + ROW
-MIRROR = ("https://web.archive.org/web/20030421210545id_/"
-          "http://www.m-audio.com/images/press/BX5_PR.pdf")
-LISTING = ("https://web.archive.org/web/20111011173713id_/"
-           "http://www.terratec.de/presse.html")
+MIRROR = (
+    "https://web.archive.org/web/20030421210545id_/"
+    "http://www.m-audio.com/images/press/BX5_PR.pdf"
+)
+LISTING = (
+    "https://web.archive.org/web/20111011173713id_/http://www.terratec.de/presse.html"
+)
 
 
 class CaptureAnnotationTest(support.DbCase):
@@ -41,7 +44,8 @@ class CaptureAnnotationTest(support.DbCase):
         self.assertEqual(page, "http://www.terratec.de/presse.html")
         self.assertEqual(
             http.capture_kind(page, "http://www.terratec.de/September_2011.html"),
-            "other")
+            "other",
+        )
 
     def test_the_same_file_on_a_sibling_domain_is_not_a_listing(self):
         """Calling it one stopped 209 attachment rows from being written for a
@@ -65,8 +69,9 @@ class CaptureAnnotationTest(support.DbCase):
 
     def test_the_link_drops_the_raw_bytes_marker(self):
         """`id_` is page_cache's variant; a human wants the ordinary viewer."""
-        self.assertEqual(http.wayback_url(OWN),
-                         "https://web.archive.org/web/20030212170800/" + ROW)
+        self.assertEqual(
+            http.wayback_url(OWN), "https://web.archive.org/web/20030212170800/" + ROW
+        )
 
 
 class ParamTest(support.DbCase):
@@ -80,9 +85,10 @@ class ParamTest(support.DbCase):
             http._sources({"company": ["nonsense"]})
 
     def test_a_company_and_a_source_intersect(self):
-        self.assertEqual(http._sources({"company": ["creative"],
-                                        "source": ["creative_gnw"]}),
-                         ["creative_gnw"])
+        self.assertEqual(
+            http._sources({"company": ["creative"], "source": ["creative_gnw"]}),
+            ["creative_gnw"],
+        )
 
     def test_an_impossible_intersection_is_empty_not_unfiltered(self):
         """company=amd&source=intel must give zero results; falling through to
@@ -96,8 +102,11 @@ class ParamTest(support.DbCase):
             http.handle_search(self.conn, {"flags": ["teasr"]})
 
     def test_a_bad_order_or_cursor_is_refused(self):
-        for params in ({"order": ["sideways"]}, {"after": ["nonsense"]},
-                       {"limit": ["many"]}):
+        for params in (
+            {"order": ["sideways"]},
+            {"after": ["nonsense"]},
+            {"limit": ["many"]},
+        ):
             with self.subTest(params=params):
                 with self.assertRaises(http.BadRequest):
                     http.handle_search(self.conn, params)
@@ -106,9 +115,15 @@ class ParamTest(support.DbCase):
 class PayloadTest(support.DbCase):
     def setUp(self):
         super().setUp()
-        storage.store_release(self.conn, "midiman_net_media_pr", ROW, title="BX5",
-                              date="2003-02-12", body="the release",
-                              detail_id="20030212170800")
+        storage.store_release(
+            self.conn,
+            "midiman_net_media_pr",
+            ROW,
+            title="BX5",
+            date="2003-02-12",
+            body="the release",
+            detail_id="20030212170800",
+        )
         origin.record(self.conn, ROW, MIRROR)
         self.rid = self.row(ROW)["id"]
 
@@ -119,8 +134,9 @@ class PayloadTest(support.DbCase):
         self.assertNotIn("origin_url", row)
         self.assertEqual(row["capture_kind"], "mirror")
         self.assertEqual(row["capture_ts"], "20030421210545")
-        self.assertTrue(row["wayback_url"].startswith(
-            "https://web.archive.org/web/20030421210545/"))
+        self.assertTrue(
+            row["wayback_url"].startswith("https://web.archive.org/web/20030421210545/")
+        )
 
     def test_a_list_row_carries_the_same_three_strings(self):
         """capture_page rides on every row, list and detail, so the badge costs
@@ -131,8 +147,9 @@ class PayloadTest(support.DbCase):
         self.assertNotIn("origin_url", got)
 
     def test_a_row_carries_its_company(self):
-        self.assertEqual(http.handle_release(self.conn, self.rid)["company"],
-                         "Midiman / M-Audio")
+        self.assertEqual(
+            http.handle_release(self.conn, self.rid)["company"], "Midiman / M-Audio"
+        )
 
     def test_a_missing_release_is_none_rather_than_an_error(self):
         self.assertIsNone(http.handle_release(self.conn, 999999))
@@ -144,8 +161,15 @@ class ServerTest(support.DbCase):
 
     def setUp(self):
         super().setUp()
-        storage.store_release(self.conn, "intel", "https://intc.com/1", title="T",
-                              date="2007-01-01", body="Radium chipset")
+        storage.store_release(
+            self.conn,
+            "intel",
+            "https://intc.com/1",
+            title="T",
+            date="2007-01-01",
+            body="Radium chipset",
+        )
+
         # A subclass rather than a patch: `db_path` is class state on the real
         # Handler and `log_message` prints every request, and a test that
         # mutated either would leak into the next one.
@@ -171,13 +195,17 @@ class ServerTest(support.DbCase):
     def test_the_four_api_routes_answer(self):
         self.assertEqual(len(self.json("/api/search?q=Radium")["results"]), 1)
         self.assertEqual(len(self.json("/api/sources")["sources"]), 1)
-        self.assertEqual(self.json("/api/companies")["companies"][0]["company"],
-                         "intel")
+        self.assertEqual(
+            self.json("/api/companies")["companies"][0]["company"], "intel"
+        )
         self.assertEqual(self.json("/api/quality")["total"], 1)
 
     def test_the_three_static_files_are_served_and_nothing_else(self):
-        for path, ctype in (("/", "text/html"), ("/static/app.js", "javascript"),
-                            ("/static/app.css", "text/css")):
+        for path, ctype in (
+            ("/", "text/html"),
+            ("/static/app.js", "javascript"),
+            ("/static/app.css", "text/css"),
+        ):
             with self.subTest(path=path):
                 status, body, got = self.get(path)
                 self.assertEqual(status, 200)
@@ -185,8 +213,12 @@ class ServerTest(support.DbCase):
                 self.assertIn(ctype, got)
 
     def test_anything_else_is_a_404_rather_than_a_traceback(self):
-        for path in ("/static/../pressroom.db", "/static/nonsense.js", "/nope",
-                     "/api/release/999999"):
+        for path in (
+            "/static/../pressroom.db",
+            "/static/nonsense.js",
+            "/nope",
+            "/api/release/999999",
+        ):
             with self.subTest(path=path):
                 with self.assertRaises(urllib.error.HTTPError) as caught:
                     self.get(path)

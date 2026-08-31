@@ -13,10 +13,14 @@ from pressroom.scraping.boundary import command
 
 def main():
     command.run(
-        golive.scrape, __doc__,
+        golive.scrape,
+        __doc__,
         command.LIMIT,
-        command.Option("--no-prefix-crawl", dest="prefix_crawl",
-                       action="store_false",
-                       help="skip prefix-crawling the press/ folders; use only "
-                            "the 5 known index pages"),
+        command.Option(
+            "--no-prefix-crawl",
+            dest="prefix_crawl",
+            action="store_false",
+            help="skip prefix-crawling the press/ folders; use only "
+            "the 5 known index pages",
+        ),
     )

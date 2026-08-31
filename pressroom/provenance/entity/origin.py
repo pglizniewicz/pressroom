@@ -43,8 +43,10 @@ def rename_before_create(conn) -> None:
     body_origin beside the populated body_capture, and a rename guarded on "the
     target does not exist" would then never fire.
     """
-    names = {r[0] for r in conn.execute(
-        "SELECT name FROM sqlite_master WHERE type = 'table'")}
+    names = {
+        r[0]
+        for r in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
+    }
     if "body_capture" in names and "body_origin" not in names:
         conn.execute("ALTER TABLE body_capture RENAME TO body_origin")
         conn.commit()
@@ -71,7 +73,8 @@ def record(conn, url: str, origin_url: str, commit: bool = True) -> None:
     conn.execute(
         "INSERT INTO body_origin (url, origin_url) VALUES (?,?) "
         "ON CONFLICT(url) DO UPDATE SET origin_url = excluded.origin_url",
-        (url, origin_url))
+        (url, origin_url),
+    )
     if commit:
         conn.commit()
 

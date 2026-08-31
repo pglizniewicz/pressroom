@@ -38,24 +38,63 @@ from pressroom.text.control import decoding
 
 # Thrown away with their contents. `form` is here because several of these
 # CMS templates put a search box inside the article container itself.
-_DROP = {"script", "style", "noscript", "form", "iframe", "object", "embed",
-         "applet", "select", "option", "textarea", "button", "map", "svg"}
+_DROP = {
+    "script",
+    "style",
+    "noscript",
+    "form",
+    "iframe",
+    "object",
+    "embed",
+    "applet",
+    "select",
+    "option",
+    "textarea",
+    "button",
+    "map",
+    "svg",
+}
 
 # Kept, but renamed. h1/h2 are pushed down because the detail view's own
 # heading is the h2 (app.js setHeading), and web-conventions forbids skipping
 # a level - a body that opened with h1 would sit above the page's own title.
-_RENAME = {"b": "strong", "i": "em", "u": "em", "cite": "em",
-           "h1": "h3", "h2": "h3", "h5": "h4", "h6": "h4"}
+_RENAME = {
+    "b": "strong",
+    "i": "em",
+    "u": "em",
+    "cite": "em",
+    "h1": "h3",
+    "h2": "h3",
+    "h5": "h4",
+    "h6": "h4",
+}
 
 # Everything else - div, span, font, center, tt, small, article, section,
 # and any tag these 1998-era pages invented - is unwrapped: the element goes,
 # its children stay.
 _ALLOWED = {
-    "p", "br", "hr", "h3", "h4", "blockquote",
-    "ul", "ol", "li",
-    "table", "thead", "tbody", "tfoot", "tr", "th", "td",
-    "strong", "em", "sub", "sup",
-    "a", "img",
+    "p",
+    "br",
+    "hr",
+    "h3",
+    "h4",
+    "blockquote",
+    "ul",
+    "ol",
+    "li",
+    "table",
+    "thead",
+    "tbody",
+    "tfoot",
+    "tr",
+    "th",
+    "td",
+    "strong",
+    "em",
+    "sub",
+    "sup",
+    "a",
+    "img",
 }
 
 # Per-tag attribute allowlist. Everything not listed - class, style, id, and
@@ -78,15 +117,49 @@ _SAFE_SCHEMES = ("http:", "https:", "mailto:", "ftp:")
 # neighbouring paragraphs together with no separator at all, so one that holds
 # nothing but inline content becomes a <p> instead; one that wraps other
 # blocks is unwrapped as before.
-_SOURCE_BLOCKS = {"div", "center", "section", "article", "aside", "header",
-                  "footer", "main", "address", "dl", "dt", "dd", "pre",
-                  "figure", "figcaption", "fieldset", "legend", "caption",
-                  "nav", "details", "summary"}
+_SOURCE_BLOCKS = {
+    "div",
+    "center",
+    "section",
+    "article",
+    "aside",
+    "header",
+    "footer",
+    "main",
+    "address",
+    "dl",
+    "dt",
+    "dd",
+    "pre",
+    "figure",
+    "figcaption",
+    "fieldset",
+    "legend",
+    "caption",
+    "nav",
+    "details",
+    "summary",
+}
 
 # Block-level tags, i.e. the ones that end a paragraph. Used by both the
 # paragraph reconstruction below and to_text().
-_BLOCKS = {"p", "h3", "h4", "blockquote", "ul", "ol", "li",
-           "table", "thead", "tbody", "tfoot", "tr", "th", "td", "hr"}
+_BLOCKS = {
+    "p",
+    "h3",
+    "h4",
+    "blockquote",
+    "ul",
+    "ol",
+    "li",
+    "table",
+    "thead",
+    "tbody",
+    "tfoot",
+    "tr",
+    "th",
+    "td",
+    "hr",
+}
 
 # Same set as a sorted list, for Tag.find() which will not take a set.
 _BLOCK_TAGS = sorted(_BLOCKS | _SOURCE_BLOCKS)
@@ -139,8 +212,11 @@ def _demote_layout_tables(soup) -> None:
             continue
         changed = True
         parts = [table]
-        parts += [t for t in table.find_all(["thead", "tbody", "tfoot"])
-                  if t.find_parent("table") is table]
+        parts += [
+            t
+            for t in table.find_all(["thead", "tbody", "tfoot"])
+            if t.find_parent("table") is table
+        ]
         parts += rows
         parts += [c for tr in rows for c in _own_cells(tr)]
         for tag in parts:
@@ -271,9 +347,24 @@ def _prune_empty(root) -> None:
     Outermost-first, so a header table goes in one decompose() instead of
     being dismantled cell by cell - which is also why every iteration has to
     re-check `decomposed`."""
-    for tag in root.find_all(["p", "li", "td", "th", "tr", "table", "thead",
-                              "tbody", "tfoot", "ul", "ol", "blockquote",
-                              "h3", "h4"]):
+    for tag in root.find_all(
+        [
+            "p",
+            "li",
+            "td",
+            "th",
+            "tr",
+            "table",
+            "thead",
+            "tbody",
+            "tfoot",
+            "ul",
+            "ol",
+            "blockquote",
+            "h3",
+            "h4",
+        ]
+    ):
         if tag.decomposed:
             continue
         if tag.get_text(strip=True):
@@ -300,7 +391,7 @@ def cut_from(soup, pattern) -> bool:
         return False
     tail = [n for n in node.next_elements if hasattr(n, "extract")]
     m = pattern.search(str(node))
-    node.replace_with(NavigableString(str(node)[:m.start()]))
+    node.replace_with(NavigableString(str(node)[: m.start()]))
     for later in tail:
         if getattr(later, "decomposed", False) or later.parent is None:
             continue
@@ -385,8 +476,16 @@ def clean(node) -> str:
 
 
 # to_text separators, applied before and after the element's own content.
-_TEXT_SEP = {"p": "\n\n", "h3": "\n\n", "h4": "\n\n", "blockquote": "\n\n",
-             "ul": "\n\n", "ol": "\n\n", "table": "\n\n", "hr": "\n\n"}
+_TEXT_SEP = {
+    "p": "\n\n",
+    "h3": "\n\n",
+    "h4": "\n\n",
+    "blockquote": "\n\n",
+    "ul": "\n\n",
+    "ol": "\n\n",
+    "table": "\n\n",
+    "hr": "\n\n",
+}
 
 
 def _walk(node, parts: list) -> None:
@@ -405,8 +504,14 @@ def _walk(node, parts: list) -> None:
         if name == "li":
             ordered = getattr(child.parent, "name", None) == "ol"
             if ordered:
-                idx = sum(1 for s in child.previous_siblings
-                          if getattr(s, "name", None) == "li") + 1
+                idx = (
+                    sum(
+                        1
+                        for s in child.previous_siblings
+                        if getattr(s, "name", None) == "li"
+                    )
+                    + 1
+                )
                 parts.append(f"\n{idx}. ")
             else:
                 parts.append("\n• ")

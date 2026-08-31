@@ -17,9 +17,11 @@ DOC = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1" + b"\x00" * 24
 # The original server over quota in 2003, faithfully archived as HTTP 200 under
 # a .pdf name. Four body_origin entries pointed at a page of this shape before
 # a content check caught them.
-SOFT_404 = (b"<HTML><HEAD><TITLE>509 Bandwidth Limit Exceeded</TITLE></HEAD>"
-            b"<BODY><H1>Bandwidth Limit Exceeded</H1><HR>"
-            b"<ADDRESS>Apache/1.3.27 Server at www.m-audio.com</ADDRESS></BODY></HTML>")
+SOFT_404 = (
+    b"<HTML><HEAD><TITLE>509 Bandwidth Limit Exceeded</TITLE></HEAD>"
+    b"<BODY><H1>Bandwidth Limit Exceeded</H1><HR>"
+    b"<ADDRESS>Apache/1.3.27 Server at www.m-audio.com</ADDRESS></BODY></HTML>"
+)
 
 
 class UrlPredicateTest(unittest.TestCase):
@@ -30,7 +32,8 @@ class UrlPredicateTest(unittest.TestCase):
             ("http://x/press.pdf?ver=2", True),
             ("http://x/index.php?do=media.new&ID=596", False),
             ("http://x/news/en_us-596.html", False),
-            ("", False), (None, False),
+            ("", False),
+            (None, False),
         ):
             with self.subTest(url=url):
                 self.assertEqual(conversion.is_attachment_url(url), want)
@@ -105,8 +108,10 @@ class ExtractorGoldenTest(unittest.TestCase):
         # The gate the 73 converted rows passed: a multiset of word characters,
         # blind to the two things a converter may change and to nothing else.
         from pressroom.release.control import gate
-        ok, why = gate.same_words(plain, text, conversion.rotated_text(content),
-                                  html.count("<li"))
+
+        ok, why = gate.same_words(
+            plain, text, conversion.rotated_text(content), html.count("<li")
+        )
         self.assertTrue(ok, why)
 
     def test_doc_keeps_the_text_route(self):

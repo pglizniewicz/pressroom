@@ -164,12 +164,15 @@ def strict_same_text(old_body: str, new_body: str) -> tuple[bool, str]:
     where the current parser reproduces exactly what is stored, character for
     character, with only spaces moved.
     """
-    return (chars_no_bullets(old_body) == chars_no_bullets(new_body),
-            "inny ciag znakow")
+    return (
+        chars_no_bullets(old_body) == chars_no_bullets(new_body),
+        "inny ciag znakow",
+    )
 
 
-def same_words(text: str, body: str, dropped: list,
-               list_items: int) -> tuple[bool, str]:
+def same_words(
+    text: str, body: str, dropped: list, list_items: int
+) -> tuple[bool, str]:
     """(ok, why) for replacing an attachment's flat text with its structured form.
 
     Compares the **multiset of word characters** - the repo's one implementation
@@ -200,8 +203,9 @@ def same_words(text: str, body: str, dropped: list,
       6 digits and 9 `o`s. Bounded by the number of list items, so it can never
       excuse a missing word.
     """
-    want = collections.Counter(wordchars(text)) \
-        - collections.Counter(wordchars(" ".join(dropped)))
+    want = collections.Counter(wordchars(text)) - collections.Counter(
+        wordchars(" ".join(dropped))
+    )
     got = collections.Counter(wordchars(body))
 
     def only_markers(diff):
@@ -214,8 +218,10 @@ def same_words(text: str, body: str, dropped: list,
         kept on the other (#5049, 4 digits). Bounded by the list items either
         way, at two characters each, so it can never excuse a missing word.
         """
-        return (all(ch.isdigit() or ch == "o" for ch in diff)
-                and sum(diff.values()) <= max(list_items, 0) * 2)
+        return (
+            all(ch.isdigit() or ch == "o" for ch in diff)
+            and sum(diff.values()) <= max(list_items, 0) * 2
+        )
 
     invented = got - want
     if invented and not only_markers(invented):

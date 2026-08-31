@@ -41,31 +41,37 @@ COMPANIES = {
     "intel": ("Intel", ["intel"]),
     "amd": ("AMD", ["amd"]),
     "creative": ("Creative", ["creative", "creative_gnw"]),
-    "terratec": ("TerraTec", [
-        "terratec",
-        "terratec_de",
-        "terratec_early",
-        "terratec_new_de",
-        "terratec_new_en",
-        "terratec_pressde",
-        "terratec_pressen",
-    ]),
+    "terratec": (
+        "TerraTec",
+        [
+            "terratec",
+            "terratec_de",
+            "terratec_early",
+            "terratec_new_de",
+            "terratec_new_en",
+            "terratec_pressde",
+            "terratec_pressen",
+        ],
+    ),
     "soundonsound": ("Sound on Sound", ["soundonsound"]),
-    "maudio": ("Midiman / M-Audio", [
-        "maudio_com_media_news",
-        "maudio_com_media_pr",
-        "maudio_com_news",
-        "midiman_com",
-        "midiman_com_media_news",
-        "midiman_com_media_pr",
-        "midiman_com_pressdb",
-        "midiman_couk_news",
-        "midiman_de",
-        "midiman_net",
-        "midiman_net_media_news",
-        "midiman_net_media_pr",
-        "midiman_net_pressdb",
-    ]),
+    "maudio": (
+        "Midiman / M-Audio",
+        [
+            "maudio_com_media_news",
+            "maudio_com_media_pr",
+            "maudio_com_news",
+            "midiman_com",
+            "midiman_com_media_news",
+            "midiman_com_media_pr",
+            "midiman_com_pressdb",
+            "midiman_couk_news",
+            "midiman_de",
+            "midiman_net",
+            "midiman_net_media_news",
+            "midiman_net_media_pr",
+            "midiman_net_pressdb",
+        ],
+    ),
 }
 
 # Where a source lands when the table has not been told about it - a new
@@ -128,10 +134,17 @@ def roll_up(source_rows) -> list[dict[str, object]]:
     by_slug = {}
     for row in source_rows:
         slug = company_of(row["source"])
-        agg = by_slug.setdefault(slug, {
-            "company": slug, "label": label(slug), "sources": [],
-            "first": "", "last": "", **{k: 0 for k in _SUMS},
-        })
+        agg = by_slug.setdefault(
+            slug,
+            {
+                "company": slug,
+                "label": label(slug),
+                "sources": [],
+                "first": "",
+                "last": "",
+                **{k: 0 for k in _SUMS},
+            },
+        )
         agg["sources"].append(row)
         for key in _SUMS:
             agg[key] += row.get(key, 0)

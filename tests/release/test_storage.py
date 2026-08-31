@@ -8,8 +8,9 @@ from pressroom.release.control import storage
 from pressroom.release.entity.grade import Grade
 from tests import support
 
-CAPTURE = ("https://web.archive.org/web/20111011173713id_/"
-           "http://www.terratec.de/presse.html")
+CAPTURE = (
+    "https://web.archive.org/web/20111011173713id_/http://www.terratec.de/presse.html"
+)
 
 
 class DedupTest(support.DbCase):
@@ -35,32 +36,45 @@ class OriginTest(support.DbCase):
         for bad in ("970", "node-4935591", "http://www.terratec.de/presse.html"):
             with self.subTest(value=bad):
                 with self.assertRaises(ValueError):
-                    storage.store_release(self.conn, "src", f"http://x/{bad}",
-                                          origin_url=bad)
+                    storage.store_release(
+                        self.conn, "src", f"http://x/{bad}", origin_url=bad
+                    )
 
     def test_recorded_only_when_a_row_actually_came_into_being(self):
         """A url the UNIQUE constraint made this a no-op for holds a body some
         other pass wrote, and claiming our capture as its origin would be a
         false statement about text we did not store."""
         storage.store_release(self.conn, "src", "http://x/1", body="first")
-        storage.store_release(self.conn, "src", "http://x/1", body="second",
-                              origin_url=CAPTURE)
-        self.assertIsNone(self.conn.execute(
-            "SELECT origin_url FROM body_origin WHERE url = 'http://x/1'").fetchone())
+        storage.store_release(
+            self.conn, "src", "http://x/1", body="second", origin_url=CAPTURE
+        )
+        self.assertIsNone(
+            self.conn.execute(
+                "SELECT origin_url FROM body_origin WHERE url = 'http://x/1'"
+            ).fetchone()
+        )
 
     def test_an_upgrade_that_moves_only_a_title_leaves_the_entry_alone(self):
         """The entry describes where a *body* came from."""
         storage.store_release(self.conn, "src", "http://x/1", body="b")
-        storage.upgrade_release(self.conn, "http://x/1", title="A better title",
-                                origin_url=CAPTURE)
-        self.assertIsNone(self.conn.execute(
-            "SELECT origin_url FROM body_origin WHERE url = 'http://x/1'").fetchone())
+        storage.upgrade_release(
+            self.conn, "http://x/1", title="A better title", origin_url=CAPTURE
+        )
+        self.assertIsNone(
+            self.conn.execute(
+                "SELECT origin_url FROM body_origin WHERE url = 'http://x/1'"
+            ).fetchone()
+        )
 
-        storage.upgrade_release(self.conn, "http://x/1", body="the real article",
-                                origin_url=CAPTURE)
-        self.assertEqual(self.conn.execute(
-            "SELECT origin_url FROM body_origin WHERE url = 'http://x/1'"
-        ).fetchone()[0], CAPTURE)
+        storage.upgrade_release(
+            self.conn, "http://x/1", body="the real article", origin_url=CAPTURE
+        )
+        self.assertEqual(
+            self.conn.execute(
+                "SELECT origin_url FROM body_origin WHERE url = 'http://x/1'"
+            ).fetchone()[0],
+            CAPTURE,
+        )
 
 
 class RepairAtTheWriteTest(support.DbCase):
@@ -74,8 +88,13 @@ class RepairAtTheWriteTest(support.DbCase):
         `body == to_text(body_html)`: undo_mojibake accepts a round trip only
         when every qualifying codepage agrees, and text with tags in it can
         answer that differently from text without."""
-        storage.store_release(self.conn, "src", "http://x/1",
-                              body="GeForce\x99", body_html="<p>GeForce\x99</p>")
+        storage.store_release(
+            self.conn,
+            "src",
+            "http://x/1",
+            body="GeForce\x99",
+            body_html="<p>GeForce\x99</p>",
+        )
         self.assertEqual(self.row("http://x/1")["body"], "GeForce\x99")
 
     def test_a_flat_body_is_repaired(self):
@@ -95,28 +114,37 @@ class GradeTest(support.DbCase):
     def test_an_upgrade_must_say_the_verdict_changed(self):
         """Otherwise the row keeps a verdict that stopped being true and the
         next run is handed it as still-upgradable."""
-        storage.store_release(self.conn, "src", "http://x/1", body="blurb",
-                              grade=Grade.TEASER)
+        storage.store_release(
+            self.conn, "src", "http://x/1", body="blurb", grade=Grade.TEASER
+        )
         storage.upgrade_release(self.conn, "http://x/1", body="the real article")
         self.assertEqual(storage.stored_grade(self.conn, "http://x/1"), "teaser")
-        storage.upgrade_release(self.conn, "http://x/1", body="the real article",
-                                grade=Grade.FULL)
+        storage.upgrade_release(
+            self.conn, "http://x/1", body="the real article", grade=Grade.FULL
+        )
         self.assertEqual(storage.stored_grade(self.conn, "http://x/1"), "full")
 
     def test_none_means_leave_that_column_alone(self):
-        storage.store_release(self.conn, "src", "http://x/1", title="T",
-                              date="2003-01-01", body="b")
+        storage.store_release(
+            self.conn, "src", "http://x/1", title="T", date="2003-01-01", body="b"
+        )
         storage.upgrade_release(self.conn, "http://x/1", body="better")
         row = self.row("http://x/1")
-        self.assertEqual((row["title"], row["date"], row["body"]),
-                         ("T", "2003-01-01", "better"))
+        self.assertEqual(
+            (row["title"], row["date"], row["body"]), ("T", "2003-01-01", "better")
+        )
 
     def test_length_stays_the_honest_check(self):
         """A media_pr row stores the *listing* capture's timestamp even when the
         body is only that listing's blurb, so `full` there means "not marked
         otherwise"."""
-        storage.store_release(self.conn, "src", "http://x/1", body="45 chars or so",
-                              detail_id="20030212170800")
+        storage.store_release(
+            self.conn,
+            "src",
+            "http://x/1",
+            body="45 chars or so",
+            detail_id="20030212170800",
+        )
         self.assertEqual(storage.stored_grade(self.conn, "http://x/1"), "full")
         self.assertEqual(storage.stored_body_length(self.conn, "http://x/1"), 14)
 

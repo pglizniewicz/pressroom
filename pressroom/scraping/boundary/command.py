@@ -39,21 +39,29 @@ class Option:
         # positional is already a name.
         self.dest = explicit or next(
             (f.lstrip("-").replace("-", "_") for f in flags if f.startswith("--")),
-            flags[0].lstrip("-").replace("-", "_"))
+            flags[0].lstrip("-").replace("-", "_"),
+        )
 
     def add_to(self, parser) -> None:
         parser.add_argument(*self.flags, **self.kwargs)
 
 
 #: Cap the work for a test run. The one option eleven of the sixteen share.
-LIMIT = Option("--limit", type=int, default=None,
-               help="cap the number of items processed (testing)")
+LIMIT = Option(
+    "--limit",
+    type=int,
+    default=None,
+    help="cap the number of items processed (testing)",
+)
 
 #: Q4's two: the platform paginates and a run can resume at a page.
-PAGES = Option("--pages", type=int, default=None,
-               help="number of listing pages to scrape (default: all)")
-START = Option("--start", type=int, default=1,
-               help="start from this page number")
+PAGES = Option(
+    "--pages",
+    type=int,
+    default=None,
+    help="number of listing pages to scrape (default: all)",
+)
+START = Option("--start", type=int, default=1, help="start from this page number")
 
 
 def _summary(doc: str) -> str:
@@ -79,5 +87,6 @@ def run(crawl, doc: str, *options) -> None:
         option.add_to(parser)
     catch_up.add_flags(parser)
     args = parser.parse_args()
-    crawl(catch=catch_up.options(args),
-          **{o.dest: getattr(args, o.dest) for o in options})
+    crawl(
+        catch=catch_up.options(args), **{o.dest: getattr(args, o.dest) for o in options}
+    )

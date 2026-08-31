@@ -6,7 +6,6 @@ Not a crawler like the other scrapers: these are two known-good Wayback URLs
 given directly, so no timemap/sparkline lookup is involved.
 """
 
-
 import re
 
 import requests
@@ -74,7 +73,7 @@ def headline(body: str, date_marker: str) -> str:
     if not paras:
         return ""
     m = re.match(date_marker, paras[0])
-    rest = paras[0][m.end():].strip() if m else ""
+    rest = paras[0][m.end() :].strip() if m else ""
     if not rest and len(paras) > 1:
         rest = paras[1].strip()
     if not rest or len(rest) > MAX_TITLE:
@@ -106,18 +105,22 @@ def extract_entries(html: str, page: dict) -> list[Entry]:
 
         anchor = find_anchor_for(pos, anchors)
         url = page["base_url"] + (page["anchor_fmt"].format(anchor) if anchor else "")
-        citation = page["wayback_url"].replace("id_", "") + (page["anchor_fmt"].format(anchor) if anchor else "")
+        citation = page["wayback_url"].replace("id_", "") + (
+            page["anchor_fmt"].format(anchor) if anchor else ""
+        )
 
-        entries.append({
-            "date_str": date_str,
-            "date": date,
-            "title": headline(body, page["date_marker"]),
-            "body": body,
-            "body_html": body_html,
-            "url": url,
-            "citation": citation,
-            "lang": page["lang"],
-        })
+        entries.append(
+            {
+                "date_str": date_str,
+                "date": date,
+                "title": headline(body, page["date_marker"]),
+                "body": body,
+                "body_html": body_html,
+                "url": url,
+                "citation": citation,
+                "lang": page["lang"],
+            }
+        )
     return entries
 
 
@@ -140,7 +143,9 @@ def scrape(catch: dict = None) -> None:
         # salvaged - bail with a message rather than a traceback or, worse, an
         # IndexError further down.
         try:
-            content = archive.fetch_snapshot(conn, session, page["wayback_url"], timeout=20)
+            content = archive.fetch_snapshot(
+                conn, session, page["wayback_url"], timeout=20
+            )
         except Exception as e:
             raise SystemExit(
                 f"Could not fetch {page['wayback_url']}: {e}\n"
@@ -167,20 +172,38 @@ def scrape(catch: dict = None) -> None:
         if e["date"] in english_dates:
             skipped_de += 1
             continue
-        if storage.store_release(conn, SOURCE, e["url"], title=e["title"], date=e["date"],
-                            body=e["body"], body_html=e["body_html"] or None,
-                            detail_id=de_page["timestamp"], commit=False):
+        if storage.store_release(
+            conn,
+            SOURCE,
+            e["url"],
+            title=e["title"],
+            date=e["date"],
+            body=e["body"],
+            body_html=e["body_html"] or None,
+            detail_id=de_page["timestamp"],
+            commit=False,
+        ):
             new_count += 1
 
     for e in en_entries:
-        if storage.store_release(conn, SOURCE, e["url"], title=e["title"], date=e["date"],
-                            body=e["body"], body_html=e["body_html"] or None,
-                            detail_id=en_page["timestamp"], commit=False):
+        if storage.store_release(
+            conn,
+            SOURCE,
+            e["url"],
+            title=e["title"],
+            date=e["date"],
+            body=e["body"],
+            body_html=e["body_html"] or None,
+            detail_id=en_page["timestamp"],
+            commit=False,
+        ):
             new_count += 1
 
     conn.commit()
     total = storage.source_total(conn, SOURCE)
-    print(f"\nInserted {new_count} rows ({skipped_de} German duplicates of English entries skipped). Total: {total}")
+    print(
+        f"\nInserted {new_count} rows ({skipped_de} German duplicates of English entries skipped). Total: {total}"
+    )
     # Listing-only: every row is an anchor into one of two pages, so there is no
     # per-row capture to reparse and no parser to pass. This is also the only
     # upgrade path these rows have ever had - the crawl above can INSERT but
@@ -189,15 +212,15 @@ def scrape(catch: dict = None) -> None:
     conn.close()
 
 
-
 def cached_entries(conn) -> dict[str, Entry]:
     """(url -> entry) for terratec_early, for catch_up. Every row is an anchor
     (`#p20`) into one of two listing pages, so one capture yields many rows -
     which is also why only a url-keyed collector can separate them."""
     out = {}
     for page in PAGES:
-        row = conn.execute("SELECT content FROM page_cache WHERE url = ?",
-                           (page["wayback_url"],)).fetchone()
+        row = conn.execute(
+            "SELECT content FROM page_cache WHERE url = ?", (page["wayback_url"],)
+        ).fetchone()
         if row is None:
             continue
         html = row[0].decode("cp1252", errors="replace")

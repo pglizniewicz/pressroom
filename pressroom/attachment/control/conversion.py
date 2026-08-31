@@ -193,8 +193,15 @@ def is_attachment_url(url: str) -> bool:
 # PDF_MAGIC/OLE2_MAGIC rather than in the caller: one table, both directions of
 # the question - "is this an attachment I can extract" and "is this safe to
 # hand to an HTML parser".
-_BINARY_MAGIC = (PDF_MAGIC, OLE2_MAGIC, b"PK\x03\x04",
-                 b"\x1f\x8b", b"GIF8", b"\x89PNG", b"\xff\xd8\xff")
+_BINARY_MAGIC = (
+    PDF_MAGIC,
+    OLE2_MAGIC,
+    b"PK\x03\x04",
+    b"\x1f\x8b",
+    b"GIF8",
+    b"\x89PNG",
+    b"\xff\xd8\xff",
+)
 
 
 def looks_like_html(content: bytes) -> bool:
@@ -246,14 +253,19 @@ def rotated_text(content: bytes) -> list[str]:
     a headline reading `MIDIMAN Assumes Distribution of Ableton`. A vertical
     marketing banner, not a duplicate.
     """
-    soup = BeautifulSoup(_run(["pdftotext", "-bbox-layout", "-", "-"], content),
-                         "html.parser")
+    soup = BeautifulSoup(
+        _run(["pdftotext", "-bbox-layout", "-", "-"], content), "html.parser"
+    )
     out = []
     for block in soup.find_all("block"):
         x0, y0 = float(block.get("xmin", 0)), float(block.get("ymin", 0))
         x1, y1 = float(block.get("xmax", 0)), float(block.get("ymax", 0))
-        if (y1 - y0) > ROTATED_MIN_HEIGHT and (x1 - x0) < (y1 - y0) * ROTATED_MAX_ASPECT:
-            words = [w.get_text() for w in block.find_all("word") if w.get_text().strip()]
+        if (y1 - y0) > ROTATED_MIN_HEIGHT and (x1 - x0) < (
+            y1 - y0
+        ) * ROTATED_MAX_ASPECT:
+            words = [
+                w.get_text() for w in block.find_all("word") if w.get_text().strip()
+            ]
             if words:
                 out.append(" ".join(words))
     return out
@@ -281,11 +293,16 @@ def _page_lines(page) -> list[tuple[float, float, list[str]]]:
     for block in page.find_all("block"):
         x0, y0 = float(block.get("xmin", 0)), float(block.get("ymin", 0))
         x1, y1 = float(block.get("xmax", 0)), float(block.get("ymax", 0))
-        if (y1 - y0) > ROTATED_MIN_HEIGHT and (x1 - x0) < (y1 - y0) * ROTATED_MAX_ASPECT:
+        if (y1 - y0) > ROTATED_MIN_HEIGHT and (x1 - x0) < (
+            y1 - y0
+        ) * ROTATED_MAX_ASPECT:
             continue
         for line in block.find_all("line"):
-            words = [(float(w.get("xmin", 0)), float(w.get("xmax", 0)), w.get_text())
-                     for w in line.find_all("word") if w.get_text().strip()]
+            words = [
+                (float(w.get("xmin", 0)), float(w.get("xmax", 0)), w.get_text())
+                for w in line.find_all("word")
+                if w.get_text().strip()
+            ]
             if not words:
                 continue
             out.append((float(line.get("ymin", 0)), float(line.get("ymax", 0)), words))
@@ -370,7 +387,9 @@ def _pdf_fragment(content: bytes) -> str:
             continue
         median_height = statistics.median(h for *_rest, h in lines)
         gaps = [lines[i][0] - lines[i - 1][1] for i in range(1, len(lines))]
-        leading = statistics.median([g for g in gaps if g >= 0] or [median_height * 0.3])
+        leading = statistics.median(
+            [g for g in gaps if g >= 0] or [median_height * 0.3]
+        )
 
         para = []
         # One entry per open list level: its tag, its left edge, and its items.
@@ -386,11 +405,13 @@ def _pdf_fragment(content: bytes) -> str:
 
         def close_level():
             level = stack.pop()
-            html = (f"<{level['tag']}>"
-                    + "".join(f"<li>{t}</li>" for t in level["items"])
-                    + f"</{level['tag']}>")
+            html = (
+                f"<{level['tag']}>"
+                + "".join(f"<li>{t}</li>" for t in level["items"])
+                + f"</{level['tag']}>"
+            )
             if stack:
-                stack[-1]["items"][-1] += html   # nested inside its parent item
+                stack[-1]["items"][-1] += html  # nested inside its parent item
             else:
                 out.append(html)
 
@@ -412,39 +433,49 @@ def _pdf_fragment(content: bytes) -> str:
             # second and later sub-items sit at the same x as the sub-list they
             # belong to, and comparing against stack[-1] made every one of them
             # after the first fall out into a paragraph.
-            nested = (NESTED_BULLET_RE.match(text) if stack
-                      and x0 > stack[0]["x"] + LEVEL_INDENT else None)
+            nested = (
+                NESTED_BULLET_RE.match(text)
+                if stack and x0 > stack[0]["x"] + LEVEL_INDENT
+                else None
+            )
             marker = bullet or ordered or nested
             if marker:
                 tag = "ol" if ordered else "ul"
                 flush_para()
                 if stack and gap > leading * LIST_BREAK_GAP:
-                    flush_list()          # too far below to be the same list
+                    flush_list()  # too far below to be the same list
                 while stack and x0 < stack[-1]["x"] - LEVEL_INDENT:
                     close_level()
                 if stack and abs(x0 - stack[-1]["x"]) <= LEVEL_INDENT:
-                    if stack[-1]["tag"] != tag:      # bullets became numbers
+                    if stack[-1]["tag"] != tag:  # bullets became numbers
                         close_level()
                         stack.append({"tag": tag, "x": x0, "items": []})
                 elif stack and x0 > stack[-1]["x"] + LEVEL_INDENT:
                     stack.append({"tag": tag, "x": x0, "items": []})
                 elif not stack:
                     stack.append({"tag": tag, "x": x0, "items": []})
-                stack[-1]["items"].append(text[marker.end():].strip())
+                stack[-1]["items"].append(text[marker.end() :].strip())
                 continue
 
             # A line under an open list, indented past its marker and following
             # closely, is the rest of that item rather than a new paragraph.
-            if (stack and stack[-1]["items"] and x0 > stack[-1]["x"] + CONTINUATION_INDENT
-                    and gap <= leading * PARAGRAPH_GAP):
+            if (
+                stack
+                and stack[-1]["items"]
+                and x0 > stack[-1]["x"] + CONTINUATION_INDENT
+                and gap <= leading * PARAGRAPH_GAP
+            ):
                 item = [stack[-1]["items"][-1]]
                 _append_line(item, text)
                 stack[-1]["items"][-1] = " ".join(item).strip()
                 continue
 
             flush_list()
-            heading = (not in_margin and height > median_height * HEADING_FACTOR
-                       and len(text) < HEADING_MAX_CHARS)
+            heading = (
+                not in_margin
+                and height > median_height * HEADING_FACTOR
+                and len(text) < HEADING_MAX_CHARS
+            )
             if heading:
                 flush_para()
                 out.append(f"<h3>{text}</h3>")

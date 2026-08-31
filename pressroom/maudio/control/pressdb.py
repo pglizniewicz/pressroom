@@ -48,7 +48,6 @@ a doubled/invalid link. Fixed by taking the last http(s):// occurrence in
 the href, but note the underlying target was never actually archived anyway.
 """
 
-
 import re
 from urllib.parse import urljoin
 
@@ -112,8 +111,7 @@ def parse_detail(html: bytes) -> Detail:
     return {"body": body, "body_html": body_html}
 
 
-def extract_entries(html: bytes, base_url: str,
-                    timestamp: str = None) -> list[Entry]:
+def extract_entries(html: bytes, base_url: str, timestamp: str = None) -> list[Entry]:
     soup = BeautifulSoup(html, "html.parser", from_encoding="cp1252")
     entries = []
 
@@ -128,7 +126,7 @@ def extract_entries(html: bytes, base_url: str,
         href = a["href"]
         matches = list(ABS_URL_RE.finditer(href))
         if matches and matches[-1].start() > 0:
-            href = href[matches[-1].start():]
+            href = href[matches[-1].start() :]
         url = urljoin(base_url, href)
 
         tr = bold_td.find_parent("tr")
@@ -155,20 +153,34 @@ def extract_entries(html: bytes, base_url: str,
             if body_td:
                 body, body_html = richtext.extract(body_td)
 
-        entries.append({"title": title, "date": date, "url": url, "body": body,
-                        "body_html": body_html, "detail_id": timestamp})
+        entries.append(
+            {
+                "title": title,
+                "date": date,
+                "url": url,
+                "body": body,
+                "body_html": body_html,
+                "detail_id": timestamp,
+            }
+        )
 
     return entries
 
 
-def scrape_domain(source: str, listing_url: str, limit: int = None,
-                  catch: dict = None) -> None:
+def scrape_domain(
+    source: str, listing_url: str, limit: int = None, catch: dict = None
+) -> None:
     conn = connection.connect()
     session = requests.Session()
 
     print(f"[{source}] Listing historical captures of {listing_url}", flush=True)
-    entries = [] if catch_up.no_crawl(catch) else archive.sample_all_captures(
-        conn, session, listing_url, extract_entries, limit=limit)
+    entries = (
+        []
+        if catch_up.no_crawl(catch)
+        else archive.sample_all_captures(
+            conn, session, listing_url, extract_entries, limit=limit
+        )
+    )
 
     # Keyed by (title, date) rather than url: the same release's title link was
     # retargeted over the years (early captures point at the site's own
@@ -186,10 +198,17 @@ def scrape_domain(source: str, listing_url: str, limit: int = None,
         key = (e["title"], e["date"])
         cur = best.get(key)
         if cur is None or rank(e) > rank(cur):
-            best[key] = {"url": e["url"], "body": e["body"],
-                         "body_html": e["body_html"], "detail_id": e["detail_id"]}
+            best[key] = {
+                "url": e["url"],
+                "body": e["body"],
+                "body_html": e["body_html"],
+                "detail_id": e["detail_id"],
+            }
 
-    print(f"\n[{source}] {len(best)} distinct release entries found across all captures", flush=True)
+    print(
+        f"\n[{source}] {len(best)} distinct release entries found across all captures",
+        flush=True,
+    )
 
     stats = Stats(source, total=len(best))
     for (title, date), e in best.items():
@@ -204,7 +223,9 @@ def scrape_domain(source: str, listing_url: str, limit: int = None,
         # already knows how to extract it.
         parsed, confirmed = ({}, True)
         if is_html_detail(url):
-            parsed, confirmed = archive.fetch_detail_snapshot(conn, session, url, parse_detail)
+            parsed, confirmed = archive.fetch_detail_snapshot(
+                conn, session, url, parse_detail
+            )
         body = parsed.get("body") or ""
 
         if stored_len is None:
@@ -214,17 +235,27 @@ def scrape_domain(source: str, listing_url: str, limit: int = None,
             # detail_id records where the body actually came from: the detail
             # capture when we recovered one, otherwise the listing capture the
             # teaser was read from.
-            storage.store_release(conn, source, url, title=title, date=date,
-                             body=body or e["body"],
-                             body_html=(parsed.get("body_html") if body
-                                        else e["body_html"]) or None,
-                             detail_id=parsed.get("detail_id") or e["detail_id"],
-                             commit=False)
+            storage.store_release(
+                conn,
+                source,
+                url,
+                title=title,
+                date=date,
+                body=body or e["body"],
+                body_html=(parsed.get("body_html") if body else e["body_html"]) or None,
+                detail_id=parsed.get("detail_id") or e["detail_id"],
+                commit=False,
+            )
             stats.added() if body else stats.teaser()
         elif body and len(body) > stored_len:
-            storage.upgrade_release(conn, url, body=body,
-                               body_html=parsed.get("body_html") or None,
-                               detail_id=parsed.get("detail_id"), commit=False)
+            storage.upgrade_release(
+                conn,
+                url,
+                body=body,
+                body_html=parsed.get("body_html") or None,
+                detail_id=parsed.get("detail_id"),
+                commit=False,
+            )
             stats.upgraded()
         elif not confirmed:
             stats.uncertain()
@@ -233,12 +264,14 @@ def scrape_domain(source: str, listing_url: str, limit: int = None,
     conn.commit()
 
     stats.summary(conn)
-    catch_up.run(conn, source, catch, parser=parse_detail, session=session,
-                  twins_too=True)
+    catch_up.run(
+        conn, source, catch, parser=parse_detail, session=session, twins_too=True
+    )
     # Both shapes live under this tag: HTML detail pages, and rows whose url is
     # a .pdf the listing only teased.
-    attachment_crawl.catch_up(conn, [source],
-                              network=bool((catch or {}).get("attachments")))
+    attachment_crawl.catch_up(
+        conn, [source], network=bool((catch or {}).get("attachments"))
+    )
     conn.close()
 
 

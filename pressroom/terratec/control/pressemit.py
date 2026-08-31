@@ -3,7 +3,6 @@ unified pressroom.db, sourced entirely from Wayback Machine snapshots since
 the live site no longer exists.
 """
 
-
 import re
 import time
 
@@ -40,8 +39,7 @@ _HEADINGS = ("h1", "h2", "h3", "h4")
 # before any text. Stopping on <p> is the point of the rule - a cell that opens
 # with a paragraph has no headline, and descending into it would title the row
 # with the release's first sentence instead.
-_HEADLINE_ENDS = {"p", "h1", "h2", "h3", "h4", "table", "ul", "ol",
-                  "div", "blockquote"}
+_HEADLINE_ENDS = {"p", "h1", "h2", "h3", "h4", "table", "ul", "ol", "div", "blockquote"}
 
 # A bare-text headline longer than this is prose that slipped past the rule
 # above, not a headline. The longest real one across both sources is 119
@@ -81,7 +79,7 @@ def find_headline(soup) -> str:
     for i, tag in enumerate(bolds):
         if MARKER_RE.search(tag.get_text(" ", strip=True)):
             marker = tag
-            for nxt in bolds[i + 1:]:
+            for nxt in bolds[i + 1 :]:
                 text = " ".join(nxt.get_text(strip=True).split())
                 if text and not MARKER_RE.search(text):
                     return text
@@ -162,8 +160,15 @@ def scrape(limit: int = None, catch: dict = None) -> None:
     session = requests.Session()
 
     print(f"[{SOURCE}] Listing archived pages under {PREFIX}", flush=True)
-    snapshots = [] if catch_up.no_crawl(catch) else [
-        s for s in archive.list_snapshots_or_exit(PREFIX) if is_html_page(s["original"])]
+    snapshots = (
+        []
+        if catch_up.no_crawl(catch)
+        else [
+            s
+            for s in archive.list_snapshots_or_exit(PREFIX)
+            if is_html_page(s["original"])
+        ]
+    )
     if limit:
         snapshots = snapshots[:limit]
     print(f"[{SOURCE}] {len(snapshots)} candidate press pages", flush=True)
@@ -196,9 +201,16 @@ def scrape(limit: int = None, catch: dict = None) -> None:
             stats.uncertain()
             continue
 
-        if storage.store_release(conn, SOURCE, url, title=parsed["title"],
-                            date=parsed["date"], body=parsed["body"],
-                            body_html=parsed["body_html"], detail_id=timestamp):
+        if storage.store_release(
+            conn,
+            SOURCE,
+            url,
+            title=parsed["title"],
+            date=parsed["date"],
+            body=parsed["body"],
+            body_html=parsed["body_html"],
+            detail_id=timestamp,
+        ):
             stats.added()
 
     stats.summary(conn)

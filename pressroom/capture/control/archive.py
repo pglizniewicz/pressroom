@@ -132,7 +132,9 @@ def _service_cooldown() -> None:
         time.sleep(remaining)
 
 
-def _cdx(retries: int = 3, timeout: int = CDX_TIMEOUT, kind: str = "cdx_probe", **params) -> list[dict[str, str]]:
+def _cdx(
+    retries: int = 3, timeout: int = CDX_TIMEOUT, kind: str = "cdx_probe", **params
+) -> list[dict[str, str]]:
     """One CDX query -> a list of row dicts (the header row becomes the keys).
 
     Failures are not all the same and are not treated the same: a refused or
@@ -156,14 +158,26 @@ def _cdx(retries: int = 3, timeout: int = CDX_TIMEOUT, kind: str = "cdx_probe", 
         try:
             r = requests.get(CDX_URL, params=params, headers=HEADERS, timeout=timeout)
             r.raise_for_status()
-            call_log.record(stats_conn, kind=kind, url=params.get("url"),
-                                   attempt=attempt, timeout_budget=timeout,
-                                   outcome="ok", duration=time.monotonic() - t0)
+            call_log.record(
+                stats_conn,
+                kind=kind,
+                url=params.get("url"),
+                attempt=attempt,
+                timeout_budget=timeout,
+                outcome="ok",
+                duration=time.monotonic() - t0,
+            )
             break
         except requests.exceptions.RequestException as e:
-            call_log.record(stats_conn, kind=kind, url=params.get("url"),
-                                   attempt=attempt, timeout_budget=timeout,
-                                   outcome=_classify_error(e), duration=time.monotonic() - t0)
+            call_log.record(
+                stats_conn,
+                kind=kind,
+                url=params.get("url"),
+                attempt=attempt,
+                timeout_budget=timeout,
+                outcome=_classify_error(e),
+                duration=time.monotonic() - t0,
+            )
             if attempt == retries - 1:
                 raise
             status = getattr(getattr(e, "response", None), "status_code", None)
@@ -180,8 +194,11 @@ def _cdx(retries: int = 3, timeout: int = CDX_TIMEOUT, kind: str = "cdx_probe", 
                 # Announced, not silent: a multi-minute stall with no
                 # explanation is exactly what the progress heartbeat exists to
                 # prevent.
-                print(f"\n  CDX returned {status}; pausing {SERVICE_COOLDOWN:.0f}s "
-                      "for the service to recover", flush=True)
+                print(
+                    f"\n  CDX returned {status}; pausing {SERVICE_COOLDOWN:.0f}s "
+                    "for the service to recover",
+                    flush=True,
+                )
                 _cooldown_until = time.monotonic() + SERVICE_COOLDOWN
                 _service_cooldown()
             else:
@@ -193,7 +210,9 @@ def _cdx(retries: int = 3, timeout: int = CDX_TIMEOUT, kind: str = "cdx_probe", 
     return [dict(zip(header, row)) for row in data]
 
 
-def list_snapshots_by_prefix(prefix_url: str, limit: int = 10000, retries: int = 3) -> list[dict[str, str]]:
+def list_snapshots_by_prefix(
+    prefix_url: str, limit: int = 10000, retries: int = 3
+) -> list[dict[str, str]]:
     """Return every archived URL under `prefix_url` as a list of dicts with
     keys original, mimetype, timestamp, endtimestamp, groupcount, uniqcount.
     """
@@ -233,12 +252,21 @@ def list_all_captures(exact_url: str, retries: int = 3) -> list[str]:
     (no collapsing), for sites where the page's own content changes over
     time and a single "latest" snapshot would miss older revisions.
     """
-    rows = _cdx(retries=retries, timeout=CDX_BULK_TIMEOUT, kind="cdx_bulk", url=exact_url,
-                filter="statuscode:200", fl="timestamp", limit=1000)
+    rows = _cdx(
+        retries=retries,
+        timeout=CDX_BULK_TIMEOUT,
+        kind="cdx_bulk",
+        url=exact_url,
+        filter="statuscode:200",
+        fl="timestamp",
+        limit=1000,
+    )
     return sorted({row["timestamp"] for row in rows})
 
 
-def fetch_snapshot(conn: sqlite3.Connection, session: requests.Session, url: str, timeout: int = 20) -> bytes:
+def fetch_snapshot(
+    conn: sqlite3.Connection, session: requests.Session, url: str, timeout: int = 20
+) -> bytes:
     """Fetch a Wayback snapshot URL's raw bytes (HTML or PDF), transparently
     caching them in the page_cache table on first fetch. A cache hit
     skips both the network call and the rate-limit sleep - only a real
@@ -258,7 +286,9 @@ def fetch_snapshot(conn: sqlite3.Connection, session: requests.Session, url: str
     Best-effort only - any failure here is swallowed so it never affects the
     primary fetch.
     """
-    row = conn.execute("SELECT content FROM page_cache WHERE url = ?", (url,)).fetchone()
+    row = conn.execute(
+        "SELECT content FROM page_cache WHERE url = ?", (url,)
+    ).fetchone()
     if row:
         return row[0]
 
@@ -267,12 +297,25 @@ def fetch_snapshot(conn: sqlite3.Connection, session: requests.Session, url: str
         r = session.get(url, headers=HEADERS, timeout=timeout)
         r.raise_for_status()
     except requests.exceptions.RequestException as e:
-        call_log.record(conn, kind="content", url=url, attempt=0,
-                               timeout_budget=timeout, outcome=_classify_error(e),
-                               duration=time.monotonic() - t0)
+        call_log.record(
+            conn,
+            kind="content",
+            url=url,
+            attempt=0,
+            timeout_budget=timeout,
+            outcome=_classify_error(e),
+            duration=time.monotonic() - t0,
+        )
         raise
-    call_log.record(conn, kind="content", url=url, attempt=0, timeout_budget=timeout,
-                           outcome="ok", duration=time.monotonic() - t0)
+    call_log.record(
+        conn,
+        kind="content",
+        url=url,
+        attempt=0,
+        timeout_budget=timeout,
+        outcome="ok",
+        duration=time.monotonic() - t0,
+    )
     content = r.content
 
     id_content_type = r.headers.get("Content-Type")
@@ -300,15 +343,28 @@ def fetch_snapshot(conn: sqlite3.Connection, session: requests.Session, url: str
         "INSERT OR IGNORE INTO page_cache (url, content, id_content_type, "
         "fw_guessed_charset, bs4_encoding, content_sha256, fetched_at) "
         "VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (url, content, id_content_type, fw_guessed_charset, bs4_encoding,
-         page.content_hash(content), time.time()),
+        (
+            url,
+            content,
+            id_content_type,
+            fw_guessed_charset,
+            bs4_encoding,
+            page.content_hash(content),
+            time.time(),
+        ),
     )
     conn.commit()
     time.sleep(CONTENT_SLEEP)
     return content
 
 
-def sample_all_captures(conn: sqlite3.Connection, session: requests.Session, url: str, parse_fn, limit: int = None) -> list[dict[str, object]]:
+def sample_all_captures(
+    conn: sqlite3.Connection,
+    session: requests.Session,
+    url: str,
+    parse_fn,
+    limit: int = None,
+) -> list[dict[str, object]]:
     """Sample every historical HTTP-200 capture of `url` (a listing/dump
     page whose content grows over time - pressdb.php-style sources), calling
     `parse_fn(content, url, timestamp)` on each and returning the flat
@@ -342,7 +398,13 @@ def sample_all_captures(conn: sqlite3.Connection, session: requests.Session, url
     return entries
 
 
-def fetch_detail_snapshot(conn: sqlite3.Connection, session: requests.Session, url: str, parse_fn, timeout: int = 20):
+def fetch_detail_snapshot(
+    conn: sqlite3.Connection,
+    session: requests.Session,
+    url: str,
+    parse_fn,
+    timeout: int = 20,
+):
     """Try to fetch+parse a per-item detail page. Returns (parsed, confirmed):
     `parsed` is {} if nothing was recovered; `confirmed` distinguishes a
     verified dead end (safe to permanently record a fallback/no-op) from a
@@ -377,9 +439,14 @@ def fetch_detail_snapshot(conn: sqlite3.Connection, session: requests.Session, u
     return {}, True
 
 
-def fetch_first_matching_snapshot(conn: sqlite3.Connection, session: requests.Session,
-                                  url: str, is_valid, max_attempts: int = 6,
-                                  timeout: int = 20):
+def fetch_first_matching_snapshot(
+    conn: sqlite3.Connection,
+    session: requests.Session,
+    url: str,
+    is_valid,
+    max_attempts: int = 6,
+    timeout: int = 20,
+):
     """Try archived captures of `url` newest-first, returning the first whose
     bytes satisfy `is_valid(content)`.
 

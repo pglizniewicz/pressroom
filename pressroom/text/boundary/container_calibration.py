@@ -74,7 +74,7 @@ def best_container(soup, body: str):
     """
     flat = norm(body)
     mid = len(flat) // 2
-    key = flat[max(0, mid - 40):mid + 40]
+    key = flat[max(0, mid - 40) : mid + 40]
     if len(key) < 40:
         return None, 0
     # Smallest element that both contains the anchor AND holds most of the
@@ -96,16 +96,19 @@ def best_container(soup, body: str):
 def calibrate(source_filter=None, show=0) -> None:
     conn = connection.connect_ro()
     where = "AND r.source = ?" if source_filter else ""
-    rows = conn.execute(_ROWS_SQL.format(where=where),
-                        (source_filter,) if source_filter else ()).fetchall()
+    rows = conn.execute(
+        _ROWS_SQL.format(where=where), (source_filter,) if source_filter else ()
+    ).fetchall()
 
     by_source = collections.defaultdict(list)
     for source, url, ts, body, content in rows:
         by_source[source].append((url, ts, body, content))
 
     if not by_source:
-        print("no cached captures for these rows yet - run "
-              "`pressroom-<source> --seed-cache` first")
+        print(
+            "no cached captures for these rows yet - run "
+            "`pressroom-<source> --seed-cache` first"
+        )
         return
 
     for source, items in sorted(by_source.items()):
@@ -129,14 +132,18 @@ def calibrate(source_filter=None, show=0) -> None:
                 samples.append((ts, describe(tag), n, len(norm(body))))
 
         found = len(ratios)
-        print(f"\n=== {source}  ({len(items)} captures, {found} located, {misses} nie znaleziono)")
+        print(
+            f"\n=== {source}  ({len(items)} captures, {found} located, {misses} nie znaleziono)"
+        )
         if not found:
             continue
         ratios.sort()
         med = ratios[len(ratios) // 2]
         top, top_n = shapes.most_common(1)[0]
         print(f"    dominanta: {top}   {top_n}/{found} = {top_n / found:.0%}")
-        print(f"    pokrycie body: mediana {med:.2f}  (min {ratios[0]:.2f} max {ratios[-1]:.2f})")
+        print(
+            f"    pokrycie body: mediana {med:.2f}  (min {ratios[0]:.2f} max {ratios[-1]:.2f})"
+        )
         for shape, n in shapes.most_common(4)[1:]:
             print(f"      inne: {shape:44} {n}")
         path, pn = paths.most_common(1)[0]

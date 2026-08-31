@@ -88,12 +88,14 @@ def parse_list_page(
             href = base_url + href
         m = re.search(r"/detail/(\d+)/", href)
         detail_id = m.group(1) if m else None
-        items.append({
-            "url": href,
-            "title": a.get_text(strip=True),
-            "date": _parse_date(time_el),
-            "detail_id": detail_id,
-        })
+        items.append(
+            {
+                "url": href,
+                "title": a.get_text(strip=True),
+                "date": _parse_date(time_el),
+                "detail_id": detail_id,
+            }
+        )
     return items
 
 
@@ -140,7 +142,9 @@ def scrape(
     for page in range(start, end_page + 1):
         print(f"  Page {page}/{end_page}", end="  ", flush=True)
         try:
-            items = parse_list_page(session, list_url, page, base_url, container_sel, title_link_sel)
+            items = parse_list_page(
+                session, list_url, page, base_url, container_sel, title_link_sel
+            )
         except Exception as e:
             print(f"ERROR fetching list: {e}")
             time.sleep(SLEEP * 2)
@@ -163,9 +167,16 @@ def scrape(
                 stats.uncertain()
                 continue
 
-            if storage.store_release(conn, source, item["url"], title=item["title"],
-                                date=item["date"], body=body, body_html=body_html,
-                                detail_id=item["detail_id"]):
+            if storage.store_release(
+                conn,
+                source,
+                item["url"],
+                title=item["title"],
+                date=item["date"],
+                body=body,
+                body_html=body_html,
+                detail_id=item["detail_id"],
+            ):
                 stats.added()
 
         print()

@@ -24,15 +24,18 @@ _MAX_OFFSET = 1000
 # joins it: a row's detail_id timestamp does not always name a capture of that
 # row's own url, so a reader cannot build the capture link from the timestamp
 # alone. NULL is the common case and means it can.
-_ROW_COLS = ("r.id, r.source, r.date, r.title, r.url, r.detail_id, r.grade, "
-             "length(COALESCE(r.body, '')), " + MOJIBAKE_SQL + ", c.origin_url")
+_ROW_COLS = (
+    "r.id, r.source, r.date, r.title, r.url, r.detail_id, r.grade, "
+    "length(COALESCE(r.body, '')), " + MOJIBAKE_SQL + ", c.origin_url"
+)
 
 _ROW_JOIN = " LEFT JOIN body_origin c ON c.url = r.url"
 
 
 def _row_dict(row, excerpt_key: str) -> dict[str, object]:
-    (rid, source, date, title, url, detail_id, grade, body_len, damaged,
-     origin_url) = row[:10]
+    (rid, source, date, title, url, detail_id, grade, body_len, damaged, origin_url) = (
+        row[:10]
+    )
     return {
         "id": rid,
         "source": source,
@@ -84,10 +87,18 @@ def _fts_match(conn, sql, params):
         return conn.execute(sql, [quoted] + list(params[1:])).fetchall(), "literal"
 
 
-def search_releases(conn: sqlite3.Connection, q: str = "", *, sources=None,
-                    date_from=None, date_to=None, order: str = "rank",
-                    flags=None, limit: int = 50,
-                    after=None) -> dict[str, object]:
+def search_releases(
+    conn: sqlite3.Connection,
+    q: str = "",
+    *,
+    sources=None,
+    date_from=None,
+    date_to=None,
+    order: str = "rank",
+    flags=None,
+    limit: int = 50,
+    after=None,
+) -> dict[str, object]:
     """One page of releases, with or without a full-text query.
 
     An empty `q` is not a degenerate search but the browsing case: it skips
@@ -169,19 +180,29 @@ def get_release(conn: sqlite3.Connection, rid: int):
     if row is None:
         return None
     return {
-        "id": row[0], "source": row[1], "detail_id": row[2], "grade": row[3],
-        "title": row[4] or "", "date": row[5] or "", "url": row[6] or "",
-        "body": row[7] or "", "damaged": bool(row[8]),
-        "body_html": row[9], "origin_url": row[10],
+        "id": row[0],
+        "source": row[1],
+        "detail_id": row[2],
+        "grade": row[3],
+        "title": row[4] or "",
+        "date": row[5] or "",
+        "url": row[6] or "",
+        "body": row[7] or "",
+        "damaged": bool(row[8]),
+        "body_html": row[9],
+        "origin_url": row[10],
     }
 
 
-def neighbours(conn: sqlite3.Connection,
-               rid: int) -> dict[str, dict[str, object] | None]:
+def neighbours(
+    conn: sqlite3.Connection, rid: int
+) -> dict[str, dict[str, object] | None]:
     """The chronologically adjacent rows within the same source, for reading a
     source straight through. Ordered by (date, id) so the 85 dateless rows
     still have a stable position instead of dropping out of the sequence."""
-    row = conn.execute("SELECT source, date, id FROM releases WHERE id = ?", (rid,)).fetchone()
+    row = conn.execute(
+        "SELECT source, date, id FROM releases WHERE id = ?", (rid,)
+    ).fetchone()
     if row is None:
         return {"prev": None, "next": None}
     source, date, _ = row
@@ -197,7 +218,9 @@ def neighbours(conn: sqlite3.Connection,
                  LIMIT 1""",
             (source, date, date, rid),
         ).fetchone()
-        out[key] = {"id": hit[0], "title": hit[1] or "", "date": hit[2] or ""} if hit else None
+        out[key] = (
+            {"id": hit[0], "title": hit[1] or "", "date": hit[2] or ""} if hit else None
+        )
     return out
 
 
@@ -235,8 +258,18 @@ def quality_counts(conn: sqlite3.Connection) -> dict[str, int]:
           FROM releases r
           LEFT JOIN body_origin c ON c.url = r.url
     """).fetchone()
-    keys = ("total", "teaser", "stub", "wayback", "platform_id",
-            "short", "empty", "nodate", "mojibake", "plain")
+    keys = (
+        "total",
+        "teaser",
+        "stub",
+        "wayback",
+        "platform_id",
+        "short",
+        "empty",
+        "nodate",
+        "mojibake",
+        "plain",
+    )
     return {k: (v or 0) for k, v in zip(keys, row)}
 
 
@@ -257,9 +290,17 @@ def list_sources(conn: sqlite3.Connection) -> list[dict[str, object]]:
          ORDER BY count(*) DESC
     """).fetchall()
     return [
-        {"source": s, "count": n, "first": first or "", "last": last or "",
-         "teaser": teaser or 0, "short": short or 0, "nodate": nodate or 0,
-         "mojibake": moji or 0, "plain": plain or 0}
+        {
+            "source": s,
+            "count": n,
+            "first": first or "",
+            "last": last or "",
+            "teaser": teaser or 0,
+            "short": short or 0,
+            "nodate": nodate or 0,
+            "mojibake": moji or 0,
+            "plain": plain or 0,
+        }
         for s, n, first, last, teaser, short, nodate, moji, plain in rows
     ]
 
@@ -287,7 +328,9 @@ def cli_search(conn, query: str, sources=None, limit: int = 8) -> list[tuple]:
     yet" from "unparseable FTS query" and say which.
     """
     if sources:
-        sql = _CLI_SQL.format(source_clause=f"AND r.source IN ({','.join('?' * len(sources))})")
+        sql = _CLI_SQL.format(
+            source_clause=f"AND r.source IN ({','.join('?' * len(sources))})"
+        )
         params = [query] + list(sources) + [limit]
     else:
         sql = _CLI_SQL.format(source_clause="")

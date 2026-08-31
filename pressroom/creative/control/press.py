@@ -5,7 +5,6 @@ year (?year=YYYY, one page per year, no further pagination within a year) and
 detail pages are ?id=NNNNN on the same path.
 """
 
-
 import re
 import time
 
@@ -48,12 +47,14 @@ def parse_list_page(session: requests.Session, year: int) -> list[Entry]:
         detail_id = m.group(1) if m else None
         date_text = date_el.get_text(strip=True) if date_el else ""
         date = date_text.replace("/", "-") if date_text else ""
-        items.append({
-            "url": url,
-            "title": a.get_text(strip=True),
-            "date": date,
-            "detail_id": detail_id,
-        })
+        items.append(
+            {
+                "url": url,
+                "title": a.get_text(strip=True),
+                "date": date,
+                "detail_id": detail_id,
+            }
+        )
     return items
 
 
@@ -68,8 +69,9 @@ def fetch_body(conn, session: requests.Session, url: str) -> tuple[str, str]:
     return richtext.extract(col)
 
 
-def scrape(from_year: int = FIRST_YEAR, to_year: int = None,
-           catch: dict = None) -> None:
+def scrape(
+    from_year: int = FIRST_YEAR, to_year: int = None, catch: dict = None
+) -> None:
     current_year = to_year or int(time.strftime("%Y"))
 
     conn = connection.connect()
@@ -110,9 +112,16 @@ def scrape(from_year: int = FIRST_YEAR, to_year: int = None,
                 stats.uncertain()
                 continue
 
-            if storage.store_release(conn, SOURCE, item["url"], title=item["title"],
-                                date=item["date"], body=body, body_html=body_html,
-                                detail_id=item["detail_id"]):
+            if storage.store_release(
+                conn,
+                SOURCE,
+                item["url"],
+                title=item["title"],
+                date=item["date"],
+                body=body,
+                body_html=body_html,
+                detail_id=item["detail_id"],
+            ):
                 stats.added()
 
         print()

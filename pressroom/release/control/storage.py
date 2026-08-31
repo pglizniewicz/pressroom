@@ -24,10 +24,20 @@ def _record_origin(conn, url: str, origin_url) -> None:
     origin.record(conn, url, origin_url, commit=False)
 
 
-def store_release(conn, source: str, url: str, *,
-                  title: str = "", date: str = "", body: str = "",
-                  body_html=None, detail_id=None, grade: str = Grade.FULL,
-                  origin_url=None, commit: bool = True) -> bool:
+def store_release(
+    conn,
+    source: str,
+    url: str,
+    *,
+    title: str = "",
+    date: str = "",
+    body: str = "",
+    body_html=None,
+    detail_id=None,
+    grade: str = Grade.FULL,
+    origin_url=None,
+    commit: bool = True,
+) -> bool:
     """INSERT OR IGNORE one release, keyed on `url` (UNIQUE).
 
     Returns True only if a row was actually inserted; False means the url was
@@ -42,10 +52,19 @@ def store_release(conn, source: str, url: str, *,
     "stub" for title/date only) and leaves detail_id alone. Those two strings
     used to be written *into* detail_id, which is the union that split undid.
     """
-    cur = conn.execute(schema.INSERT_SQL,
-                       (source, detail_id, repaired(title), date, url,
-                        repaired(body) if body_html is None else body,
-                        body_html, str(grade)))
+    cur = conn.execute(
+        schema.INSERT_SQL,
+        (
+            source,
+            detail_id,
+            repaired(title),
+            date,
+            url,
+            repaired(body) if body_html is None else body,
+            body_html,
+            str(grade),
+        ),
+    )
     # Provenance only when the row actually came into being. A url the UNIQUE
     # constraint made this a no-op for holds a body some other pass wrote, and
     # claiming our capture as its origin would be a false statement about text
@@ -57,10 +76,19 @@ def store_release(conn, source: str, url: str, *,
     return cur.rowcount > 0
 
 
-def upgrade_release(conn, url: str, *,
-                    body=None, body_html=None, title=None, date=None,
-                    detail_id=None, grade=None, origin_url=None,
-                    commit: bool = True) -> bool:
+def upgrade_release(
+    conn,
+    url: str,
+    *,
+    body=None,
+    body_html=None,
+    title=None,
+    date=None,
+    detail_id=None,
+    grade=None,
+    origin_url=None,
+    commit: bool = True,
+) -> bool:
     """Upgrade an existing row in place - a teaser/stub replaced by recovered
     full text. None means "leave that column alone", so the call site states
     which columns the upgrade is allowed to touch:
@@ -79,10 +107,18 @@ def upgrade_release(conn, url: str, *,
 
     Returns True if a row matched `url`.
     """
-    cur = conn.execute(schema.UPGRADE_SQL,
-                       (detail_id, repaired(title), date,
-                        repaired(body) if body_html is None else body,
-                        body_html, None if grade is None else str(grade), url))
+    cur = conn.execute(
+        schema.UPGRADE_SQL,
+        (
+            detail_id,
+            repaired(title),
+            date,
+            repaired(body) if body_html is None else body,
+            body_html,
+            None if grade is None else str(grade),
+            url,
+        ),
+    )
     # Same rule as store_release, one step further: the entry describes where a
     # *body* came from, so a call that only moves a title or a date must not
     # touch it.
@@ -97,7 +133,10 @@ def already_stored(conn, url: str) -> bool:
     """Whether any row exists for `url`. The right question for a loop that
     only skips what it has already seen; a loop that wants to know whether the
     row is worth upgrading asks stored_grade()."""
-    return conn.execute("SELECT 1 FROM releases WHERE url = ?", (url,)).fetchone() is not None
+    return (
+        conn.execute("SELECT 1 FROM releases WHERE url = ?", (url,)).fetchone()
+        is not None
+    )
 
 
 def stored_grade(conn, url: str):
@@ -118,14 +157,17 @@ def stored_body_length(conn, url: str):
     listing's blurb, so a timestamp there says nothing about whether the real
     text was ever fetched. Length does.
     """
-    row = conn.execute("SELECT length(COALESCE(body, '')) FROM releases WHERE url = ?",
-                       (url,)).fetchone()
+    row = conn.execute(
+        "SELECT length(COALESCE(body, '')) FROM releases WHERE url = ?", (url,)
+    ).fetchone()
     return row[0] if row else None
 
 
 def source_total(conn, source: str) -> int:
     """Row count for one source - the figure every scraper's summary prints."""
-    return conn.execute("SELECT count(*) FROM releases WHERE source = ?", (source,)).fetchone()[0]
+    return conn.execute(
+        "SELECT count(*) FROM releases WHERE source = ?", (source,)
+    ).fetchone()[0]
 
 
 def source_urls(conn, source: str):

@@ -67,8 +67,9 @@ from pressroom.capture.control import archive
 from pressroom.reporting.entity.outcome import Stats
 
 
-def pending(conn, source: str, *, force: bool = False,
-            limit=None) -> list[tuple[str, str | None]]:
+def pending(
+    conn, source: str, *, force: bool = False, limit=None
+) -> list[tuple[str, str | None]]:
     """(url, detail_id) for the rows of `source` this phase still owes work on.
 
     Without `force` that is `body_html IS NULL` - the rows stored before
@@ -86,8 +87,11 @@ def pending(conn, source: str, *, force: bool = False,
 
 
 def _stored(conn, source: str) -> dict[str, str]:
-    return dict(conn.execute(
-        "SELECT url, COALESCE(body, '') FROM releases WHERE source = ?", (source,)))
+    return dict(
+        conn.execute(
+            "SELECT url, COALESCE(body, '') FROM releases WHERE source = ?", (source,)
+        )
+    )
 
 
 def _report_held(held: list) -> None:
@@ -113,25 +117,42 @@ def _fill_title(conn, url: str, parsed: dict):
     title = (parsed.get("title") or "").strip()
     if not title:
         return None
-    row = conn.execute("SELECT COALESCE(title, '') FROM releases WHERE url = ?",
-                       (url,)).fetchone()
+    row = conn.execute(
+        "SELECT COALESCE(title, '') FROM releases WHERE url = ?", (url,)
+    ).fetchone()
     return title if row is not None and not row[0].strip() else None
 
 
-def _write(conn, url, body, body_html, *, origin_url=None, detail_id=None,
-           title=None) -> None:
+def _write(
+    conn, url, body, body_html, *, origin_url=None, detail_id=None, title=None
+) -> None:
     """One write per row: text, markup, verdict and provenance in one call.
 
     `grade="full"` is not optional here - this is the pass that replaces a
     teaser body with the real article, and a row keeping a verdict that stopped
     being true gets handed to the next run as still-upgradable.
     """
-    storage.upgrade_release(conn, url, body=body, body_html=body_html, title=title,
-                       detail_id=detail_id, grade="full", origin_url=origin_url)
+    storage.upgrade_release(
+        conn,
+        url,
+        body=body,
+        body_html=body_html,
+        title=title,
+        detail_id=detail_id,
+        grade="full",
+        origin_url=origin_url,
+    )
 
 
-def from_cache(conn, source: str, parser, *, has_collector: bool = False,
-               force: bool = False, limit=None) -> None:
+def from_cache(
+    conn,
+    source: str,
+    parser,
+    *,
+    has_collector: bool = False,
+    force: bool = False,
+    limit=None,
+) -> None:
     """Reparse whatever page_cache already holds for this source. No network.
 
     A row whose capture was never cached is `skipped`, not `uncertain` - there
@@ -144,13 +165,16 @@ def from_cache(conn, source: str, parser, *, has_collector: bool = False,
     rows = pending(conn, source, force=force, limit=limit)
     stored = _stored(conn, source)
     stats = Stats(source, total=len(rows))
-    print(f"[{source}] faza 2 z cache: {len(rows)} wierszy"
-          f"{' (force: wszystkie)' if force else ' bez body_html'}", flush=True)
+    print(
+        f"[{source}] faza 2 z cache: {len(rows)} wierszy"
+        f"{' (force: wszystkie)' if force else ' bez body_html'}",
+        flush=True,
+    )
 
     held = []
     for url, detail_id in rows:
         if conversion.is_attachment_url(url):
-            stats.skipped()          # a file, not a page - the attachment pass owns it
+            stats.skipped()  # a file, not a page - the attachment pass owns it
             continue
         key = resolution.origin_key(conn, url, detail_id)
         own = resolution.own_page(conn, url, detail_id)
@@ -187,16 +211,23 @@ def from_cache(conn, source: str, parser, *, has_collector: bool = False,
             # *is* the recorded entry, so clearing it deletes a true statement
             # and takes the row's archive link with it (38 rows lost their link
             # that way before the count gave it away).
-            _write(conn, url, body, body_html, origin_url=key,
-                   title=_fill_title(conn, url, parsed))
+            _write(
+                conn,
+                url,
+                body,
+                body_html,
+                origin_url=key,
+                title=_fill_title(conn, url, parsed),
+            )
             stats.upgraded()
 
     stats.summary(conn)
     _report_held(held)
 
 
-def from_listings(conn, source: str, collect, *, force: bool = False,
-                  limit=None) -> None:
+def from_listings(
+    conn, source: str, collect, *, force: bool = False, limit=None
+) -> None:
     """Re-walk cached listing captures and match what they hold back to rows.
 
     Two strategies need this. midiman_de's inline releases only ever existed
@@ -220,9 +251,12 @@ def from_listings(conn, source: str, collect, *, force: bool = False,
         items = items[:limit]
 
     stats = Stats(source, total=len(items))
-    print(f"[{source}] faza 2 z listingow: {len(found)} sparsowanych, "
-          f"{len(items)} pasuje do {len(target)} wierszy "
-          f"{'w zrodle' if force else 'bez body_html'}", flush=True)
+    print(
+        f"[{source}] faza 2 z listingow: {len(found)} sparsowanych, "
+        f"{len(items)} pasuje do {len(target)} wierszy "
+        f"{'w zrodle' if force else 'bez body_html'}",
+        flush=True,
+    )
 
     held = []
     for url, e in items:
@@ -234,17 +268,30 @@ def from_listings(conn, source: str, collect, *, force: bool = False,
                 stats.skipped()
                 break
         else:
-            _write(conn, url, body, e.get("body_html") or "",
-                   origin_url=e.get("origin_url"),
-                   title=_fill_title(conn, url, e))
+            _write(
+                conn,
+                url,
+                body,
+                e.get("body_html") or "",
+                origin_url=e.get("origin_url"),
+                title=_fill_title(conn, url, e),
+            )
             stats.upgraded()
 
     stats.summary(conn)
     _report_held(held)
 
 
-def from_live(conn, source: str, fetch_body, session, *, force: bool = False,
-              offline: bool = False, limit=None) -> None:
+def from_live(
+    conn,
+    source: str,
+    fetch_body,
+    session,
+    *,
+    force: bool = False,
+    offline: bool = False,
+    limit=None,
+) -> None:
     """Re-fetch a row from a site that is still up.
 
     `fetch_body(conn, session, url) -> (body, body_html)` goes through
@@ -260,13 +307,20 @@ def from_live(conn, source: str, fetch_body, session, *, force: bool = False,
     rows = pending(conn, source, force=force, limit=limit)
     stored = _stored(conn, source)
     stats = Stats(source, total=len(rows))
-    print(f"[{source}] faza 2 z zywej strony: {len(rows)} wierszy"
-          f"{' (tylko cache)' if offline else ''}", flush=True)
+    print(
+        f"[{source}] faza 2 z zywej strony: {len(rows)} wierszy"
+        f"{' (tylko cache)' if offline else ''}",
+        flush=True,
+    )
 
     held = []
     for url, _detail_id in rows:
-        if offline and not conn.execute(
-                "SELECT 1 FROM page_cache WHERE url = ?", (url,)).fetchone():
+        if (
+            offline
+            and not conn.execute(
+                "SELECT 1 FROM page_cache WHERE url = ?", (url,)
+            ).fetchone()
+        ):
             stats.skipped()
             continue
         try:
@@ -319,8 +373,9 @@ def retry_missing(conn, source: str, parser, session, *, limit=None) -> None:
     rows = pending(conn, source, limit=limit)
     stored = _stored(conn, source)
     stats = Stats(source, total=len(rows))
-    print(f"[{source}] faza 2 z archiwum: {len(rows)} wierszy do sprobowania",
-          flush=True)
+    print(
+        f"[{source}] faza 2 z archiwum: {len(rows)} wierszy do sprobowania", flush=True
+    )
 
     def guarded(content, _p=parser):
         return _p(content) if conversion.looks_like_html(content) else {}
@@ -334,7 +389,9 @@ def retry_missing(conn, source: str, parser, session, *, limit=None) -> None:
         try:
             parsed = guarded(archive.fetch_snapshot(conn, session, key))
         except Exception:
-            parsed, confirmed = archive.fetch_detail_snapshot(conn, session, url, guarded)
+            parsed, confirmed = archive.fetch_detail_snapshot(
+                conn, session, url, guarded
+            )
             if not parsed:
                 # confirmed=False is a network hiccup, not a verdict: write
                 # nothing so a rerun retries. confirmed=True means CDX has no
@@ -355,15 +412,21 @@ def retry_missing(conn, source: str, parser, session, *, limit=None) -> None:
             # parser still finds text in. Formatting is not worth losing text.
             stats.skipped()
             continue
-        _write(conn, url, body, body_html, origin_url=key, detail_id=new_detail_id,
-               title=_fill_title(conn, url, parsed))
+        _write(
+            conn,
+            url,
+            body,
+            body_html,
+            origin_url=key,
+            detail_id=new_detail_id,
+            title=_fill_title(conn, url, parsed),
+        )
         stats.upgraded()
 
     stats.summary(conn)
 
 
-def seed_cache(conn, source: str, session, *, force: bool = False,
-               limit=None) -> None:
+def seed_cache(conn, source: str, session, *, force: bool = False, limit=None) -> None:
     """Fetch captures into page_cache. Writes nothing to `releases`.
 
     Deliberately incapable of damaging a row: it never parses and never calls
@@ -375,11 +438,16 @@ def seed_cache(conn, source: str, session, *, force: bool = False,
     call this.
     """
     rows = pending(conn, source, force=force, limit=limit)
-    todo = [(u, d) for u, d in rows
-            if address.capture_key(d, u) and not conversion.is_attachment_url(u)]
+    todo = [
+        (u, d)
+        for u, d in rows
+        if address.capture_key(d, u) and not conversion.is_attachment_url(u)
+    ]
     stats = Stats(source, total=len(todo))
-    print(f"[{source}] seed-cache: {len(rows)} wierszy, {len(todo)} adresowalnych",
-          flush=True)
+    print(
+        f"[{source}] seed-cache: {len(rows)} wierszy, {len(todo)} adresowalnych",
+        flush=True,
+    )
 
     for url, detail_id in todo:
         key = address.capture_key(detail_id, url)
@@ -404,8 +472,10 @@ def retext(conn, source: str, *, limit=None) -> None:
     a fix to the text renderer alone costs nothing to apply. Rows whose text does
     not change are `skipped`, so a rerun right after one prints all dots.
     """
-    sql = ("SELECT url, body, body_html FROM releases "
-           "WHERE source = ? AND body_html IS NOT NULL ORDER BY id")
+    sql = (
+        "SELECT url, body, body_html FROM releases "
+        "WHERE source = ? AND body_html IS NOT NULL ORDER BY id"
+    )
     if limit:
         sql += f" LIMIT {int(limit)}"
     rows = conn.execute(sql, (source,)).fetchall()
@@ -423,11 +493,23 @@ def retext(conn, source: str, *, limit=None) -> None:
     stats.summary()
 
 
-def catch_up(conn, source: str, *, parser=None, collect=None, fetch_body=None,
-             session=None, force: bool = False, yes: bool = False,
-             offline: bool = False, only_retext: bool = False,
-             seed: bool = False, limit=None, attachments: bool = False,
-             twins_too: bool = False) -> None:
+def catch_up(
+    conn,
+    source: str,
+    *,
+    parser=None,
+    collect=None,
+    fetch_body=None,
+    session=None,
+    force: bool = False,
+    yes: bool = False,
+    offline: bool = False,
+    only_retext: bool = False,
+    seed: bool = False,
+    limit=None,
+    attachments: bool = False,
+    twins_too: bool = False,
+) -> None:
     """Phase 2 for one source, cheapest route first. The call a scraper makes.
 
     The scraper states what it has - its parser, its listing collector, its live
@@ -454,8 +536,14 @@ def catch_up(conn, source: str, *, parser=None, collect=None, fetch_body=None,
         return
 
     if parser is not None:
-        from_cache(conn, source, parser, has_collector=collect is not None,
-                   force=force, limit=limit)
+        from_cache(
+            conn,
+            source,
+            parser,
+            has_collector=collect is not None,
+            force=force,
+            limit=limit,
+        )
     if collect is not None:
         from_listings(conn, source, collect, force=force, limit=limit)
     if twins_too:
@@ -476,23 +564,39 @@ def catch_up(conn, source: str, *, parser=None, collect=None, fetch_body=None,
 # adds them with add_flags(p) and turns them into keyword arguments with
 # options(args).
 def add_flags(parser) -> None:
-    parser.add_argument("--force", action="store_true",
-                        help="re-extract every row of this source, not just the "
-                             "ones without markup (after changing the parser)")
-    parser.add_argument("--yes", action="store_true",
-                        help="do not ask before a --force rewrite")
-    parser.add_argument("--retext", action="store_true",
-                        help="only re-derive body from the stored HTML "
-                             "(after changing to_text)")
-    parser.add_argument("--offline", action="store_true",
-                        help="catch up from page_cache only, no network")
-    parser.add_argument("--seed-cache", action="store_true",
-                        help="fetch captures into page_cache and parse nothing")
-    parser.add_argument("--no-catch-up", action="store_true",
-                        help="crawl only, skip phase 2")
-    parser.add_argument("--attachments", action="store_true",
-                        help="also crawl archive.org for .pdf/.doc attachments "
-                             "(hours, and the last two passes yielded nothing)")
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="re-extract every row of this source, not just the "
+        "ones without markup (after changing the parser)",
+    )
+    parser.add_argument(
+        "--yes", action="store_true", help="do not ask before a --force rewrite"
+    )
+    parser.add_argument(
+        "--retext",
+        action="store_true",
+        help="only re-derive body from the stored HTML (after changing to_text)",
+    )
+    parser.add_argument(
+        "--offline",
+        action="store_true",
+        help="catch up from page_cache only, no network",
+    )
+    parser.add_argument(
+        "--seed-cache",
+        action="store_true",
+        help="fetch captures into page_cache and parse nothing",
+    )
+    parser.add_argument(
+        "--no-catch-up", action="store_true", help="crawl only, skip phase 2"
+    )
+    parser.add_argument(
+        "--attachments",
+        action="store_true",
+        help="also crawl archive.org for .pdf/.doc attachments "
+        "(hours, and the last two passes yielded nothing)",
+    )
 
 
 def options(args) -> dict[str, bool]:
@@ -520,9 +624,13 @@ def confirm_force(conn, source: str, *, yes: bool = False) -> bool:
     """
     total, with_html = conn.execute(
         "SELECT count(*), sum(body_html IS NOT NULL) FROM releases WHERE source = ?",
-        (source,)).fetchone()
-    print(f"[{source}] --force: {total} wierszy, {with_html or 0} z nich ma juz "
-          f"body_html i zostanie przepisanych", flush=True)
+        (source,),
+    ).fetchone()
+    print(
+        f"[{source}] --force: {total} wierszy, {with_html or 0} z nich ma juz "
+        f"body_html i zostanie przepisanych",
+        flush=True,
+    )
     if yes:
         return True
     if not sys.stdin.isatty():

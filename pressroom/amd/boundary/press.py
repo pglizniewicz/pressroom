@@ -20,9 +20,15 @@ TITLE_LINK_SEL = "div.media-heading a"
 
 
 def crawl(*, pages, start, catch):
-    platform.scrape(source=SOURCE, list_url=LIST_URL,
-                    pages=pages, start=start, catch=catch,
-                    container_sel=CONTAINER_SEL, title_link_sel=TITLE_LINK_SEL)
+    platform.scrape(
+        source=SOURCE,
+        list_url=LIST_URL,
+        pages=pages,
+        start=start,
+        catch=catch,
+        container_sel=CONTAINER_SEL,
+        title_link_sel=TITLE_LINK_SEL,
+    )
 
 
 def main():

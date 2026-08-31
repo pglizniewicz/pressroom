@@ -34,10 +34,12 @@ class SummaryTest(unittest.TestCase):
         """`splitlines()[0]` drops the second half of every two-line summary and
         four of these sources have one - silently, since a truncated --help is
         still a --help."""
-        doc = ("Scraper for TerraTec's 2007-2013 CMS-era press site\n"
-               "(terratec.net/en/company/press/ and /de/unternehmen/presse/).\n"
-               "\n"
-               "Usage:\n  pressroom-terratec-cms en\n")
+        doc = (
+            "Scraper for TerraTec's 2007-2013 CMS-era press site\n"
+            "(terratec.net/en/company/press/ and /de/unternehmen/presse/).\n"
+            "\n"
+            "Usage:\n  pressroom-terratec-cms en\n"
+        )
         got = command._summary(doc)
         self.assertIn("2007-2013 CMS-era press site", got)
         self.assertIn("unternehmen/presse", got)
@@ -53,13 +55,16 @@ class SummaryTest(unittest.TestCase):
         import tomllib
         from importlib import import_module
         from tests import support
-        scripts = tomllib.loads(
-            (support.HERE.parent / "pyproject.toml").read_text())["project"]["scripts"]
+
+        scripts = tomllib.loads((support.HERE.parent / "pyproject.toml").read_text())[
+            "project"
+        ]["scripts"]
         for name, target in sorted(scripts.items()):
             with self.subTest(command=name):
                 module = import_module(target.split(":")[0])
-                self.assertTrue(command._summary(module.__doc__),
-                                f"{name} has no summary paragraph")
+                self.assertTrue(
+                    command._summary(module.__doc__), f"{name} has no summary paragraph"
+                )
 
 
 class RunTest(unittest.TestCase):
@@ -74,8 +79,10 @@ class RunTest(unittest.TestCase):
             option.add_to(parser)
         command.catch_up.add_flags(parser)
         args = parser.parse_args(["--pages", "5", "--offline"])
-        crawl(catch=command.catch_up.options(args),
-              **{o.dest: getattr(args, o.dest) for o in (command.PAGES, command.START)})
+        crawl(
+            catch=command.catch_up.options(args),
+            **{o.dest: getattr(args, o.dest) for o in (command.PAGES, command.START)},
+        )
 
         self.assertEqual(seen["pages"], 5)
         self.assertEqual(seen["start"], 1)
@@ -85,7 +92,14 @@ class RunTest(unittest.TestCase):
         parser = argparse.ArgumentParser()
         command.catch_up.add_flags(parser)
         args = parser.parse_args([])
-        for flag in ("force", "yes", "retext", "offline", "seed_cache",
-                     "no_catch_up", "attachments"):
+        for flag in (
+            "force",
+            "yes",
+            "retext",
+            "offline",
+            "seed_cache",
+            "no_catch_up",
+            "attachments",
+        ):
             with self.subTest(flag=flag):
                 self.assertFalse(getattr(args, flag))

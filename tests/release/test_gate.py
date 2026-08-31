@@ -26,8 +26,9 @@ class WordCharsTest(unittest.TestCase):
 
     def test_join_is_not_a_change(self):
         # `8 th` -> `8th` is a <sup> that stopped being padded with spaces.
-        self.assertEqual(gate.wordchars("the 8 th of May"),
-                         gate.wordchars("the 8th of May"))
+        self.assertEqual(
+            gate.wordchars("the 8 th of May"), gate.wordchars("the 8th of May")
+        )
 
 
 class TextDeltaTest(unittest.TestCase):
@@ -39,7 +40,8 @@ class TextDeltaTest(unittest.TestCase):
         old = "NAV HOME " + ARTICLE + " FOOTER CONTACT"
         nav_dropped = gate.text_delta(old, ARTICLE)
         middle_gone = gate.text_delta(
-            ARTICLE, ARTICLE[:200] + ARTICLE[len(ARTICLE) - 200:])
+            ARTICLE, ARTICLE[:200] + ARTICLE[len(ARTICLE) - 200 :]
+        )
 
         for d in (nav_dropped, middle_gone):
             self.assertFalse(d["kept"])
@@ -63,13 +65,13 @@ class SafeToWriteTest(unittest.TestCase):
     def test_allows_a_loss_under_two_percent(self):
         # Every instance measured was a URL path or image alt text mid-page.
         old = ARTICLE + "x" * 4
-        new = old[:len(old) // 2] + old[len(old) // 2 + 4:]
+        new = old[: len(old) // 2] + old[len(old) // 2 + 4 :]
         self.assertLessEqual(gate.text_delta(old, new)["removed"], 0.02)
         self.assertTrue(gate.safe_to_write(old, new)[0])
 
     def test_refuses_a_paragraph_lost_from_the_middle(self):
         cut = len(ARTICLE) // 4
-        new = ARTICLE[:cut] + ARTICLE[cut * 3:]
+        new = ARTICLE[:cut] + ARTICLE[cut * 3 :]
         ok, why = gate.safe_to_write(ARTICLE, new)
         self.assertFalse(ok)
         self.assertIn("srodku", why)
@@ -79,9 +81,12 @@ class SafeToWriteTest(unittest.TestCase):
         one - the allowance is for a teaser becoming an article, and widening
         either half of it would readmit the middle-loss case above."""
         short_but_not_doubled = "y" * 300
-        self.assertFalse(gate.safe_to_write(
-            short_but_not_doubled,
-            short_but_not_doubled[:50] + "z" * 200 + short_but_not_doubled[250:])[0])
+        self.assertFalse(
+            gate.safe_to_write(
+                short_but_not_doubled,
+                short_but_not_doubled[:50] + "z" * 200 + short_but_not_doubled[250:],
+            )[0]
+        )
 
 
 class StrictSameTextTest(unittest.TestCase):
@@ -93,10 +98,12 @@ class StrictSameTextTest(unittest.TestCase):
         """The gate that costs 64 rows when it is the wrong one. A whole-page
         parse of a listing returns the longest article on it, which
         safe_to_write reads as the teaser-to-article upgrade it allows."""
-        self.assertTrue(gate.safe_to_write("a teaser, 40 chars or so, no more",
-                                           ARTICLE)[0])
-        self.assertFalse(gate.strict_same_text("a teaser, 40 chars or so, no more",
-                                               ARTICLE)[0])
+        self.assertTrue(
+            gate.safe_to_write("a teaser, 40 chars or so, no more", ARTICLE)[0]
+        )
+        self.assertFalse(
+            gate.strict_same_text("a teaser, 40 chars or so, no more", ARTICLE)[0]
+        )
 
 
 class NotShorterTest(unittest.TestCase):
@@ -110,7 +117,7 @@ class NotShorterTest(unittest.TestCase):
         """Why this floor cannot be folded into safe_to_write: the write it
         exists to stop is invisible to it."""
         full = ARTICLE
-        truncated = ARTICLE[:len(ARTICLE) // 8]
+        truncated = ARTICLE[: len(ARTICLE) // 8]
         self.assertTrue(gate.safe_to_write(full, truncated)[0])
         self.assertFalse(gate.not_shorter(full, truncated)[0])
 
@@ -130,8 +137,7 @@ class SameWordsTest(unittest.TestCase):
     def test_allows_a_fragment_moved(self):
         # pdftotext -layout puts a superscript on its own line; the structured
         # route puts it back beside the number it belongs to.
-        ok, why = gate.same_words("Composer 2 nd system", "Composer 2nd system",
-                                  [], 0)
+        ok, why = gate.same_words("Composer 2 nd system", "Composer 2nd system", [], 0)
         self.assertTrue(ok, why)
 
     def test_allows_a_join(self):
@@ -139,14 +145,16 @@ class SameWordsTest(unittest.TestCase):
         self.assertTrue(ok, why)
 
     def test_allows_the_blocks_the_converter_says_it_dropped(self):
-        ok, why = gate.same_words("headline body ROTATEDBANNER", "headline body",
-                                  ["ROTATEDBANNER"], 0)
+        ok, why = gate.same_words(
+            "headline body ROTATEDBANNER", "headline body", ["ROTATEDBANNER"], 0
+        )
         self.assertTrue(ok, why)
 
     def test_allows_markers_absorbed_into_structure_within_the_bound(self):
         # 1)..3) becoming an <ol>: three digits, three list items.
-        ok, why = gate.same_words("1) alpha 2) beta 3) gamma",
-                                  "alpha beta gamma", [], 3)
+        ok, why = gate.same_words(
+            "1) alpha 2) beta 3) gamma", "alpha beta gamma", [], 3
+        )
         self.assertTrue(ok, why)
 
     def test_refuses_marker_absorption_beyond_the_bound(self):
@@ -156,7 +164,7 @@ class SameWordsTest(unittest.TestCase):
         self.assertFalse(ok)
 
     def test_refuses_a_missing_paragraph(self):
-        ok, why = gate.same_words(ARTICLE, ARTICLE[:len(ARTICLE) // 2], [], 0)
+        ok, why = gate.same_words(ARTICLE, ARTICLE[: len(ARTICLE) // 2], [], 0)
         self.assertFalse(ok)
         self.assertIn("brak", why)
 

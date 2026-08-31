@@ -28,8 +28,9 @@ def origin_key(conn, url: str, detail_id) -> str:
     timestamp their detail_id holds. Falls back to the derivation so a row
     nothing has recorded yet still works.
     """
-    row = conn.execute("SELECT origin_url FROM body_origin WHERE url = ?",
-                       (url,)).fetchone()
+    row = conn.execute(
+        "SELECT origin_url FROM body_origin WHERE url = ?", (url,)
+    ).fetchone()
     return row[0] if row else address.capture_key(detail_id, url)
 
 
@@ -50,8 +51,9 @@ def cached(conn, key: str):
     """The bytes page_cache holds under this key, or None."""
     if not key:
         return None
-    row = conn.execute("SELECT content FROM page_cache WHERE url = ?",
-                       (key,)).fetchone()
+    row = conn.execute(
+        "SELECT content FROM page_cache WHERE url = ?", (key,)
+    ).fetchone()
     return row[0] if row else None
 
 

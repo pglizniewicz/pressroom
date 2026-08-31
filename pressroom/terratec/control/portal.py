@@ -16,7 +16,6 @@ archive, but the URL schemes are unrelated so they can't share a dedup key.
 Kept as distinct sources, same as creative/creative_gnw.
 """
 
-
 import re
 import time
 
@@ -165,8 +164,11 @@ def parse_snapshot(content: bytes) -> Detail:
         # leaves date empty and the title intact, exactly as the dated paths
         # above already do.
         printed = soup.select_one(PRINT_TITLE_SEL)
-        heading_text = (printed.get_text(" ", strip=True) if printed
-                        else SITE_SUFFIX_RE.split(title_full, 1)[0].strip())
+        heading_text = (
+            printed.get_text(" ", strip=True)
+            if printed
+            else SITE_SUFFIX_RE.split(title_full, 1)[0].strip()
+        )
         h = HEADING_RE.match(heading_text)
         if h:
             date_str, title = h.group(1), h.group(2).strip()
@@ -200,30 +202,66 @@ def parse_snapshot(content: bytes) -> Detail:
 # surfaced at all, and it is irreplaceable archaeology: nobody is going to redo
 # the sweep that found these twelve captures.
 CATEGORY_PAGES = [
-    ("http://pressde.terratec.net:80/", "terratec_pressde",
-     "https://web.archive.org/web/20031115085312id_/http://pressde.terratec.net:80/modules.php?op=modload&name=News&file=index&catid=13&topic=&allstories=1&menu=300"),
-    ("http://pressde.terratec.net:80/", "terratec_pressde",
-     "https://web.archive.org/web/20031115084858id_/http://pressde.terratec.net/modules.php?op=modload&name=News&file=index&catid=14&topic=&allstories=1&menu=304"),
-    ("http://pressde.terratec.net:80/", "terratec_pressde",
-     "https://web.archive.org/web/20031213100854id_/http://pressde.terratec.net:80/modules.php?op=modload&name=News&file=index&catid=15&topic=&allstories=1&amp"),
-    ("http://pressde.terratec.net:80/", "terratec_pressde",
-     "https://web.archive.org/web/20041010061159id_/http://pressde.terratec.net/modules.php?op=modload&name=News&file=index&catid=17&topic=&allstories=1&amp"),
-    ("http://pressde.terratec.net:80/", "terratec_pressde",
-     "https://web.archive.org/web/20070730011217id_/http://pressde.terratec.net/modules.php?op=modload&name=News&file=index&catid=19&topic=&allstories=1"),
-    ("http://pressde.terratec.net:80/", "terratec_pressde",
-     "https://web.archive.org/web/20070730010823id_/http://pressde.terratec.net/modules.php?op=modload&name=News&file=index&catid=20&topic=&allstories=1"),
-    ("http://pressde.terratec.net:80/", "terratec_pressde",
-     "https://web.archive.org/web/20070730010351id_/http://pressde.terratec.net/modules.php?op=modload&name=News&file=index&catid=18&topic=&allstories=1&menu=2"),
-    ("http://pressen.terratec.net:80/", "terratec_pressen",
-     "https://web.archive.org/web/20031001235452id_/http://pressen.terratec.net/modules.php?op=modload&name=News&file=index&catid=15&topic=&allstories=1&menu=2"),
-    ("http://pressen.terratec.net:80/", "terratec_pressen",
-     "https://web.archive.org/web/20041010063929id_/http://pressen.terratec.net:80/modules.php?op=modload&name=News&file=index&catid=16&topic=&allstories=1&amp"),
-    ("http://pressen.terratec.net:80/", "terratec_pressen",
-     "https://web.archive.org/web/20070808232502id_/http://pressen.terratec.net/modules.php?op=modload&name=News&file=index&catid=17&topic=&allstories=1&menu=2&menu=307"),
-    ("http://pressen.terratec.net:80/", "terratec_pressen",
-     "https://web.archive.org/web/20070808232455id_/http://pressen.terratec.net/modules.php?op=modload&name=News&file=index&catid=18&topic=&allstories=1&menu=2&menu=309"),
-    ("http://pressen.terratec.net:80/", "terratec_pressen",
-     "https://web.archive.org/web/20070630063657id_/http://pressen.terratec.net/modules.php?op=modload&name=News&file=index&catid=19&topic=&allstories=1&menu=2"),
+    (
+        "http://pressde.terratec.net:80/",
+        "terratec_pressde",
+        "https://web.archive.org/web/20031115085312id_/http://pressde.terratec.net:80/modules.php?op=modload&name=News&file=index&catid=13&topic=&allstories=1&menu=300",
+    ),
+    (
+        "http://pressde.terratec.net:80/",
+        "terratec_pressde",
+        "https://web.archive.org/web/20031115084858id_/http://pressde.terratec.net/modules.php?op=modload&name=News&file=index&catid=14&topic=&allstories=1&menu=304",
+    ),
+    (
+        "http://pressde.terratec.net:80/",
+        "terratec_pressde",
+        "https://web.archive.org/web/20031213100854id_/http://pressde.terratec.net:80/modules.php?op=modload&name=News&file=index&catid=15&topic=&allstories=1&amp",
+    ),
+    (
+        "http://pressde.terratec.net:80/",
+        "terratec_pressde",
+        "https://web.archive.org/web/20041010061159id_/http://pressde.terratec.net/modules.php?op=modload&name=News&file=index&catid=17&topic=&allstories=1&amp",
+    ),
+    (
+        "http://pressde.terratec.net:80/",
+        "terratec_pressde",
+        "https://web.archive.org/web/20070730011217id_/http://pressde.terratec.net/modules.php?op=modload&name=News&file=index&catid=19&topic=&allstories=1",
+    ),
+    (
+        "http://pressde.terratec.net:80/",
+        "terratec_pressde",
+        "https://web.archive.org/web/20070730010823id_/http://pressde.terratec.net/modules.php?op=modload&name=News&file=index&catid=20&topic=&allstories=1",
+    ),
+    (
+        "http://pressde.terratec.net:80/",
+        "terratec_pressde",
+        "https://web.archive.org/web/20070730010351id_/http://pressde.terratec.net/modules.php?op=modload&name=News&file=index&catid=18&topic=&allstories=1&menu=2",
+    ),
+    (
+        "http://pressen.terratec.net:80/",
+        "terratec_pressen",
+        "https://web.archive.org/web/20031001235452id_/http://pressen.terratec.net/modules.php?op=modload&name=News&file=index&catid=15&topic=&allstories=1&menu=2",
+    ),
+    (
+        "http://pressen.terratec.net:80/",
+        "terratec_pressen",
+        "https://web.archive.org/web/20041010063929id_/http://pressen.terratec.net:80/modules.php?op=modload&name=News&file=index&catid=16&topic=&allstories=1&amp",
+    ),
+    (
+        "http://pressen.terratec.net:80/",
+        "terratec_pressen",
+        "https://web.archive.org/web/20070808232502id_/http://pressen.terratec.net/modules.php?op=modload&name=News&file=index&catid=17&topic=&allstories=1&menu=2&menu=307",
+    ),
+    (
+        "http://pressen.terratec.net:80/",
+        "terratec_pressen",
+        "https://web.archive.org/web/20070808232455id_/http://pressen.terratec.net/modules.php?op=modload&name=News&file=index&catid=18&topic=&allstories=1&menu=2&menu=309",
+    ),
+    (
+        "http://pressen.terratec.net:80/",
+        "terratec_pressen",
+        "https://web.archive.org/web/20070630063657id_/http://pressen.terratec.net/modules.php?op=modload&name=News&file=index&catid=19&topic=&allstories=1&menu=2",
+    ),
 ]
 
 
@@ -258,7 +296,8 @@ def extract_teasers(content: bytes) -> dict[str, Entry]:
             if idx != -1:
                 content_html = content_html[:idx]
             teaser, teaser_html = richtext.extract(
-                BeautifulSoup(content_html, "html.parser"))
+                BeautifulSoup(content_html, "html.parser")
+            )
 
         teasers[sid] = (date, title, teaser, teaser_html)
 
@@ -266,8 +305,11 @@ def extract_teasers(content: bytes) -> dict[str, Entry]:
 
 
 def stored_sids(conn, source: str) -> set[int]:
-    return {int(m.group(1)) for url in storage.source_urls(conn, source)
-            if (m := SID_RE.search(url))}
+    return {
+        int(m.group(1))
+        for url in storage.source_urls(conn, source)
+        if (m := SID_RE.search(url))
+    }
 
 
 def print_only_sids(prefix: str, have: set) -> list[int]:
@@ -288,8 +330,9 @@ def print_only_sids(prefix: str, have: set) -> list[int]:
     return sorted(sids - have)
 
 
-def recover_article(conn, session, prefix: str,
-                    sid) -> tuple[tuple[str, Detail, str] | None, bool]:
+def recover_article(
+    conn, session, prefix: str, sid
+) -> tuple[tuple[str, Detail, str] | None, bool]:
     """((timestamp, parsed), confirmed) for one sid: the article page first, then
     its print view.
 
@@ -300,8 +343,10 @@ def recover_article(conn, session, prefix: str,
     print-only parser this replaces differed by 1-4 characters of whitespace.
     """
     uncertain = False
-    for url in (f"{prefix}modules.php?op=modload&name=News&file=article&sid={sid}",
-                f"{prefix}print.php?sid={sid}"):
+    for url in (
+        f"{prefix}modules.php?op=modload&name=News&file=article&sid={sid}",
+        f"{prefix}print.php?sid={sid}",
+    ):
         try:
             found = archive.get_latest_working_snapshot(url)
         except Exception:
@@ -355,17 +400,30 @@ def from_categories(conn, session, source: str, prefix: str) -> None:
         if recovered:
             timestamp, parsed, snapshot_url = recovered
             if existing == "teaser":
-                storage.upgrade_release(conn, article_url, detail_id=timestamp,
-                                   title=parsed["title"], date=parsed["date"],
-                                   body=parsed["body"],
-                                   body_html=parsed["body_html"] or None,
-                                   grade="full", origin_url=snapshot_url)
+                storage.upgrade_release(
+                    conn,
+                    article_url,
+                    detail_id=timestamp,
+                    title=parsed["title"],
+                    date=parsed["date"],
+                    body=parsed["body"],
+                    body_html=parsed["body_html"] or None,
+                    grade="full",
+                    origin_url=snapshot_url,
+                )
                 stats.upgraded()
             else:
-                storage.store_release(conn, source, article_url, title=parsed["title"],
-                                 date=parsed["date"], body=parsed["body"],
-                                 body_html=parsed["body_html"] or None,
-                                 detail_id=timestamp, origin_url=snapshot_url)
+                storage.store_release(
+                    conn,
+                    source,
+                    article_url,
+                    title=parsed["title"],
+                    date=parsed["date"],
+                    body=parsed["body"],
+                    body_html=parsed["body_html"] or None,
+                    detail_id=timestamp,
+                    origin_url=snapshot_url,
+                )
                 stats.added()
             continue
 
@@ -379,8 +437,16 @@ def from_categories(conn, session, source: str, prefix: str) -> None:
             stats.skipped()
             continue
         if t_text:
-            storage.store_release(conn, source, article_url, title=t_title, date=t_date,
-                             body=t_text, body_html=t_html or None, grade="teaser")
+            storage.store_release(
+                conn,
+                source,
+                article_url,
+                title=t_title,
+                date=t_date,
+                body=t_text,
+                body_html=t_html or None,
+                grade="teaser",
+            )
             stats.teaser()
         else:
             stats.dead()
@@ -421,18 +487,26 @@ def from_print_views(conn, session, source: str, prefix: str) -> None:
         # Stored under the print url, because that is the page that existed:
         # the article url has no capture, and minting a row under an address
         # nobody has seen is what SYNTHETIC_URL_SOURCES exists to warn about.
-        if storage.store_release(conn, source, print_url, title=parsed["title"],
-                            date=parsed["date"], body=parsed["body"],
-                            body_html=parsed["body_html"] or None,
-                            detail_id=timestamp, origin_url=snapshot_url):
+        if storage.store_release(
+            conn,
+            source,
+            print_url,
+            title=parsed["title"],
+            date=parsed["date"],
+            body=parsed["body"],
+            body_html=parsed["body_html"] or None,
+            detail_id=timestamp,
+            origin_url=snapshot_url,
+        ):
             stats.added()
         else:
             stats.skipped()
     stats.summary(conn)
 
 
-def scrape_portal(source: str, prefix: str, limit: int = None,
-                  catch: dict = None) -> None:
+def scrape_portal(
+    source: str, prefix: str, limit: int = None, catch: dict = None
+) -> None:
     conn = connection.connect()
     session = requests.Session()
 
@@ -469,9 +543,16 @@ def scrape_portal(source: str, prefix: str, limit: int = None,
             stats.uncertain()
             continue
 
-        if storage.store_release(conn, source, url, title=parsed["title"],
-                            date=parsed["date"], body=parsed["body"],
-                            body_html=parsed["body_html"], detail_id=timestamp):
+        if storage.store_release(
+            conn,
+            source,
+            url,
+            title=parsed["title"],
+            date=parsed["date"],
+            body=parsed["body"],
+            body_html=parsed["body_html"],
+            detail_id=timestamp,
+        ):
             stats.added()
 
     stats.summary(conn)

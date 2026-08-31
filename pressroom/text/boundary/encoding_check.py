@@ -56,16 +56,21 @@ KNOWN_UNFIXABLE = {4978}
 
 
 def damaged(text: str) -> bool:
-    return bool(text) and bool(decoding.C1_RE.search(text)
-                               or decoding.MOJIBAKE_RE.search(text))
+    return bool(text) and bool(
+        decoding.C1_RE.search(text) or decoding.MOJIBAKE_RE.search(text)
+    )
 
 
 def undefined_bytes(text: str) -> list[str]:
     """The C1 codepoints in `text` that cp1252 does not define - the reason a
     repair is refused rather than guessed."""
-    return sorted({hex(ord(c)) for c in text
-                   if decoding.C1_RE.match(c)
-                   and ord(c) not in decoding._C1_TRANSLATION})
+    return sorted(
+        {
+            hex(ord(c))
+            for c in text
+            if decoding.C1_RE.match(c) and ord(c) not in decoding._C1_TRANSLATION
+        }
+    )
 
 
 def capture_words(conn, url: str) -> str:
@@ -73,7 +78,9 @@ def capture_words(conn, url: str) -> str:
     Read through body_origin, which is where the address a body came from lives."""
     row = conn.execute(
         "SELECT p.content FROM body_origin o JOIN page_cache p ON p.url = o.origin_url "
-        "WHERE o.url = ?", (url,)).fetchone()
+        "WHERE o.url = ?",
+        (url,),
+    ).fetchone()
     if not row:
         return ""
     return _TAG_RE.sub(" ", decoding.decode_html(row[0]))
@@ -81,8 +88,11 @@ def capture_words(conn, url: str) -> str:
 
 def run(source: str = None, check_bytes: bool = False) -> None:
     conn = connection.connect_ro()
-    sql = ("SELECT id, source, url, title, body, body_html FROM releases "
-           + ("WHERE source = ? " if source else "") + "ORDER BY source, id")
+    sql = (
+        "SELECT id, source, url, title, body, body_html FROM releases "
+        + ("WHERE source = ? " if source else "")
+        + "ORDER BY source, id"
+    )
     rows = conn.execute(sql, (source,) if source else ()).fetchall()
 
     per_source = collections.Counter()
@@ -95,19 +105,25 @@ def run(source: str = None, check_bytes: bool = False) -> None:
             hit = True
             got = decoding.repair_text(text)
             if got is None:
-                refused.append((rid, src, field, undefined_bytes(text) or ["ambiguous"]))
+                refused.append(
+                    (rid, src, field, undefined_bytes(text) or ["ambiguous"])
+                )
             else:
                 repairable.append((rid, src, field, got[1], text, got[0]))
         if hit:
             per_source[src] += 1
 
-    print(f"[encoding] {len(rows)} wierszy przejrzanych, {sum(per_source.values())} "
-          f"z uszkodzonym polem")
+    print(
+        f"[encoding] {len(rows)} wierszy przejrzanych, {sum(per_source.values())} "
+        f"z uszkodzonym polem"
+    )
     for src, n in per_source.most_common():
         print(f"  {src:26} {n}")
 
-    print(f"\n1. do naprawy: {len(repairable)} (musi byc 0 - sciezka zapisu "
-          f"naprawia w locie)")
+    print(
+        f"\n1. do naprawy: {len(repairable)} (musi byc 0 - sciezka zapisu "
+        f"naprawia w locie)"
+    )
     for rid, src, field, method, before, after in repairable[:10]:
         print(f"  #{rid} {src} {field} [{method}]")
         print(f"      {before[:90]!r}")
@@ -123,14 +139,19 @@ def run(source: str = None, check_bytes: bool = False) -> None:
     audit = query.quality_counts(conn)["mojibake"]
     regex_rows = sum(per_source.values())
     verdict = "zgodne" if audit == regex_rows else "ROZJECHANE"
-    print(f"\n3. detektory: regex {regex_rows} wierszy, SQL audytu {audit} -> {verdict}")
+    print(
+        f"\n3. detektory: regex {regex_rows} wierszy, SQL audytu {audit} -> {verdict}"
+    )
 
     if check_bytes:
         print("\n4. kontrola z bajtami capture'a:")
         checked = agree = 0
         for rid, src, field, _method, before, _after in repairable + [
-                (r, s, f, "", "", "") for r, s, f, _ in refused]:
-            url = conn.execute("SELECT url FROM releases WHERE id = ?", (rid,)).fetchone()[0]
+            (r, s, f, "", "", "") for r, s, f, _ in refused
+        ]:
+            url = conn.execute(
+                "SELECT url FROM releases WHERE id = ?", (rid,)
+            ).fetchone()[0]
             page = capture_words(conn, url)
             if not page:
                 continue
@@ -138,8 +159,10 @@ def run(source: str = None, check_bytes: bool = False) -> None:
             words = _NON_ASCII_WORD.findall(before or "")
             if words and any(w in page for w in words):
                 agree += 1
-                print(f"  #{rid} {field}: strona nosi ten sam znak - uszkodzenie "
-                      f"jest po stronie zrodla")
+                print(
+                    f"  #{rid} {field}: strona nosi ten sam znak - uszkodzenie "
+                    f"jest po stronie zrodla"
+                )
         print(f"  {checked} sprawdzonych, {agree} gdzie strona zgadza sie z baza")
 
     conn.close()
@@ -148,7 +171,11 @@ def run(source: str = None, check_bytes: bool = False) -> None:
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__.strip().split("\n\n", 1)[0])
     p.add_argument("--source", help="limit to one source tag")
-    p.add_argument("--bytes", dest="check_bytes", action="store_true",
-                   help="cross-check damaged fields against the cached capture")
+    p.add_argument(
+        "--bytes",
+        dest="check_bytes",
+        action="store_true",
+        help="cross-check damaged fields against the cached capture",
+    )
     args = p.parse_args()
     run(args.source, args.check_bytes)

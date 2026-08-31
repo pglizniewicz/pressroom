@@ -48,8 +48,14 @@ from pressroom.attachment.control import conversion
 from pressroom.database.control import connection
 from pressroom.provenance.entity import origin
 from pressroom.text.control import richtext
-from pressroom.maudio.control import (golive, media_news, media_pr, news_blog,
-                                      presse_de, pressdb)
+from pressroom.maudio.control import (
+    golive,
+    media_news,
+    media_pr,
+    news_blog,
+    presse_de,
+    pressdb,
+)
 from pressroom.terratec.control import cms, portal, presse, pressemit
 
 # source -> parser, for the sources whose reproduction is a plain whole-page
@@ -74,7 +80,9 @@ def squash(text: str) -> str:
     return "".join((text or "").replace("•", "").split())
 
 
-def candidate_bodies(source: str, content: bytes, page_url: str, ts: str, url: str) -> list[str] | None:
+def candidate_bodies(
+    source: str, content: bytes, page_url: str, ts: str, url: str
+) -> list[str] | None:
     """Every body the source's parser can see in these bytes, this row's first.
 
     A listing capture holds many releases, so the entry keyed to this row's url
@@ -86,13 +94,18 @@ def candidate_bodies(source: str, content: bytes, page_url: str, ts: str, url: s
         mine = [e["body"] for e in entries if e.get("url") == url]
         return mine or [e["body"] for e in entries]
     if source == "midiman_de":
-        return [e["body"] for e in
-                presse_de.parse_page(content, "http://www.midiman.de/", ts)]
+        return [
+            e["body"]
+            for e in presse_de.parse_page(content, "http://www.midiman.de/", ts)
+        ]
     if source.endswith("_pressdb"):
         entries = pressdb.extract_entries(content, page_url, ts)
         mine = [e.get("body") or "" for e in entries if e.get("url") == url]
-        return mine or [e.get("body") or "" for e in entries] or [
-            pressdb.parse_detail(content).get("body") or ""]
+        return (
+            mine
+            or [e.get("body") or "" for e in entries]
+            or [pressdb.parse_detail(content).get("body") or ""]
+        )
     if source.endswith("_media_pr"):
         entries = media_pr.extract_entries(content, page_url, ts)
         mine = [e.get("body") or "" for e in entries if e.get("url") == url]
@@ -101,13 +114,18 @@ def candidate_bodies(source: str, content: bytes, page_url: str, ts: str, url: s
     # belongs to a different scraper entirely (scrape_maudio_news), which the
     # suffix rule silently mis-parsed into 25 reported mismatches whose bodies
     # were in fact identical.
-    if source in ("midiman_net_media_news", "midiman_com_media_news",
-                  "maudio_com_media_news", "midiman_couk_news"):
+    if source in (
+        "midiman_net_media_news",
+        "midiman_com_media_news",
+        "maudio_com_media_news",
+        "midiman_couk_news",
+    ):
         out = [media_news.parse_detail(content).get("body") or ""]
         try:
             entries = media_news.extract_entries(content, page_url, ts)
-            out += [e.get("body") or "" for e in entries if e.get("url") == url] \
-                or [e.get("body") or "" for e in entries]
+            out += [e.get("body") or "" for e in entries if e.get("url") == url] or [
+                e.get("body") or "" for e in entries
+            ]
         except Exception:
             pass
         return out
@@ -178,23 +196,28 @@ def run(source: str = None, inferred_only: bool = False) -> None:
     if inferred_only:
         # The inferred class, spelled out: an address that is neither the one
         # the row implies nor an attachment found by path.
-        sql += (" AND c.origin_url <> 'https://web.archive.org/web/' || r.detail_id"
-                " || 'id_/' || r.url"
-                " AND lower(r.url) NOT LIKE '%.pdf' AND lower(r.url) NOT LIKE '%.doc'")
+        sql += (
+            " AND c.origin_url <> 'https://web.archive.org/web/' || r.detail_id"
+            " || 'id_/' || r.url"
+            " AND lower(r.url) NOT LIKE '%.pdf' AND lower(r.url) NOT LIKE '%.doc'"
+        )
     rows = conn.execute(sql + " ORDER BY r.id", params).fetchall()
     print(f"[verify] {len(rows)} recorded origins to reproduce", flush=True)
 
     tally = collections.Counter()
     problems = []
     for rid, src, url, ts, body, body_html, capture in rows:
-        got = conn.execute("SELECT content FROM page_cache WHERE url = ?",
-                           (capture,)).fetchone()
+        got = conn.execute(
+            "SELECT content FROM page_cache WHERE url = ?", (capture,)
+        ).fetchone()
         kind = origin_class(url, ts, capture)
         if got is None:
             tally[(kind, "bytes not cached")] += 1
             continue
         content = got[0]
-        if not conversion.is_attachment(content) and not conversion.looks_like_html(content):
+        if not conversion.is_attachment(content) and not conversion.looks_like_html(
+            content
+        ):
             tally[(kind, "bytes are neither html nor an attachment")] += 1
             problems.append((rid, src, "bytes are neither", capture))
             continue
@@ -214,9 +237,11 @@ def run(source: str = None, inferred_only: bool = False) -> None:
         total = sum(n for (k, _), n in tally.items() if k == kind)
         if not total:
             continue
-        label = {"inferred": "found by searching for the body's text",
-                 "located": "an attachment's bytes found under that path",
-                 "computed": "the address the row implies, unchecked when written"}[kind]
+        label = {
+            "inferred": "found by searching for the body's text",
+            "located": "an attachment's bytes found under that path",
+            "computed": "the address the row implies, unchecked when written",
+        }[kind]
         print(f"\n=== {total} origins {label}")
         for (k, v), n in sorted(tally.items(), key=lambda kv: -kv[1]):
             if k == kind:
@@ -233,7 +258,10 @@ def run(source: str = None, inferred_only: bool = False) -> None:
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__.strip().split("\n\n", 1)[0])
     p.add_argument("--source", help="limit to one source tag")
-    p.add_argument("--inferred-only", action="store_true",
-                   help="only the origins whose page had to be searched for")
+    p.add_argument(
+        "--inferred-only",
+        action="store_true",
+        help="only the origins whose page had to be searched for",
+    )
     args = p.parse_args()
     run(args.source, args.inferred_only)

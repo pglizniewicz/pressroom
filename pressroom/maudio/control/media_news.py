@@ -59,7 +59,6 @@ m-audio.jp domain, both of which exist in Wayback and are most likely
 translations or duplicates of what is already covered here.
 """
 
-
 import re
 import sqlite3
 from urllib.parse import urljoin
@@ -133,9 +132,15 @@ def _entries_boldtext(soup: BeautifulSoup, base_url: str) -> list[Entry]:
             if teaser_span:
                 teaser, teaser_html = richtext.extract(teaser_span)
 
-        entries.append({"date": iso_date(date_str), "title": title.strip(),
-                        "href": urljoin(base_url, a["href"]),
-                        "teaser": teaser, "teaser_html": teaser_html})
+        entries.append(
+            {
+                "date": iso_date(date_str),
+                "title": title.strip(),
+                "href": urljoin(base_url, a["href"]),
+                "teaser": teaser,
+                "teaser_html": teaser_html,
+            }
+        )
     return entries
 
 
@@ -165,14 +170,19 @@ def _entries_short_news(soup: BeautifulSoup, base_url: str) -> list[Entry]:
         content_div = div.find("div", id="news-short-content")
         teaser, teaser_html = richtext.extract(content_div)
 
-        entries.append({"date": iso_date(date_str), "title": title.strip(),
-                        "href": urljoin(base_url, a["href"]),
-                        "teaser": teaser, "teaser_html": teaser_html})
+        entries.append(
+            {
+                "date": iso_date(date_str),
+                "title": title.strip(),
+                "href": urljoin(base_url, a["href"]),
+                "teaser": teaser,
+                "teaser_html": teaser_html,
+            }
+        )
     return entries
 
 
-def extract_entries(html: bytes, base_url: str,
-                    timestamp: str = None) -> list[Entry]:
+def extract_entries(html: bytes, base_url: str, timestamp: str = None) -> list[Entry]:
     # decode_html, not raw bytes: these pages declare utf-8 and are utf-8
     # except for a few Word-pasted cp1252 bytes, which used to make bs4 fall
     # back to chardet and decode the whole file as windows-1250/1258.
@@ -206,7 +216,8 @@ def _detail_boldtextgray(soup: BeautifulSoup) -> Detail:
     body, body_html = richtext.extract(body_el)
     return {
         "title": title_td.get_text(" ", strip=True),
-        "body": body, "body_html": body_html,
+        "body": body,
+        "body_html": body_html,
     }
 
 
@@ -238,7 +249,10 @@ def parse_detail(html: bytes) -> Detail:
 
 
 def discover_listing_best(
-        conn: sqlite3.Connection, source: str, base: str, limit: int = None,
+    conn: sqlite3.Connection,
+    source: str,
+    base: str,
+    limit: int = None,
 ) -> dict[tuple[str, str], dict[str, str]]:
     session = requests.Session()
     best = {}  # (date, title) -> {href, teaser}
@@ -249,14 +263,19 @@ def discover_listing_best(
         # URL answered HTTP 200 with m-audio.com's modern home page, so the
         # newest working capture is not a listing at all. Sampling every
         # capture means the genuine older ones are parsed regardless.
-        entries = archive.sample_all_captures(conn, session, listing_url, extract_entries, limit=limit)
+        entries = archive.sample_all_captures(
+            conn, session, listing_url, extract_entries, limit=limit
+        )
         for e in entries:
             key = (e["date"], e["title"])
             cur = best.get(key)
             if cur is None or rank(e) > rank(cur):
                 best[key] = {"href": e["href"], "teaser": e["teaser"]}
 
-    print(f"\n[{source}] {len(best)} distinct listing entries found across all captures", flush=True)
+    print(
+        f"\n[{source}] {len(best)} distinct listing entries found across all captures",
+        flush=True,
+    )
     return best
 
 
@@ -277,8 +296,13 @@ def discover_prefix_ids(source: str, base: str) -> set[str]:
     return ids
 
 
-def scrape_domain(source: str, base: str, limit: int = None, catch: dict = None,
-                  prefix_crawl: bool = True) -> None:
+def scrape_domain(
+    source: str,
+    base: str,
+    limit: int = None,
+    catch: dict = None,
+    prefix_crawl: bool = True,
+) -> None:
     conn = connection.connect()
     session = requests.Session()
 
@@ -318,20 +342,38 @@ def scrape_domain(source: str, base: str, limit: int = None, catch: dict = None,
             stats.skipped()
             continue
 
-        parsed, confirmed = ({}, True) if not m else archive.fetch_detail_snapshot(conn, session, url, parse_detail)
+        parsed, confirmed = (
+            ({}, True)
+            if not m
+            else archive.fetch_detail_snapshot(conn, session, url, parse_detail)
+        )
 
         if parsed.get("body"):
             if existing == "teaser":
                 # No title=/date=: the listing page's values are better than
                 # the detail page's, so only the body is upgraded.
-                storage.upgrade_release(conn, url, detail_id=parsed["detail_id"],
-                                   body=parsed["body"], body_html=parsed["body_html"],
-                                   grade="full", commit=False)
+                storage.upgrade_release(
+                    conn,
+                    url,
+                    detail_id=parsed["detail_id"],
+                    body=parsed["body"],
+                    body_html=parsed["body_html"],
+                    grade="full",
+                    commit=False,
+                )
                 stats.upgraded()
             else:
-                storage.store_release(conn, source, url, title=title, date=date,
-                                 body=parsed["body"], body_html=parsed["body_html"],
-                                 detail_id=parsed["detail_id"], commit=False)
+                storage.store_release(
+                    conn,
+                    source,
+                    url,
+                    title=title,
+                    date=date,
+                    body=parsed["body"],
+                    body_html=parsed["body_html"],
+                    detail_id=parsed["detail_id"],
+                    commit=False,
+                )
                 stats.added()
             conn.commit()
             continue
@@ -350,9 +392,16 @@ def scrape_domain(source: str, base: str, limit: int = None, catch: dict = None,
             continue
 
         if e["teaser"]:
-            storage.store_release(conn, source, url, title=title, date=date,
-                             body=e["teaser"], body_html=e["teaser_html"] or None,
-                             grade="teaser")
+            storage.store_release(
+                conn,
+                source,
+                url,
+                title=title,
+                date=date,
+                body=e["teaser"],
+                body_html=e["teaser_html"] or None,
+                grade="teaser",
+            )
             stats.teaser()
         else:
             stats.dead()
@@ -364,7 +413,9 @@ def scrape_domain(source: str, base: str, limit: int = None, catch: dict = None,
             stats.skipped()
             continue
 
-        parsed, confirmed = archive.fetch_detail_snapshot(conn, session, url, parse_detail)
+        parsed, confirmed = archive.fetch_detail_snapshot(
+            conn, session, url, parse_detail
+        )
         if not parsed.get("body") or not parsed.get("title"):
             if confirmed:
                 stats.dead()
@@ -373,19 +424,32 @@ def scrape_domain(source: str, base: str, limit: int = None, catch: dict = None,
             continue
 
         date = title_to_date.get(parsed["title"], "")
-        storage.store_release(conn, source, url, title=parsed["title"], date=date,
-                         body=parsed["body"], body_html=parsed["body_html"],
-                         detail_id=parsed["detail_id"])
+        storage.store_release(
+            conn,
+            source,
+            url,
+            title=parsed["title"],
+            date=date,
+            body=parsed["body"],
+            body_html=parsed["body_html"],
+            detail_id=parsed["detail_id"],
+        )
         stats.added()
 
     stats.summary(conn)
-    catch_up.run(conn, source, catch, parser=parse_detail, session=session,
-                  twins_too=True)
+    catch_up.run(
+        conn, source, catch, parser=parse_detail, session=session, twins_too=True
+    )
     conn.close()
 
 
-def scrape(limit: int = None, prefix_crawl: bool = True, sources: list = None,
-           catch: dict = None) -> None:
+def scrape(
+    limit: int = None,
+    prefix_crawl: bool = True,
+    sources: list = None,
+    catch: dict = None,
+) -> None:
     for source in sources or DOMAINS:
-        scrape_domain(source, DOMAINS[source], limit=limit,
-                      prefix_crawl=prefix_crawl, catch=catch)
+        scrape_domain(
+            source, DOMAINS[source], limit=limit, prefix_crawl=prefix_crawl, catch=catch
+        )

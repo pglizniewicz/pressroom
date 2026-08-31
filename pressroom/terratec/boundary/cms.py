@@ -16,8 +16,10 @@ from pressroom.terratec.control import cms
 
 def main():
     command.run(
-        cms.scrape_lang, __doc__,
-        command.Option("lang", choices=["en", "de"],
-                       help="which of the two sites to scrape"),
+        cms.scrape_lang,
+        __doc__,
+        command.Option(
+            "lang", choices=["en", "de"], help="which of the two sites to scrape"
+        ),
         command.LIMIT,
     )

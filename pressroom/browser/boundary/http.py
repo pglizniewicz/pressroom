@@ -92,8 +92,11 @@ def capture_kind(page, row_url):
     """
     if not page or not row_url:
         return None
-    return ("mirror" if page.rsplit("/", 1)[-1].lower() == row_url.rsplit("/", 1)[-1].lower()
-            else "other")
+    return (
+        "mirror"
+        if page.rsplit("/", 1)[-1].lower() == row_url.rsplit("/", 1)[-1].lower()
+        else "other"
+    )
 
 
 def capture_page(origin_url, row_url):
@@ -164,8 +167,10 @@ def _sources(params) -> list[str] | None:
     slugs = _many(params, "company")
     unknown = company.unknown_slugs(slugs)
     if unknown:
-        raise BadRequest(f"unknown company(ies): {', '.join(unknown)}; "
-                         f"valid: {', '.join(company.COMPANIES)}")
+        raise BadRequest(
+            f"unknown company(ies): {', '.join(unknown)}; "
+            f"valid: {', '.join(company.COMPANIES)}"
+        )
     if not slugs:
         return picked
     from_companies = company.sources_for(slugs)
@@ -183,8 +188,9 @@ def handle_search(conn, params) -> dict[str, object]:
     if unknown:
         # Dropping a typo silently would report a full corpus as if it were the
         # filtered slice - the one lie an audit view must not tell.
-        raise BadRequest(f"unknown flag(s): {', '.join(unknown)}; "
-                         f"valid: {', '.join(VALID_FLAGS)}")
+        raise BadRequest(
+            f"unknown flag(s): {', '.join(unknown)}; valid: {', '.join(VALID_FLAGS)}"
+        )
     order = _one(params, "order", "rank")
     if order not in ("rank", "date"):
         raise BadRequest("order must be 'rank' or 'date'")
@@ -249,7 +255,7 @@ class Handler(BaseHTTPRequestHandler):
             if path in ("/", "/index.html"):
                 return self._static("index.html")
             if path.startswith("/static/"):
-                return self._static(path[len("/static/"):])
+                return self._static(path[len("/static/") :])
 
             conn = _conn(self.db_path)
             if path == "/api/search":
@@ -260,7 +266,9 @@ class Handler(BaseHTTPRequestHandler):
                 # Company rows carry their own sources, so the panel gets both
                 # levels - the default company view and the source view it
                 # toggles to - from one request.
-                return self._json({"companies": company.roll_up(query.list_sources(conn))})
+                return self._json(
+                    {"companies": company.roll_up(query.list_sources(conn))}
+                )
             if path == "/api/quality":
                 return self._json(query.quality_counts(conn))
             if path.startswith("/api/release/"):
@@ -303,7 +311,10 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def log_message(self, fmt, *args) -> None:
-        print(f"{self.command} {self.path} -> {args[1] if len(args) > 1 else ''}", flush=True)
+        print(
+            f"{self.command} {self.path} -> {args[1] if len(args) > 1 else ''}",
+            flush=True,
+        )
 
 
 def main() -> None:
@@ -324,8 +335,10 @@ def main() -> None:
         # Almost always an instance left running from a previous session; a
         # traceback here says nothing a one-line answer doesn't.
         print(f"Cannot listen on 127.0.0.1:{args.port}: {e}")
-        print("Another pressroom browser is probably still running "
-              "(pgrep -af '[p]ressroom-serve'), or pass --port.")
+        print(
+            "Another pressroom browser is probably still running "
+            "(pgrep -af '[p]ressroom-serve'), or pass --port."
+        )
         return
     print(f"pressroom browser: http://127.0.0.1:{args.port}  ({path})", flush=True)
     try:

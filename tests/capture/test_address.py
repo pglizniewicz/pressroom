@@ -11,8 +11,9 @@ import unittest
 
 from pressroom.capture.control import address
 
-GOOD = ("https://web.archive.org/web/20111011173713id_/"
-        "http://www.terratec.de/presse.html")
+GOOD = (
+    "https://web.archive.org/web/20111011173713id_/http://www.terratec.de/presse.html"
+)
 
 
 class IsCaptureAddressTest(unittest.TestCase):
@@ -21,14 +22,16 @@ class IsCaptureAddressTest(unittest.TestCase):
 
     def test_rejects_every_value_that_used_to_reach_this_write(self):
         for value in (
-            "970",                                            # a Q4 numeric id
-            "node-4935591",                                   # a Drupal node id
-            "http://www.terratec.de/presse.html",             # a bare row url
+            "970",  # a Q4 numeric id
+            "node-4935591",  # a Drupal node id
+            "http://www.terratec.de/presse.html",  # a bare row url
             # No `id_` marker: the viewer page, not the raw bytes - and not the
             # key page_cache stores anything under.
             "https://web.archive.org/web/20111011173713/http://www.terratec.de/x",
-            "https://web.archive.org/web/2011101117371id_/http://x",   # 13 digits
-            "", None, 20111011173713,
+            "https://web.archive.org/web/2011101117371id_/http://x",  # 13 digits
+            "",
+            None,
+            20111011173713,
         ):
             with self.subTest(value=value):
                 self.assertFalse(address.is_capture_address(value))
@@ -37,8 +40,14 @@ class IsCaptureAddressTest(unittest.TestCase):
 class IsTimestampTest(unittest.TestCase):
     def test_exactly_fourteen_digits(self):
         self.assertTrue(address.is_timestamp("20111011173713"))
-        for value in ("2011101117371", "201110111737133", "2011101117371a",
-                      "", None, "teaser"):
+        for value in (
+            "2011101117371",
+            "201110111737133",
+            "2011101117371a",
+            "",
+            None,
+            "teaser",
+        ):
             with self.subTest(value=value):
                 self.assertFalse(address.is_timestamp(value))
 
@@ -47,7 +56,8 @@ class CaptureKeyTest(unittest.TestCase):
     def test_builds_the_page_cache_key(self):
         self.assertEqual(
             address.capture_key("20111011173713", "http://www.terratec.de/presse.html"),
-            GOOD)
+            GOOD,
+        )
 
     def test_empty_for_a_platform_id(self):
         """The live sources' detail_id is their own platform's id and never

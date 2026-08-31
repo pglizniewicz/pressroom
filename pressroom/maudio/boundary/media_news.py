@@ -14,13 +14,20 @@ from pressroom.scraping.boundary import command
 
 def main():
     command.run(
-        media_news.scrape, __doc__,
+        media_news.scrape,
+        __doc__,
         command.LIMIT,
-        command.Option("--no-prefix-crawl", dest="prefix_crawl",
-                       action="store_false",
-                       help="skip the ID= prefix-crawl discovery"),
-        command.Option("--source", dest="sources", action="append",
-                       choices=sorted(media_news.DOMAINS),
-                       help="only this source; repeatable "
-                            "(default: all four domains)"),
+        command.Option(
+            "--no-prefix-crawl",
+            dest="prefix_crawl",
+            action="store_false",
+            help="skip the ID= prefix-crawl discovery",
+        ),
+        command.Option(
+            "--source",
+            dest="sources",
+            action="append",
+            choices=sorted(media_news.DOMAINS),
+            help="only this source; repeatable (default: all four domains)",
+        ),
     )

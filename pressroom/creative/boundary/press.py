@@ -12,9 +12,15 @@ from pressroom.scraping.boundary import command
 
 def main():
     command.run(
-        press.scrape, __doc__,
-        command.Option("--from-year", type=int, default=press.FIRST_YEAR,
-                       help=f"start year (default: {press.FIRST_YEAR})"),
-        command.Option("--to-year", type=int, default=None,
-                       help="end year (default: current year)"),
+        press.scrape,
+        __doc__,
+        command.Option(
+            "--from-year",
+            type=int,
+            default=press.FIRST_YEAR,
+            help=f"start year (default: {press.FIRST_YEAR})",
+        ),
+        command.Option(
+            "--to-year", type=int, default=None, help="end year (default: current year)"
+        ),
     )

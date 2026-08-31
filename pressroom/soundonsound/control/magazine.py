@@ -55,7 +55,6 @@ ROBOTS.TXT
   because it was a deliberate call and the next person deserves to see it.
 """
 
-
 import re
 from urllib.parse import urljoin
 
@@ -114,16 +113,18 @@ def parse_listing(content: bytes) -> list[Entry]:
     for row in soup.select("div.views-row"):
         art = row.find("article", about=True)
         if not art:
-            continue                      # promo block, not a result
+            continue  # promo block, not a result
         m = NODE_ID_RE.match(art.get("id") or "")
         title_el = row.select_one(".node__title a") or row.find("h2") or row.find("h3")
-        items.append({
-            "url": urljoin(BASE_URL, art["about"]),
-            "detail_id": m.group(1) if m else None,
-            "title": title_el.get_text(" ", strip=True) if title_el else "",
-            "date": _entry_date(row),
-            "section": art["about"].strip("/").split("/")[0],
-        })
+        items.append(
+            {
+                "url": urljoin(BASE_URL, art["about"]),
+                "detail_id": m.group(1) if m else None,
+                "title": title_el.get_text(" ", strip=True) if title_el else "",
+                "date": _entry_date(row),
+                "section": art["about"].strip("/").split("/")[0],
+            }
+        )
     return items
 
 
@@ -151,8 +152,12 @@ def collect(conn, session, pages: int = None) -> dict[str, Entry]:
             if pages and page >= pages:
                 break
             try:
-                content = fetch_cached(conn, session, listing_url(facet["subject"], page),
-                                       sleep=CRAWL_DELAY)
+                content = fetch_cached(
+                    conn,
+                    session,
+                    listing_url(facet["subject"], page),
+                    sleep=CRAWL_DELAY,
+                )
             except Exception as e:
                 print(f"\n  ERROR listing page {page}: {e}")
                 break
@@ -161,14 +166,17 @@ def collect(conn, session, pages: int = None) -> dict[str, Entry]:
                 break
             for item in items:
                 found.setdefault(item["url"], item)
-            print(f"  strona {page}: {len(items)} pozycji, razem unikalnych {len(found)}",
-                  flush=True)
+            print(
+                f"  strona {page}: {len(items)} pozycji, razem unikalnych {len(found)}",
+                flush=True,
+            )
             page += 1
     return found
 
 
-def scrape(limit: int = None, pages: int = None, list_only: bool = False,
-           catch: dict = None) -> None:
+def scrape(
+    limit: int = None, pages: int = None, list_only: bool = False, catch: dict = None
+) -> None:
     conn = connection.connect()
     session = requests.Session()
 
@@ -201,9 +209,16 @@ def scrape(limit: int = None, pages: int = None, list_only: bool = False,
             continue
         # Gated on the return value: store_release is INSERT OR IGNORE, so an
         # unconditional counter reports phantom inserts on every rerun.
-        if storage.store_release(conn, SOURCE, item["url"], title=item["title"],
-                            date=item["date"], body=body, body_html=body_html,
-                            detail_id=item["detail_id"]):
+        if storage.store_release(
+            conn,
+            SOURCE,
+            item["url"],
+            title=item["title"],
+            date=item["date"],
+            body=body,
+            body_html=body_html,
+            detail_id=item["detail_id"],
+        ):
             stats.added()
         else:
             stats.skipped()

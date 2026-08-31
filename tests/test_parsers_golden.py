@@ -38,10 +38,10 @@ class GoldenTest(unittest.TestCase):
         manifest = support.manifest()
         self.assertTrue(manifest, "no fixtures committed - run tests/refresh.py")
         for name, spec in sorted(manifest.items()):
-            with self.subTest(fixture=name, source=spec["source"],
-                              kind=spec["kind"]):
-                self.assertEqual(as_json(refresh.produce(name, spec)),
-                                 support.golden(name))
+            with self.subTest(fixture=name, source=spec["source"], kind=spec["kind"]):
+                self.assertEqual(
+                    as_json(refresh.produce(name, spec)), support.golden(name)
+                )
 
     def test_no_fixture_parses_to_nothing(self):
         """A fixture whose parse is empty would go green forever, which is the
@@ -124,6 +124,7 @@ class CollectorTest(support.DbCase):
 
     def _collect(self, source):
         import importlib
+
         mod, func, args = self.COLLECTORS[source]
         for name, spec in support.manifest().items():
             if spec["source"] == source and spec["kind"] == "listing":
@@ -139,8 +140,9 @@ class CollectorTest(support.DbCase):
                 for url, entry in got.items():
                     self.assertTrue(url)
                     self.assertTrue(entry.get("body"))
-                    self.assertTrue(entry.get("origin_url"),
-                                    f"{source} {url}: no origin recorded")
+                    self.assertTrue(
+                        entry.get("origin_url"), f"{source} {url}: no origin recorded"
+                    )
 
     def test_a_recorded_origin_is_a_capture_address(self):
         """`storage._record_origin` raises on anything else, so a collector
@@ -148,6 +150,7 @@ class CollectorTest(support.DbCase):
         it feeds - at the write, not here, which is the wrong place to find out.
         """
         from pressroom.capture.control import address
+
         for source in sorted(self.COLLECTORS):
             for url, entry in self._collect(source).items():
                 with self.subTest(source=source, url=url):

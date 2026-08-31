@@ -126,12 +126,15 @@ def migrate(conn) -> None:
     if "grade" not in cols:
         # A DEFAULT on ALTER TABLE fills every existing row without firing the
         # FTS update trigger, which is right: title and body are untouched.
-        conn.execute("ALTER TABLE releases ADD COLUMN grade TEXT NOT NULL DEFAULT 'full'")
+        conn.execute(
+            "ALTER TABLE releases ADD COLUMN grade TEXT NOT NULL DEFAULT 'full'"
+        )
     conn.commit()
 
     moved = conn.execute(
         "UPDATE releases SET grade = detail_id, detail_id = NULL "
-        "WHERE detail_id IN ('teaser', 'stub')").rowcount
+        "WHERE detail_id IN ('teaser', 'stub')"
+    ).rowcount
     if moved:
         print(f"Migrated {moved} rows: detail_id -> grade", flush=True)
     conn.commit()
@@ -161,10 +164,7 @@ def migrate(conn) -> None:
 # the two cannot drift again.
 C1_SQL = " OR ".join(f"instr(r.body, char({c})) > 0" for c in range(0x80, 0xA0))
 
-MOJIBAKE_SQL = (
-    "(instr(r.body, 'â€') > 0 OR instr(r.body, 'Ã') > 0"
-    f" OR {C1_SQL})"
-)
+MOJIBAKE_SQL = f"(instr(r.body, 'â€') > 0 OR instr(r.body, 'Ã') > 0 OR {C1_SQL})"
 
 FLAG_SQL = {
     "teaser": "r.grade IN ('teaser', 'stub')",
@@ -185,7 +185,9 @@ FLAG_SQL = {
     # attachment/control/conversion.py's ATTACHMENT_EXTS written in SQL,
     # because this module may not import a parser. Change one and change the
     # other.
-    "plain": ("r.body_html IS NULL"
-              " AND lower(r.url) NOT LIKE '%.pdf'"
-              " AND lower(r.url) NOT LIKE '%.doc'"),
+    "plain": (
+        "r.body_html IS NULL"
+        " AND lower(r.url) NOT LIKE '%.pdf'"
+        " AND lower(r.url) NOT LIKE '%.doc'"
+    ),
 }

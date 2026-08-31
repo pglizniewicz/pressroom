@@ -38,7 +38,6 @@ filter before any Wayback lookup is attempted, and NOT counted as "dead"
 since they were never attempted.
 """
 
-
 import re
 import time
 from urllib.parse import urljoin
@@ -94,11 +93,18 @@ PREFIX_CRAWL_ROOTS = [
     ("http://www.m-audio.com:80/midiman/html/press/", "maudio_com"),
 ]
 
-CSOBJ_RE = re.compile(r'label\s*=\s*&quot;([^&]*)&quot;;\s*url\s*=\s*&quot;([^&]*)&quot;', re.IGNORECASE)
-OPTION_RE = re.compile(r'<option\s+value="([^"]+)"[^>]*>(.*?)(?=<option|</select|</OPTION>|$)', re.IGNORECASE | re.DOTALL)
+CSOBJ_RE = re.compile(
+    r"label\s*=\s*&quot;([^&]*)&quot;;\s*url\s*=\s*&quot;([^&]*)&quot;", re.IGNORECASE
+)
+OPTION_RE = re.compile(
+    r'<option\s+value="([^"]+)"[^>]*>(.*?)(?=<option|</select|</OPTION>|$)',
+    re.IGNORECASE | re.DOTALL,
+)
 
 ARCADIA_DATELINE_RE = re.compile(r"Arcadia,\s*Ca(?:lif)?\.?", re.IGNORECASE)
-AP_DATELINE_RE = re.compile(r"\b[A-Z]{2,}(?:\s[A-Z]{2,})*,\s*(?:January|February|March|April|May|June|July|August|September|October|November|December)")
+AP_DATELINE_RE = re.compile(
+    r"\b[A-Z]{2,}(?:\s[A-Z]{2,})*,\s*(?:January|February|March|April|May|June|July|August|September|October|November|December)"
+)
 DATE_PAREN_RE = re.compile(
     r"\((January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2}),\s*(\d{4})\)",
     re.IGNORECASE,
@@ -109,8 +115,18 @@ DATE_BARE_RE = re.compile(
 )
 
 MONTHS = [
-    "january", "february", "march", "april", "may", "june",
-    "july", "august", "september", "october", "november", "december",
+    "january",
+    "february",
+    "march",
+    "april",
+    "may",
+    "june",
+    "july",
+    "august",
+    "september",
+    "october",
+    "november",
+    "december",
 ]
 
 
@@ -119,8 +135,7 @@ def _iso_date(month_name: str, day: str, year: str) -> str:
     return f"{year}-{month:02d}-{int(day):02d}"
 
 
-def extract_dropdown_links(html: str,
-                           index_original_url: str) -> dict[str, str]:
+def extract_dropdown_links(html: str, index_original_url: str) -> dict[str, str]:
     links = {}
 
     for label, rel_url in CSOBJ_RE.findall(html):
@@ -186,18 +201,21 @@ def parse_snapshot(content: bytes) -> Detail:
     return {"title": title, "date": date, "body": body, "body_html": body_html}
 
 
-def scrape(limit: int = None, prefix_crawl: bool = True,
-           catch: dict = None) -> None:
+def scrape(limit: int = None, prefix_crawl: bool = True, catch: dict = None) -> None:
     conn = connection.connect()
     session = requests.Session()
 
     candidates = {}  # (source, url) -> title
 
-    for page in ([] if catch_up.no_crawl(catch) else INDEX_PAGES):
+    for page in [] if catch_up.no_crawl(catch) else INDEX_PAGES:
         print(f"[{page['source']}] Fetching index {page['wayback_url']}", flush=True)
         try:
-            content = archive.fetch_snapshot(conn, session, page["wayback_url"], timeout=20)
-            links = extract_dropdown_links(content.decode("cp1252", errors="replace"), page["original"])
+            content = archive.fetch_snapshot(
+                conn, session, page["wayback_url"], timeout=20
+            )
+            links = extract_dropdown_links(
+                content.decode("cp1252", errors="replace"), page["original"]
+            )
         except Exception as e:
             print(f"  ERROR fetching index page: {e}")
             continue
@@ -264,9 +282,16 @@ def scrape(limit: int = None, prefix_crawl: bool = True,
 
         title = parsed["title"] or item["title"]
 
-        if storage.store_release(conn, source, url, title=title, date=parsed["date"],
-                            body=parsed["body"], body_html=parsed["body_html"],
-                            detail_id=timestamp):
+        if storage.store_release(
+            conn,
+            source,
+            url,
+            title=title,
+            date=parsed["date"],
+            body=parsed["body"],
+            body_html=parsed["body_html"],
+            detail_id=timestamp,
+        ):
             s.added()
 
     for s in stats.values():

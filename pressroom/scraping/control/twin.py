@@ -67,8 +67,9 @@ def _key(source, title, date):
 def find_pairs(conn, source=None):
     """(short row, twin row) pairs worth applying, plus the ones rejected."""
     where = "WHERE source = ?" if source else ""
-    rows = conn.execute(_ROWS_SQL.format(where=where),
-                        (source,) if source else ()).fetchall()
+    rows = conn.execute(
+        _ROWS_SQL.format(where=where), (source,) if source else ()
+    ).fetchall()
 
     groups = collections.defaultdict(list)
     undated = 0
@@ -81,8 +82,16 @@ def find_pairs(conn, source=None):
             undated += 1
             continue
         groups[_key(src, title, date)].append(
-            {"id": rid, "source": src, "url": url, "detail_id": detail_id,
-             "title": title, "date": date, "len": length})
+            {
+                "id": rid,
+                "source": src,
+                "url": url,
+                "detail_id": detail_id,
+                "title": title,
+                "date": date,
+                "len": length,
+            }
+        )
 
     pairs, rejected = [], []
     for members in groups.values():
@@ -114,8 +123,10 @@ def fill(conn, source: str = None, *, dry_run: bool = False) -> int:
         print(f"[{source or 'twins'}] bliźniaki do uzupełnienia:", flush=True)
     for short, best in pairs:
         per_source[short["source"]] += 1
-        print(f"  #{short['id']} {short['source']} {short['len']:5} -> "
-              f"{best['len']:5} znaków (od #{best['id']}, detail={best['detail_id']})")
+        print(
+            f"  #{short['id']} {short['source']} {short['len']:5} -> "
+            f"{best['len']:5} znaków (od #{best['id']}, detail={best['detail_id']})"
+        )
         print(f"      {short['title'][:88]}")
 
     if not pairs and not rejected:
@@ -132,15 +143,18 @@ def fill(conn, source: str = None, *, dry_run: bool = False) -> int:
 
     written = 0
     for short, best in pairs:
-        body = conn.execute("SELECT body FROM releases WHERE id = ?", (best["id"],)).fetchone()[0]
+        body = conn.execute(
+            "SELECT body FROM releases WHERE id = ?", (best["id"],)
+        ).fetchone()[0]
         # detail_id follows the body: the text came from the twin's capture, so
         # that timestamp is what this row's provenance now is. upgrade_release
         # goes through releases_au, so the FTS index follows the change.
         detail = best["detail_id"] if address.is_timestamp(best["detail_id"]) else None
         # grade follows too: the row now holds the twin's full article, so a
         # 'teaser' verdict on it has stopped being true.
-        if storage.upgrade_release(conn, short["url"], body=body, detail_id=detail,
-                              grade="full"):
+        if storage.upgrade_release(
+            conn, short["url"], body=body, detail_id=detail, grade="full"
+        ):
             written += 1
             # This text came out of another row, not out of a capture of this
             # one. Whatever address was recorded for it has stopped describing

@@ -29,25 +29,30 @@ def quiet(fn, *a, **kw):
 class CursorTest(support.DbCase):
     def setUp(self):
         super().setUp()
-        self.done = self.seed("src", url="http://x/done", body="done",
-                              body_html="<p>done</p>")
+        self.done = self.seed(
+            "src", url="http://x/done", body="done", body_html="<p>done</p>"
+        )
         self.todo = self.seed("src", url="http://x/todo", body="todo")
 
     def test_the_cursor_is_body_html_is_null(self):
         """Without one, a listing pass walked all 159 terratec_new rows instead
         of the 24 pending ones."""
-        self.assertEqual([u for u, _ in catch_up.pending(self.conn, "src")],
-                         [self.todo])
+        self.assertEqual(
+            [u for u, _ in catch_up.pending(self.conn, "src")], [self.todo]
+        )
 
     def test_force_widens_it_to_every_row_of_the_source(self):
         self.assertEqual(
             {u for u, _ in catch_up.pending(self.conn, "src", force=True)},
-            {self.done, self.todo})
+            {self.done, self.todo},
+        )
 
     def test_another_source_is_never_in_the_cursor(self):
         self.seed("other", url="http://x/other", body="other")
-        self.assertNotIn("http://x/other",
-                         {u for u, _ in catch_up.pending(self.conn, "src", force=True)})
+        self.assertNotIn(
+            "http://x/other",
+            {u for u, _ in catch_up.pending(self.conn, "src", force=True)},
+        )
 
 
 class GateUnderForceTest(support.DbCase):
@@ -59,8 +64,12 @@ class GateUnderForceTest(support.DbCase):
         better copy - and `safe_to_write` provably cannot catch it, because a
         lost tail is `edges_only`, the same signature as correctly dropped nav.
         """
-        url = self.seed("src", url="http://x/1", body="A" * 4287,
-                        body_html="<p>" + "A" * 4287 + "</p>")
+        url = self.seed(
+            "src",
+            url="http://x/1",
+            body="A" * 4287,
+            body_html="<p>" + "A" * 4287 + "</p>",
+        )
 
         def collect(_conn):
             return {url: {"body": "A" * 359, "body_html": "<p>short</p>"}}
@@ -77,10 +86,17 @@ class GateByAddressTest(support.DbCase):
         super().setUp()
         self.url = "http://www.midiman.net/news/en_us-596.html"
         self.listing = address.snapshot_url(
-            TS, "http://www.midiman.net/news/pressdb.php")
+            TS, "http://www.midiman.net/news/pressdb.php"
+        )
         self.own = address.snapshot_url(TS, self.url)
-        storage.store_release(self.conn, "src", self.url, body="a 413-char teaser",
-                              detail_id=TS, grade=Grade.TEASER)
+        storage.store_release(
+            self.conn,
+            "src",
+            self.url,
+            body="a 413-char teaser",
+            detail_id=TS,
+            grade=Grade.TEASER,
+        )
 
     def _parser_returning(self, body):
         return lambda _content: {"body": body, "body_html": f"<p>{body}</p>"}
@@ -93,14 +109,19 @@ class GateByAddressTest(support.DbCase):
         its article and allows."""
         origin.record(self.conn, self.url, self.listing)
         self.cache(self.listing, b"<html>the whole listing</html>")
-        out = quiet(catch_up.from_cache, self.conn, "src",
-                    self._parser_returning("somebody else's release, " * 200))
+        out = quiet(
+            catch_up.from_cache,
+            self.conn,
+            "src",
+            self._parser_returning("somebody else's release, " * 200),
+        )
         self.assertIn("WSTRZYMANE", out)
         self.assertEqual(self.row(self.url)["body"], "a 413-char teaser")
 
     def test_the_same_bytes_would_pass_the_other_gate(self):
         """Asserted so the test above cannot go green for the wrong reason."""
         from pressroom.release.control import gate
+
         long_text = "somebody else's release, " * 200
         self.assertTrue(gate.safe_to_write("a 413-char teaser", long_text)[0])
         self.assertFalse(gate.strict_same_text("a 413-char teaser", long_text)[0])
@@ -108,8 +129,12 @@ class GateByAddressTest(support.DbCase):
     def test_a_capture_of_the_row_s_own_page_goes_through_safe_to_write(self):
         origin.record(self.conn, self.url, self.own)
         self.cache(self.own, b"<html>the release</html>")
-        quiet(catch_up.from_cache, self.conn, "src",
-              self._parser_returning("The real article, at last. " * 40))
+        quiet(
+            catch_up.from_cache,
+            self.conn,
+            "src",
+            self._parser_returning("The real article, at last. " * 40),
+        )
         self.assertIn("The real article", self.row(self.url)["body"])
 
     def test_a_collector_takes_the_row_instead_of_the_whole_page_parser(self):
@@ -118,21 +143,33 @@ class GateByAddressTest(support.DbCase):
         membership test became."""
         origin.record(self.conn, self.url, self.listing)
         self.cache(self.listing, b"<html>the whole listing</html>")
-        quiet(catch_up.from_cache, self.conn, "src",
-              self._parser_returning("anything at all " * 100), has_collector=True)
+        quiet(
+            catch_up.from_cache,
+            self.conn,
+            "src",
+            self._parser_returning("anything at all " * 100),
+            has_collector=True,
+        )
         self.assertEqual(self.row(self.url)["body"], "a 413-char teaser")
 
 
 class WriteTest(support.DbCase):
     def test_an_upgrade_says_the_verdict_changed(self):
-        url = self.seed("src", url="http://x/1", body="blurb", detail_id=TS,
-                        grade=Grade.TEASER)
+        url = self.seed(
+            "src", url="http://x/1", body="blurb", detail_id=TS, grade=Grade.TEASER
+        )
         own = address.snapshot_url(TS, url)
         origin.record(self.conn, url, own)
         self.cache(own, b"<html>x</html>")
-        quiet(catch_up.from_cache, self.conn, "src",
-              lambda _c: {"body": "the real article " * 20,
-                          "body_html": "<p>the real article</p>"})
+        quiet(
+            catch_up.from_cache,
+            self.conn,
+            "src",
+            lambda _c: {
+                "body": "the real article " * 20,
+                "body_html": "<p>the real article</p>",
+            },
+        )
         self.assertEqual(self.row(url)["grade"], "full")
 
     def test_the_address_is_recorded_beside_the_text(self):
@@ -142,19 +179,29 @@ class WriteTest(support.DbCase):
         url = self.seed("src", url="http://x/1", body="blurb", detail_id=TS)
         own = address.snapshot_url(TS, url)
         self.cache(own, b"<html>x</html>")
-        quiet(catch_up.from_cache, self.conn, "src",
-              lambda _c: {"body": "the real article " * 20,
-                          "body_html": "<p>the real article</p>"})
-        self.assertEqual(self.conn.execute(
-            "SELECT origin_url FROM body_origin WHERE url = ?", (url,)).fetchone()[0],
-            own)
+        quiet(
+            catch_up.from_cache,
+            self.conn,
+            "src",
+            lambda _c: {
+                "body": "the real article " * 20,
+                "body_html": "<p>the real article</p>",
+            },
+        )
+        self.assertEqual(
+            self.conn.execute(
+                "SELECT origin_url FROM body_origin WHERE url = ?", (url,)
+            ).fetchone()[0],
+            own,
+        )
 
     def test_an_attachment_row_never_reaches_an_html_parser(self):
         """BeautifulSoup does not refuse binary - it returns a document whose
         get_text() is the PDF stream decoded as characters, with no exception to
         catch. 23 rows held `%PDF-1.3 %...` over correctly extracted text."""
-        url = self.seed("src", url="http://x/spec.pdf", body="the extracted text",
-                        detail_id=TS)
+        url = self.seed(
+            "src", url="http://x/spec.pdf", body="the extracted text", detail_id=TS
+        )
         self.cache(address.snapshot_url(TS, url), b"%PDF-1.3\n%\xe2\xe3\xcf\xd3")
 
         def explode(_content):
@@ -178,17 +225,25 @@ class TitleTest(support.DbCase):
     def test_a_title_is_written_only_over_an_empty_one(self):
         """Tried the other way round, the same rule filled 8 rows and *changed*
         30 - twelve of them from a correct title to an empty one."""
-        for name, stored, want in (("empty", "", "Recovered headline"),
-                                   ("kept", "The stored title", "The stored title")):
+        for name, stored, want in (
+            ("empty", "", "Recovered headline"),
+            ("kept", "The stored title", "The stored title"),
+        ):
             with self.subTest(case=name):
                 url = f"http://x/{name}"
                 self.seed("src", url=url, title=stored, body="b", detail_id=TS)
                 own = address.snapshot_url(TS, url)
                 self.cache(own, b"<html>x</html>")
-                quiet(catch_up.from_cache, self.conn, "src",
-                      lambda _c: {"title": "Recovered headline",
-                                  "body": "the real article " * 20,
-                                  "body_html": "<p>the real article</p>"})
+                quiet(
+                    catch_up.from_cache,
+                    self.conn,
+                    "src",
+                    lambda _c: {
+                        "title": "Recovered headline",
+                        "body": "the real article " * 20,
+                        "body_html": "<p>the real article</p>",
+                    },
+                )
                 self.assertEqual(self.row(url)["title"], want)
 
 
@@ -198,10 +253,13 @@ class ListingsTest(support.DbCase):
         self.seed("src", url="http://x/known", body="short")
 
         def collect(_conn):
-            return {"http://x/known": {"body": "the real article " * 20,
-                                       "body_html": "<p>a</p>"},
-                    "http://x/invented": {"body": "text " * 50,
-                                          "body_html": "<p>b</p>"}}
+            return {
+                "http://x/known": {
+                    "body": "the real article " * 20,
+                    "body_html": "<p>a</p>",
+                },
+                "http://x/invented": {"body": "text " * 50, "body_html": "<p>b</p>"},
+            }
 
         quiet(catch_up.from_listings, self.conn, "src", collect)
         self.assertIsNone(self.row("http://x/invented"))
@@ -210,17 +268,23 @@ class ListingsTest(support.DbCase):
 
 class RetextTest(support.DbCase):
     def test_body_is_re_derived_from_the_stored_markup(self):
-        url = self.seed("src", url="http://x/1", body="stale flat text",
-                        body_html="<p>alpha</p><p>beta</p>")
+        url = self.seed(
+            "src",
+            url="http://x/1",
+            body="stale flat text",
+            body_html="<p>alpha</p><p>beta</p>",
+        )
         quiet(catch_up.retext, self.conn, "src")
         self.assertEqual(self.row(url)["body"], "alpha\n\nbeta")
 
     def test_it_records_no_origin_because_no_capture_was_involved(self):
-        url = self.seed("src", url="http://x/1", body="stale",
-                        body_html="<p>alpha</p>")
+        url = self.seed("src", url="http://x/1", body="stale", body_html="<p>alpha</p>")
         quiet(catch_up.retext, self.conn, "src")
-        self.assertIsNone(self.conn.execute(
-            "SELECT origin_url FROM body_origin WHERE url = ?", (url,)).fetchone())
+        self.assertIsNone(
+            self.conn.execute(
+                "SELECT origin_url FROM body_origin WHERE url = ?", (url,)
+            ).fetchone()
+        )
 
     def test_a_row_with_no_markup_is_left_alone(self):
         url = self.seed("src", url="http://x/1", body="flat, no html")
@@ -230,9 +294,14 @@ class RetextTest(support.DbCase):
 
 class FlagTest(support.DbCase):
     def test_no_crawl_is_exactly_the_three_flags_that_mean_no_network(self):
-        for opts, want in (({"offline": True}, True), ({"only_retext": True}, True),
-                           ({"seed": True}, True), ({"force": True}, False),
-                           ({}, False), (None, False)):
+        for opts, want in (
+            ({"offline": True}, True),
+            ({"only_retext": True}, True),
+            ({"seed": True}, True),
+            ({"force": True}, False),
+            ({}, False),
+            (None, False),
+        ):
             with self.subTest(opts=opts):
                 self.assertEqual(catch_up.no_crawl(opts), want)
 

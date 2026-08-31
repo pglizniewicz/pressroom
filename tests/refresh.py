@@ -34,15 +34,19 @@ import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
-from pressroom.attachment.control import conversion       # noqa: E402
-from pressroom.capture.entity import page                 # noqa: E402
-from pressroom.database.control import migration          # noqa: E402
-from pressroom.maudio.control import (media_news, media_pr,   # noqa: E402
-                                      news_blog, pressdb)
-from pressroom.provenance.entity import origin            # noqa: E402
-from pressroom.taxonomy.entity import company             # noqa: E402
-from pressroom.terratec.control import early, portal, presse   # noqa: E402
-from tests import parsers, support                        # noqa: E402
+from pressroom.attachment.control import conversion  # noqa: E402
+from pressroom.capture.entity import page  # noqa: E402
+from pressroom.database.control import migration  # noqa: E402
+from pressroom.maudio.control import (
+    media_news,
+    media_pr,  # noqa: E402
+    news_blog,
+    pressdb,
+)
+from pressroom.provenance.entity import origin  # noqa: E402
+from pressroom.taxonomy.entity import company  # noqa: E402
+from pressroom.terratec.control import early, portal, presse  # noqa: E402
+from tests import parsers, support  # noqa: E402
 
 MIN_BODY = 800
 # A listing fixture has to be a listing, and a rich one where the corpus has
@@ -54,6 +58,7 @@ MIN_BODY = 800
 # terratec_early's English page carries 5, and both are still the whole of what
 # that channel is.
 MIN_ENTRIES = 8
+
 
 def extra_listings() -> dict:
     """source -> the listing captures its own scraper names.
@@ -82,8 +87,11 @@ def listing_patterns() -> dict:
     patterns come from there. A pattern rather than an address because the
     capture key carries a timestamp the scraper never knows.
     """
-    out = {src: f"%id_/{url}%" for mod in (media_pr, pressdb, media_news)
-           for src, url in mod.DOMAINS.items()}
+    out = {
+        src: f"%id_/{url}%"
+        for mod in (media_pr, pressdb, media_news)
+        for src, url in mod.DOMAINS.items()
+    }
     out["maudio_com_news"] = f"%id_/{news_blog.LISTING_PAGES[1]}%"
     out["soundonsound"] = "https://www.soundonsound.com/search?%"
     return out
@@ -91,20 +99,24 @@ def listing_patterns() -> dict:
 
 def _ts(capture: str) -> str:
     import re
+
     m = re.search(r"/web/(\d{14})", capture)
     return m.group(1) if m else ""
 
 
 def _detail_candidates(conn, source):
     """Captures of a row's OWN url - the ones a whole-page parser may be fed."""
-    return conn.execute("""
+    return conn.execute(
+        """
         SELECT o.origin_url, length(p.content), r.url
           FROM body_origin o
           JOIN releases r ON r.url = o.url
           JOIN page_cache p ON p.url = o.origin_url
          WHERE r.source = ? AND length(COALESCE(r.body,'')) > ?
            AND o.origin_url = 'https://web.archive.org/web/'||r.detail_id||'id_/'||r.url
-         ORDER BY length(p.content)""", (source, MIN_BODY)).fetchall()
+         ORDER BY length(p.content)""",
+        (source, MIN_BODY),
+    ).fetchall()
 
 
 def _listing_candidates(conn, source):
@@ -116,7 +128,8 @@ def _listing_candidates(conn, source):
     class), so without this the three media_pr sources all picked the same Word
     file as their listing fixture - a document no listing parser can read.
     """
-    return conn.execute("""
+    return conn.execute(
+        """
         SELECT o.origin_url, length(p.content), r.url
           FROM body_origin o
           JOIN releases r ON r.url = o.url
@@ -125,7 +138,9 @@ def _listing_candidates(conn, source):
            AND o.origin_url <> 'https://web.archive.org/web/'||r.detail_id
                                ||'id_/'||r.url
            AND lower(r.url) NOT LIKE '%.pdf' AND lower(r.url) NOT LIKE '%.doc'
-         ORDER BY length(p.content)""", (source,)).fetchall()
+         ORDER BY length(p.content)""",
+        (source,),
+    ).fetchall()
 
 
 def _cached(conn, addresses):
@@ -133,8 +148,9 @@ def _cached(conn, addresses):
     smallest first."""
     out = []
     for a in addresses or ():
-        row = conn.execute("SELECT length(content) FROM page_cache WHERE url = ?",
-                           (a,)).fetchone()
+        row = conn.execute(
+            "SELECT length(content) FROM page_cache WHERE url = ?", (a,)
+        ).fetchone()
         if row:
             out.append((a, row[0], ""))
     return sorted(out, key=lambda t: t[1])
@@ -146,16 +162,21 @@ def _cached_like(conn, pattern):
     answers - some are the page after the last one and hold no entries at all."""
     return conn.execute(
         "SELECT url, length(content), '' FROM page_cache WHERE url LIKE ?"
-        " ORDER BY length(content) LIMIT 40", (pattern,)).fetchall()
+        " ORDER BY length(content) LIMIT 40",
+        (pattern,),
+    ).fetchall()
 
 
 def _live_candidates(conn, source):
     """A live source caches under the row's own url, not a capture address."""
-    return conn.execute("""
+    return conn.execute(
+        """
         SELECT p.url, length(p.content), r.url
           FROM releases r JOIN page_cache p ON p.url = r.url
          WHERE r.source = ? AND length(COALESCE(r.body,'')) > ?
-         ORDER BY length(p.content)""", (source, MIN_BODY)).fetchall()
+         ORDER BY length(p.content)""",
+        (source, MIN_BODY),
+    ).fetchall()
 
 
 def _attachments(conn):
@@ -163,15 +184,19 @@ def _attachments(conn):
     class is exactly what this fixture must not be."""
     out = {}
     for ext, want in ((".pdf", "pdf"), (".doc", "doc")):
-        rows = conn.execute("""
+        rows = conn.execute(
+            """
             SELECT o.origin_url, p.content, r.url
               FROM body_origin o JOIN releases r ON r.url = o.url
               JOIN page_cache p ON p.url = o.origin_url
              WHERE lower(r.url) LIKE ? ORDER BY length(p.content)""",
-                            (f"%{ext}",)).fetchall()
+            (f"%{ext}",),
+        ).fetchall()
         for capture, content, url in rows:
-            if (conversion.is_attachment(content)
-                    and conversion.kind_of(content) == want):
+            if (
+                conversion.is_attachment(content)
+                and conversion.kind_of(content) == want
+            ):
                 out[f"attachment_{want}"] = (capture, url)
                 break
     return out
@@ -191,16 +216,20 @@ def refresh_captures() -> None:
     tags = sorted({s for _, (_, ss) in company.COMPANIES.items() for s in ss})
     for source in tags:
         for kind in parsers.routes_for(source):
-            picker = {"detail": _detail_candidates, "listing": _listing_candidates,
-                      "live": _live_candidates}[kind]
+            picker = {
+                "detail": _detail_candidates,
+                "listing": _listing_candidates,
+                "live": _live_candidates,
+            }[kind]
             rows = picker(conn, source)
             want = 1
             if kind == "listing" and (source in extra or source in patterns):
                 # Two for terratec_early: the German page and the English one
                 # use different date markers and different anchor schemes, so
                 # one of them proves nothing about the other.
-                rows = _cached(conn, extra.get(source)) or \
-                    _cached_like(conn, patterns.get(source, "\x00"))
+                rows = _cached(conn, extra.get(source)) or _cached_like(
+                    conn, patterns.get(source, "\x00")
+                )
                 want = 2 if source == "terratec_early" else 1
             if not rows:
                 print(f"  -- {source} {kind}: nothing cached, skipped")
@@ -212,22 +241,32 @@ def refresh_captures() -> None:
             for n, (capture, _size, url) in enumerate(picked):
                 name = f"{source}__{kind}" + (f"_{n}" if n else "")
                 manifest[name] = {
-                    "source": source, "kind": kind, "capture": capture,
-                    "url": url, "timestamp": _ts(capture),
+                    "source": source,
+                    "kind": kind,
+                    "capture": capture,
+                    "url": url,
+                    "timestamp": _ts(capture),
                     "base_url": origin.page_of(capture) or url or capture,
                     "file": _write(conn, name, capture, files),
                 }
 
     for name, (capture, url) in _attachments(conn).items():
-        manifest[name] = {"source": "attachment", "kind": "attachment",
-                          "capture": capture, "url": url,
-                          "timestamp": _ts(capture), "base_url": "",
-                          "file": _write(conn, name, capture, files)}
+        manifest[name] = {
+            "source": "attachment",
+            "kind": "attachment",
+            "capture": capture,
+            "url": url,
+            "timestamp": _ts(capture),
+            "base_url": "",
+            "file": _write(conn, name, capture, files),
+        }
 
     support.MANIFEST.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
     total = sum(f.stat().st_size for f in support.CAPTURES.glob("*.gz"))
-    print(f"{len(manifest)} fixtures over {len(files)} files, "
-          f"{total/1024:.0f} KB gzipped")
+    print(
+        f"{len(manifest)} fixtures over {len(files)} files, "
+        f"{total / 1024:.0f} KB gzipped"
+    )
 
 
 def _usable(conn, source, kind, rows, want) -> list:
@@ -244,13 +283,20 @@ def _usable(conn, source, kind, rows, want) -> list:
     floor = MIN_ENTRIES if kind == "listing" else MIN_BODY
     rich, thin = [], []
     for capture, size, url in rows:
-        content = conn.execute("SELECT content FROM page_cache WHERE url = ?",
-                               (capture,)).fetchone()[0]
+        content = conn.execute(
+            "SELECT content FROM page_cache WHERE url = ?", (capture,)
+        ).fetchone()[0]
         seeded = _seeded(url or capture, content)
         try:
-            got = parsers.parse(kind, source, content, url=url,
-                                timestamp=_ts(capture), conn=seeded,
-                                base_url=origin.page_of(capture) or url or capture)
+            got = parsers.parse(
+                kind,
+                source,
+                content,
+                url=url,
+                timestamp=_ts(capture),
+                conn=seeded,
+                base_url=origin.page_of(capture) or url or capture,
+            )
         except Exception:
             continue
         finally:
@@ -259,7 +305,7 @@ def _usable(conn, source, kind, rows, want) -> list:
         (rich if got >= floor else thin).append((size, capture, url, got))
     rich.sort()
     out = [(c, s, u) for s, c, u, _n in rich[:want]]
-    for _s, capture, url, _n in sorted(thin, key=lambda t: -t[3])[:want - len(out)]:
+    for _s, capture, url, _n in sorted(thin, key=lambda t: -t[3])[: want - len(out)]:
         out.append((capture, _s, url))
     return out
 
@@ -272,8 +318,9 @@ def _write(conn, name, capture, files: dict) -> str:
     manifest points at a file rather than owning one. Committing the same 24 KB
     capture three times would be paying for the mirror twice over.
     """
-    content = conn.execute("SELECT content FROM page_cache WHERE url = ?",
-                           (capture,)).fetchone()[0]
+    content = conn.execute(
+        "SELECT content FROM page_cache WHERE url = ?", (capture,)
+    ).fetchone()[0]
     stem = files.get(capture)
     if stem:
         print(f"  {name:44} -> {stem} (shared)")
@@ -293,8 +340,11 @@ def refresh_golden() -> None:
         stale.unlink()
     for name, spec in sorted(support.manifest().items()):
         (support.GOLDEN / f"{name}.json").write_text(
-            json.dumps(produce(name, spec), indent=1, ensure_ascii=False,
-                       sort_keys=True) + "\n")
+            json.dumps(
+                produce(name, spec), indent=1, ensure_ascii=False, sort_keys=True
+            )
+            + "\n"
+        )
         print(f"  {name}")
 
 
@@ -311,8 +361,10 @@ def _seeded(url: str, content: bytes):
     # script's output.
     with contextlib.redirect_stdout(io.StringIO()):
         migration.init_db(conn)
-    conn.execute("INSERT INTO page_cache (url, content, content_sha256)"
-                 " VALUES (?,?,?)", (url, content, page.content_hash(content)))
+    conn.execute(
+        "INSERT INTO page_cache (url, content, content_sha256) VALUES (?,?,?)",
+        (url, content, page.content_hash(content)),
+    )
     conn.commit()
     return conn
 
@@ -323,24 +375,40 @@ def produce(name: str, spec: dict):
     if spec["kind"] == "attachment":
         text, html, kind = conversion.to_richtext(content)
         plain, plain_kind = conversion.plain_text(content)
-        return {"kind": kind, "richtext": text, "richtext_html": html,
-                "plain_kind": plain_kind, "plain": plain}
+        return {
+            "kind": kind,
+            "richtext": text,
+            "richtext_html": html,
+            "plain_kind": plain_kind,
+            "plain": plain,
+        }
     conn = _seeded(spec["url"], content)
     try:
-        return parsers.parse(spec["kind"], spec["source"], content,
-                             base_url=spec["base_url"],
-                             timestamp=spec["timestamp"], url=spec["url"],
-                             conn=conn)
+        return parsers.parse(
+            spec["kind"],
+            spec["source"],
+            content,
+            base_url=spec["base_url"],
+            timestamp=spec["timestamp"],
+            url=spec["url"],
+            conn=conn,
+        )
     finally:
         conn.close()
 
 
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__.strip().split("\n\n", 1)[0])
-    p.add_argument("--captures", action="store_true",
-                   help="re-pick the fixture captures out of pressroom.db")
-    p.add_argument("--golden", action="store_true",
-                   help="re-run the parsers and rewrite the expected output")
+    p.add_argument(
+        "--captures",
+        action="store_true",
+        help="re-pick the fixture captures out of pressroom.db",
+    )
+    p.add_argument(
+        "--golden",
+        action="store_true",
+        help="re-run the parsers and rewrite the expected output",
+    )
     args = p.parse_args()
     if not (args.captures or args.golden):
         p.error("nothing to do: pass --captures, --golden, or both")

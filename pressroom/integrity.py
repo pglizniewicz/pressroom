@@ -40,8 +40,16 @@ BUILTINS = set(dir(builtins))
 
 # A name in one of these positions opens a scope of its own, so the checks below
 # must stop rather than descend.
-SCOPES = (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda,
-          ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp)
+SCOPES = (
+    ast.FunctionDef,
+    ast.AsyncFunctionDef,
+    ast.ClassDef,
+    ast.Lambda,
+    ast.ListComp,
+    ast.SetComp,
+    ast.DictComp,
+    ast.GeneratorExp,
+)
 
 
 def modules() -> list[str]:
@@ -107,8 +115,11 @@ def _own_subtree(node):
 def _walk_unbound(node, visible, path, out) -> None:
     scope = visible | _bound_names(node)
     for child in _own_subtree(node):
-        if isinstance(child, ast.Attribute) and isinstance(child.value, ast.Name) \
-                and isinstance(child.value.ctx, ast.Load):
+        if (
+            isinstance(child, ast.Attribute)
+            and isinstance(child.value, ast.Name)
+            and isinstance(child.value.ctx, ast.Load)
+        ):
             base = child.value.id
             if base not in scope and base not in BUILTINS:
                 out.append((path, child.lineno, f"{base}.{child.attr}"))
@@ -146,8 +157,11 @@ def check_shadowed() -> list[tuple[pathlib.Path, int, str, str]]:
             if not isinstance(func, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 continue
             for n in ast.walk(func):
-                if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Store) \
-                        and n.id in imported:
+                if (
+                    isinstance(n, ast.Name)
+                    and isinstance(n.ctx, ast.Store)
+                    and n.id in imported
+                ):
                     out.append((path, n.lineno, func.name, n.id))
     return out
 
@@ -157,7 +171,9 @@ def _rel(path) -> str:
 
 
 def main() -> None:
-    argparse.ArgumentParser(description=__doc__.strip().split("\n\n", 1)[0]).parse_args()
+    argparse.ArgumentParser(
+        description=__doc__.strip().split("\n\n", 1)[0]
+    ).parse_args()
 
     names = modules()
     bad = 0
@@ -172,13 +188,17 @@ def main() -> None:
     print(f"2. unbound qualified names: {len(unbound)}")
     for path, line, name in unbound:
         bad += 1
-        print(f"   {_rel(path)}:{line}: `{name}` - `{name.split('.')[0]}` is bound nowhere")
+        print(
+            f"   {_rel(path)}:{line}: `{name}` - `{name.split('.')[0]}` is bound nowhere"
+        )
 
     shadowed = check_shadowed()
     print(f"3. locals shadowing an imported module: {len(shadowed)}")
     for path, line, func, name in shadowed:
         bad += 1
-        print(f"   {_rel(path)}:{line}: {func}() assigns to `{name}`, an imported module")
+        print(
+            f"   {_rel(path)}:{line}: {func}() assigns to `{name}`, an imported module"
+        )
 
     print("\n" + ("OK" if not bad else f"{bad} problems"))
     sys.exit(1 if bad else 0)

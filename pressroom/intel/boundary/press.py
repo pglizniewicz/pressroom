@@ -17,8 +17,9 @@ LIST_URL = "https://www.intc.com/news-events/press-releases"
 def crawl(*, pages, start, catch):
     """The platform parser, pointed at Intel's listing. Intel runs the Q4
     default template, so it names no selectors."""
-    platform.scrape(source=SOURCE, list_url=LIST_URL,
-                    pages=pages, start=start, catch=catch)
+    platform.scrape(
+        source=SOURCE, list_url=LIST_URL, pages=pages, start=start, catch=catch
+    )
 
 
 def main():

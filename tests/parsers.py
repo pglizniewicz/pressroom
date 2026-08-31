@@ -27,8 +27,12 @@ from pressroom.soundonsound.control import magazine
 from pressroom.terratec.control import cms, early, portal, presse
 
 MEDIA_PR = ("midiman_com_media_pr", "midiman_net_media_pr", "maudio_com_media_pr")
-MEDIA_NEWS = ("midiman_com_media_news", "midiman_net_media_news",
-              "maudio_com_media_news", "midiman_couk_news")
+MEDIA_NEWS = (
+    "midiman_com_media_news",
+    "midiman_net_media_news",
+    "maudio_com_media_news",
+    "midiman_couk_news",
+)
 PRESSDB = ("midiman_com_pressdb", "midiman_net_pressdb")
 PORTAL = ("terratec_pressde", "terratec_pressen")
 CMS = ("terratec_new_de", "terratec_new_en")
@@ -62,7 +66,8 @@ LISTING.update({tag: lambda c, base, ts: portal.extract_teasers(c) for tag in PO
 # one a capture is decides both the date marker and the anchor scheme.
 LISTING["terratec_early"] = lambda c, base, ts: early.extract_entries(
     c.decode("cp1252", errors="replace"),
-    next(p for p in early.PAGES if p["timestamp"] == ts or p["base_url"] == base))
+    next(p for p in early.PAGES if p["timestamp"] == ts or p["base_url"] == base),
+)
 
 # --- live: (conn, url) -> (body, body_html) ---------------------------------
 
@@ -75,8 +80,16 @@ LIVE = {
 }
 
 
-def parse(kind: str, source: str, content: bytes, *, base_url="", timestamp="",
-          conn=None, url=""):
+def parse(
+    kind: str,
+    source: str,
+    content: bytes,
+    *,
+    base_url="",
+    timestamp="",
+    conn=None,
+    url="",
+):
     """Run the route this fixture declares and return something JSON-able."""
     if kind == "detail":
         return DETAIL[source](content)

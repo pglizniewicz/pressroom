@@ -58,7 +58,6 @@ Encoding is Windows-1252, undeclared (confirmed via raw byte inspection -
 treatment as pressdb.py.
 """
 
-
 import re
 from urllib.parse import urljoin
 
@@ -81,13 +80,27 @@ PAGES = [
     "http://midiman.de/pressemt.htm",
 ]
 
-BLOCK_RE = re.compile(r"<!--\s*.*?\bstart\s*-->(.*?)<!--\s*.*?\bstop\s*-->", re.DOTALL | re.IGNORECASE)
-LINKOUT_RE = re.compile(r'size="5"\s*>\s*<a\s+href="([^"]+)"[^>]*>(.*?)</a>', re.IGNORECASE | re.DOTALL)
+BLOCK_RE = re.compile(
+    r"<!--\s*.*?\bstart\s*-->(.*?)<!--\s*.*?\bstop\s*-->", re.DOTALL | re.IGNORECASE
+)
+LINKOUT_RE = re.compile(
+    r'size="5"\s*>\s*<a\s+href="([^"]+)"[^>]*>(.*?)</a>', re.IGNORECASE | re.DOTALL
+)
 INFOS_BEI_RE = re.compile(r"Infos bei\s*:", re.IGNORECASE)
 
 GERMAN_MONTHS = {
-    "januar": 1, "februar": 2, "märz": 3, "april": 4, "mai": 5, "juni": 6,
-    "juli": 7, "august": 8, "september": 9, "oktober": 10, "november": 11, "dezember": 12,
+    "januar": 1,
+    "februar": 2,
+    "märz": 3,
+    "april": 4,
+    "mai": 5,
+    "juni": 6,
+    "juli": 7,
+    "august": 8,
+    "september": 9,
+    "oktober": 10,
+    "november": 11,
+    "dezember": 12,
 }
 
 # Numeric "DD.MM.YYYY" and spelled-out-month "DD. Month[,] YYYY" as one
@@ -147,10 +160,16 @@ def parse_inline_block(block_html: str) -> Entry:
     body, body_html = richtext.extract(soup)
     if not body:
         m = INFOS_BEI_RE.search(text)
-        body, body_html = (text[:m.start()].strip() if m else text.strip()), None
+        body, body_html = (text[: m.start()].strip() if m else text.strip()), None
 
-    return {"kind": "inline", "title": title, "date": date, "url": None,
-            "body": body, "body_html": body_html}
+    return {
+        "kind": "inline",
+        "title": title,
+        "date": date,
+        "url": None,
+        "body": body,
+        "body_html": body_html,
+    }
 
 
 def parse_linkout_block(block_html: str, base_url: str) -> Entry:
@@ -168,8 +187,14 @@ def parse_linkout_block(block_html: str, base_url: str) -> Entry:
     date = _extract_date(text)
     body, body_html = richtext.extract(block)
 
-    return {"kind": "linkout", "title": title, "date": date, "url": url,
-            "body": body or text, "body_html": body_html or None}
+    return {
+        "kind": "linkout",
+        "title": title,
+        "date": date,
+        "url": url,
+        "body": body or text,
+        "body_html": body_html or None,
+    }
 
 
 def split_subentries(block_html: str) -> list[str]:
@@ -199,8 +224,7 @@ def split_subentries(block_html: str) -> list[str]:
     return segments
 
 
-def parse_page(content: bytes, base_url: str,
-               timestamp: str = None) -> list[Entry]:
+def parse_page(content: bytes, base_url: str, timestamp: str = None) -> list[Entry]:
     text = content.decode("cp1252", errors="replace")
     entries = []
     for block_html in BLOCK_RE.findall(text):
@@ -233,20 +257,30 @@ def scrape(limit: int = None, catch: dict = None) -> None:
 
     for page_url in PAGES:
         print(f"[{SOURCE}] Listing historical captures of {page_url}", flush=True)
-        entries = [] if catch_up.no_crawl(catch) else archive.sample_all_captures(
-            conn, session, page_url, parse_page, limit=limit)
+        entries = (
+            []
+            if catch_up.no_crawl(catch)
+            else archive.sample_all_captures(
+                conn, session, page_url, parse_page, limit=limit
+            )
+        )
         for e in entries:
             key = (e["title"], e["date"])
             cur = best.get(key)
             if cur is None or len(e["body"]) > len(cur["body"]):
                 best[key] = e
 
-    print(f"\n[{SOURCE}] {len(best)} distinct release entries found across all captures", flush=True)
+    print(
+        f"\n[{SOURCE}] {len(best)} distinct release entries found across all captures",
+        flush=True,
+    )
 
     for key, e in best.items():
         if not e.get("url"):
             title, date = key
-            e["url"] = f"http://www.midiman.de/press/{_slugify(title)}-{date or 'undated'}"
+            e["url"] = (
+                f"http://www.midiman.de/press/{_slugify(title)}-{date or 'undated'}"
+            )
 
     stats = Stats(SOURCE)
 
@@ -258,27 +292,50 @@ def scrape(limit: int = None, catch: dict = None) -> None:
             continue
 
         if e["kind"] == "inline":
-            storage.store_release(conn, SOURCE, url, title=title, date=date,
-                             body=e["body"], body_html=e.get("body_html"),
-                             detail_id=e["detail_id"])
+            storage.store_release(
+                conn,
+                SOURCE,
+                url,
+                title=title,
+                date=date,
+                body=e["body"],
+                body_html=e.get("body_html"),
+                detail_id=e["detail_id"],
+            )
             stats.added()
             continue
 
         # linkout: try to recover the real page's full text
-        parsed, confirmed = archive.fetch_detail_snapshot(conn, session, url, parse_generic_page)
+        parsed, confirmed = archive.fetch_detail_snapshot(
+            conn, session, url, parse_generic_page
+        )
 
         if parsed.get("body"):
             if existing == "teaser":
                 # No title=/date=: the listing block's values are better than
                 # the linked page's, so only the body is upgraded.
-                storage.upgrade_release(conn, url, detail_id=parsed["detail_id"],
-                                   body=parsed["body"], body_html=parsed["body_html"],
-                                   grade="full", commit=False)
+                storage.upgrade_release(
+                    conn,
+                    url,
+                    detail_id=parsed["detail_id"],
+                    body=parsed["body"],
+                    body_html=parsed["body_html"],
+                    grade="full",
+                    commit=False,
+                )
                 stats.upgraded()
             else:
-                storage.store_release(conn, SOURCE, url, title=title, date=date,
-                                 body=parsed["body"], body_html=parsed["body_html"],
-                                 detail_id=parsed["detail_id"], commit=False)
+                storage.store_release(
+                    conn,
+                    SOURCE,
+                    url,
+                    title=title,
+                    date=date,
+                    body=parsed["body"],
+                    body_html=parsed["body_html"],
+                    detail_id=parsed["detail_id"],
+                    commit=False,
+                )
                 stats.added()
             conn.commit()
             continue
@@ -292,9 +349,16 @@ def scrape(limit: int = None, catch: dict = None) -> None:
             continue
 
         if e["body"]:
-            storage.store_release(conn, SOURCE, url, title=title, date=date,
-                             body=e["body"], body_html=e.get("body_html"),
-                             grade="teaser")
+            storage.store_release(
+                conn,
+                SOURCE,
+                url,
+                title=title,
+                date=date,
+                body=e["body"],
+                body_html=e.get("body_html"),
+                grade="teaser",
+            )
             stats.teaser()
         else:
             stats.dead()
@@ -302,10 +366,15 @@ def scrape(limit: int = None, catch: dict = None) -> None:
     stats.summary(conn)
     # Both shapes: this CMS has article captures of its own *and* releases that
     # only ever existed inside a listing, whose urls this scraper minted.
-    catch_up.run(conn, SOURCE, catch, parser=parse_generic_page,
-                  collect=cached_entries, session=session)
+    catch_up.run(
+        conn,
+        SOURCE,
+        catch,
+        parser=parse_generic_page,
+        collect=cached_entries,
+        session=session,
+    )
     conn.close()
-
 
 
 def cached_entries(conn) -> dict[str, Entry]:
@@ -323,11 +392,13 @@ def cached_entries(conn) -> dict[str, Entry]:
     """
     out = {}
     for cap_url, content in conn.execute(
-            "SELECT url, content FROM page_cache WHERE url LIKE '%midiman.de%'"):
+        "SELECT url, content FROM page_cache WHERE url LIKE '%midiman.de%'"
+    ):
         m = re.search(r"/web/(\d{14})id_/", cap_url)
         try:
-            entries = parse_page(content, "http://www.midiman.de/",
-                                 m.group(1) if m else None)
+            entries = parse_page(
+                content, "http://www.midiman.de/", m.group(1) if m else None
+            )
         except Exception as e:
             print(f"\n    {cap_url}: {e}")
             continue

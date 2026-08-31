@@ -12,7 +12,6 @@ No automated English/German dedup - stored separately (source per
 language), preference applied by hand during terratec.json curation.
 """
 
-
 import re
 import time
 
@@ -52,8 +51,18 @@ LANGS = {
 }
 
 GERMAN_MONTHS = {
-    "januar": 1, "februar": 2, "märz": 3, "april": 4, "mai": 5, "juni": 6,
-    "juli": 7, "august": 8, "september": 9, "oktober": 10, "november": 11, "dezember": 12,
+    "januar": 1,
+    "februar": 2,
+    "märz": 3,
+    "april": 4,
+    "mai": 5,
+    "juni": 6,
+    "juli": 7,
+    "august": 8,
+    "september": 9,
+    "oktober": 10,
+    "november": 11,
+    "dezember": 12,
 }
 
 ARTICLE_FILE_RE = re.compile(r"_\d+\.html?(?:$|\?)", re.IGNORECASE)
@@ -113,11 +122,17 @@ def parse_detail(content: bytes) -> Detail:
     if not entries:
         return {"title": "", "date": "", "body": "", "body_html": None}
     best = max(entries, key=lambda e: len(e["body"]))
-    return {"title": best["title"], "date": best["date"],
-            "body": best["body"], "body_html": best["body_html"]}
+    return {
+        "title": best["title"],
+        "date": best["date"],
+        "body": best["body"],
+        "body_html": best["body_html"],
+    }
 
 
-def extract_entries(content: bytes, base_url: str = None, timestamp: str = None) -> list[Entry]:
+def extract_entries(
+    content: bytes, base_url: str = None, timestamp: str = None
+) -> list[Entry]:
     """Every <h2>Month YYYY - Title</h2> heading on the page, each paired
     with its containing block's link and body text. Works for both listing
     pages (many headings, each in its own div.block) and individual article
@@ -141,8 +156,9 @@ def extract_entries(content: bytes, base_url: str = None, timestamp: str = None)
         heading = h2.get_text(" ", strip=True)
         if TITLE_DATE_RE.match(heading):
             date, title = parse_month_year(heading)
-        elif area is not None and (h2.find_parent("div", class_="block")
-                                   or len(headings) == 1):
+        elif area is not None and (
+            h2.find_parent("div", class_="block") or len(headings) == 1
+        ):
             # A fallback, never a replacement. Later captures dropped the
             # "Month YYYY - " prefix from the headline, and the regex is the
             # only thing that recognised a release, so those pages parsed to
@@ -173,8 +189,16 @@ def extract_entries(content: bytes, base_url: str = None, timestamp: str = None)
                 p.decompose()
         body, body_html = richtext.extract(work)
 
-        entries.append({"url": url, "title": title, "date": date, "body": body,
-                        "body_html": body_html, "detail_id": timestamp})
+        entries.append(
+            {
+                "url": url,
+                "title": title,
+                "date": date,
+                "body": body,
+                "body_html": body_html,
+                "detail_id": timestamp,
+            }
+        )
 
     return entries
 
@@ -192,8 +216,13 @@ def scrape_lang(lang: str, limit: int = None, catch: dict = None) -> None:
             return
         cur = best.get(url)
         if cur is None or len(body) > len(cur["body"]):
-            best[url] = {"title": title, "date": date, "body": body,
-                         "body_html": body_html, "detail_id": detail_id}
+            best[url] = {
+                "title": title,
+                "date": date,
+                "body": body,
+                "body_html": body_html,
+                "detail_id": detail_id,
+            }
 
     # 1. Time-series sample every historical capture of the listing pages.
     # Small and fast (a couple dozen fetches total) - always completes in one
@@ -201,11 +230,22 @@ def scrape_lang(lang: str, limit: int = None, catch: dict = None) -> None:
     print(f"[{source}] Sampling listing-page history", flush=True)
     for listing_url in cfg["listing_urls"]:
         print(f"  {listing_url}", flush=True)
-        entries = [] if catch_up.no_crawl(catch) else archive.sample_all_captures(
-            conn, session, listing_url, extract_entries)
+        entries = (
+            []
+            if catch_up.no_crawl(catch)
+            else archive.sample_all_captures(
+                conn, session, listing_url, extract_entries
+            )
+        )
         for e in entries:
-            consider(e["url"], e["title"], e["date"], e["body"], e["body_html"],
-                     e["detail_id"])
+            consider(
+                e["url"],
+                e["title"],
+                e["date"],
+                e["body"],
+                e["body_html"],
+                e["detail_id"],
+            )
 
     # 2. Prefix crawl of individually-archived article pages - the slow part,
     # prone to Wayback's transient rate-limiting, so write incrementally
@@ -225,15 +265,21 @@ def scrape_lang(lang: str, limit: int = None, catch: dict = None) -> None:
         try:
             snapshots = archive.list_snapshots_by_prefix(cfg["prefix"])
         except Exception as e:
-            print(f"  ERROR listing articles: {e}\n  continuing with listing-page results only")
+            print(
+                f"  ERROR listing articles: {e}\n  continuing with listing-page results only"
+            )
             snapshots = []
     prefix_urls = [
-        normalize_url(e["original"]) for e in snapshots
+        normalize_url(e["original"])
+        for e in snapshots
         if ARTICLE_FILE_RE.search(e["original"].split("?", 1)[0])
     ]
     if limit:
         prefix_urls = prefix_urls[:limit]
-    print(f"[{source}] {len(prefix_urls)} individually-archived article candidates", flush=True)
+    print(
+        f"[{source}] {len(prefix_urls)} individually-archived article candidates",
+        flush=True,
+    )
 
     stats = Stats(source, total=len(prefix_urls))
 
@@ -254,7 +300,9 @@ def scrape_lang(lang: str, limit: int = None, catch: dict = None) -> None:
         if found:
             snapshot_url, timestamp = found
             try:
-                content = archive.fetch_snapshot(conn, session, snapshot_url, timeout=20)
+                content = archive.fetch_snapshot(
+                    conn, session, snapshot_url, timeout=20
+                )
                 fetched = extract_entries(content)
             except Exception as e:
                 print(f"\n  ERROR fetching {snapshot_url}: {e}")
@@ -262,22 +310,37 @@ def scrape_lang(lang: str, limit: int = None, catch: dict = None) -> None:
                 continue
             if fetched:
                 title, date = fetched[0]["title"], fetched[0]["date"]
-                body, body_html, detail_id = fetched[0]["body"], fetched[0]["body_html"], timestamp
+                body, body_html, detail_id = (
+                    fetched[0]["body"],
+                    fetched[0]["body_html"],
+                    timestamp,
+                )
 
         # A listing-page capture may have a fuller body than the article's own page.
         listed = best.pop(url, None)
         if listed and len(listed["body"]) > len(body):
             title, date = listed["title"], listed["date"]
-            body, body_html, detail_id = listed["body"], listed["body_html"], listed["detail_id"]
+            body, body_html, detail_id = (
+                listed["body"],
+                listed["body_html"],
+                listed["detail_id"],
+            )
 
         if not title and not body:
             stats.dead()
             continue
 
-        storage.store_release(conn, source, url, title=title, date=date, body=body,
-                         body_html=body_html or None,
-                         detail_id=detail_id if body else None,
-                         grade="full" if body else "stub")
+        storage.store_release(
+            conn,
+            source,
+            url,
+            title=title,
+            date=date,
+            body=body,
+            body_html=body_html or None,
+            detail_id=detail_id if body else None,
+            grade="full" if body else "stub",
+        )
         if body:
             stats.added()
         else:
@@ -287,10 +350,18 @@ def scrape_lang(lang: str, limit: int = None, catch: dict = None) -> None:
     for url, e in best.items():
         if already_stored(conn, url):
             continue
-        storage.store_release(conn, source, url, title=e["title"], date=e["date"], body=e["body"],
-                         body_html=e["body_html"] or None,
-                         detail_id=e["detail_id"] if e["body"] else None,
-                         grade="full" if e["body"] else "stub", commit=False)
+        storage.store_release(
+            conn,
+            source,
+            url,
+            title=e["title"],
+            date=e["date"],
+            body=e["body"],
+            body_html=e["body_html"] or None,
+            detail_id=e["detail_id"] if e["body"] else None,
+            grade="full" if e["body"] else "stub",
+            commit=False,
+        )
         if e["body"]:
             stats.added()
         else:
@@ -298,10 +369,15 @@ def scrape_lang(lang: str, limit: int = None, catch: dict = None) -> None:
     conn.commit()
 
     stats.summary(conn)
-    catch_up.run(conn, source, catch, parser=parse_detail, session=session,
-                  collect=lambda c, _l=lang: cached_entries(c, _l))
+    catch_up.run(
+        conn,
+        source,
+        catch,
+        parser=parse_detail,
+        session=session,
+        collect=lambda c, _l=lang: cached_entries(c, _l),
+    )
     conn.close()
-
 
 
 def cached_entries(conn, lang: str) -> dict[str, Entry]:
@@ -316,8 +392,9 @@ def cached_entries(conn, lang: str) -> dict[str, Entry]:
     out = {}
     for listing in LANGS[lang]["listing_urls"]:
         for cap_url, content in conn.execute(
-                "SELECT url, content FROM page_cache WHERE url LIKE '%id_/' || ?",
-                (listing,)):
+            "SELECT url, content FROM page_cache WHERE url LIKE '%id_/' || ?",
+            (listing,),
+        ):
             m = re.search(r"/web/(\d{14})id_/", cap_url)
             try:
                 entries = extract_entries(content, listing, m.group(1) if m else None)

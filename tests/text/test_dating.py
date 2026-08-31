@@ -23,8 +23,10 @@ class IsoDateTest(unittest.TestCase):
         self.assertEqual(iso_date("06.05.2002"), "2002-06-05")
 
     def test_fuzzy_skips_surrounding_prose(self):
-        self.assertEqual(iso_date("Presseinformation vom 19.12.1997:",
-                                  dayfirst=True, fuzzy=True), "1997-12-19")
+        self.assertEqual(
+            iso_date("Presseinformation vom 19.12.1997:", dayfirst=True, fuzzy=True),
+            "1997-12-19",
+        )
 
     def test_unparseable_returns_empty_rather_than_raising(self):
         """A release whose date cannot be read is still worth storing, which is

@@ -12,7 +12,6 @@ not identical coverage — use `pressroom-search --source creative,creative_gnw`
 to query both together.
 """
 
-
 import re
 import time
 
@@ -29,6 +28,7 @@ from pressroom.release.control import storage
 from pressroom.scraping.control import catch_up
 from pressroom.reporting.entity.outcome import Stats
 from pressroom.scraping.entity.parse import Entry
+
 
 def make_session():
     """A session GlobeNewswire will actually answer.
@@ -50,6 +50,7 @@ def make_session():
     again, bump curl_cffi and try a newer profile before blaming the parser.
     """
     from curl_cffi import requests as impersonating
+
     return impersonating.Session(impersonate=IMPERSONATE)
 
 
@@ -78,12 +79,14 @@ def parse_list_page(session: requests.Session, page: int) -> list[Entry]:
         date = iso_date(date_text, fuzzy=True)
         m = re.search(r"/news-release/\d{4}/\d{2}/\d{2}/(\d+)/", url)
         detail_id = m.group(1) if m else None
-        items.append({
-            "url": url,
-            "title": a.get_text(strip=True),
-            "date": date,
-            "detail_id": detail_id,
-        })
+        items.append(
+            {
+                "url": url,
+                "title": a.get_text(strip=True),
+                "date": date,
+                "detail_id": detail_id,
+            }
+        )
     return items
 
 
@@ -144,9 +147,16 @@ def scrape(pages: int = None, catch: dict = None) -> None:
                 stats.uncertain()
                 continue
 
-            if storage.store_release(conn, SOURCE, item["url"], title=item["title"],
-                                date=item["date"], body=body, body_html=body_html,
-                                detail_id=item["detail_id"]):
+            if storage.store_release(
+                conn,
+                SOURCE,
+                item["url"],
+                title=item["title"],
+                date=item["date"],
+                body=body,
+                body_html=body_html,
+                detail_id=item["detail_id"],
+            ):
                 stats.added()
 
         print()

@@ -36,29 +36,46 @@ class EncodingRuleTest(support.DbCase):
     """
 
     def _damaged_by_sql(self):
-        return {r[0] for r in self.conn.execute(
-            f"SELECT url FROM releases r WHERE {schema.MOJIBAKE_SQL}")}
+        return {
+            r[0]
+            for r in self.conn.execute(
+                f"SELECT url FROM releases r WHERE {schema.MOJIBAKE_SQL}"
+            )
+        }
 
     def _damaged_by_regex(self):
-        return {url for url, body in self.conn.execute("SELECT url, body FROM releases")
-                if decoding.C1_RE.search(body or "")
-                or decoding.MOJIBAKE_RE.search(body or "")}
+        return {
+            url
+            for url, body in self.conn.execute("SELECT url, body FROM releases")
+            if decoding.C1_RE.search(body or "")
+            or decoding.MOJIBAKE_RE.search(body or "")
+        }
 
     def test_the_two_agree_over_the_whole_c1_range(self):
         for code in range(0x80, 0xA0):
-            self.seed("src", url=f"http://x/c1-{code:02x}",
-                      body=f"text {chr(code)} more",
-                      body_html=f"<p>text {chr(code)} more</p>")
+            self.seed(
+                "src",
+                url=f"http://x/c1-{code:02x}",
+                body=f"text {chr(code)} more",
+                body_html=f"<p>text {chr(code)} more</p>",
+            )
         self.assertEqual(len(self._damaged_by_sql()), 32)
         self.assertEqual(self._damaged_by_sql(), self._damaged_by_regex())
 
     def test_the_two_agree_on_mojibake_and_on_clean_rows(self):
-        self.seed("src", url="http://x/moji", body="TerraTec â€ž Cinergy",
-                  body_html="<p>x</p>")
-        self.seed("src", url="http://x/atilde", body="vÃ¶llig",
-                  body_html="<p>x</p>")
-        self.seed("src", url="http://x/clean", body="völlig ordinary „quoted“",
-                  body_html="<p>x</p>")
+        self.seed(
+            "src",
+            url="http://x/moji",
+            body="TerraTec â€ž Cinergy",
+            body_html="<p>x</p>",
+        )
+        self.seed("src", url="http://x/atilde", body="vÃ¶llig", body_html="<p>x</p>")
+        self.seed(
+            "src",
+            url="http://x/clean",
+            body="völlig ordinary „quoted“",
+            body_html="<p>x</p>",
+        )
         self.assertEqual(self._damaged_by_sql(), self._damaged_by_regex())
         self.assertNotIn("http://x/clean", self._damaged_by_sql())
 
@@ -147,12 +164,12 @@ class FixtureManifestTest(unittest.TestCase):
         manifest = support.manifest()
         wanted = {spec.get("file", n) for n, spec in manifest.items()}
         self.assertEqual({p.stem for p in support.CAPTURES.glob("*.gz")}, wanted)
-        self.assertEqual({p.stem for p in support.GOLDEN.glob("*.json")},
-                         set(manifest))
+        self.assertEqual({p.stem for p in support.GOLDEN.glob("*.json")}, set(manifest))
 
     def test_every_source_tag_has_a_fixture(self):
         """25 tags, and a tag with no fixture is a parser nothing pins."""
         from pressroom.taxonomy.entity import company
+
         covered = {spec["source"] for spec in support.manifest().values()}
         tags = {s for _, (_, ss) in company.COMPANIES.items() for s in ss}
         self.assertEqual(tags - covered, set())
@@ -162,5 +179,6 @@ class FixtureManifestTest(unittest.TestCase):
             with self.subTest(fixture=name):
                 self.assertEqual(
                     set(spec) & {"source", "kind", "capture"},
-                    {"source", "kind", "capture"})
+                    {"source", "kind", "capture"},
+                )
                 json.dumps(spec)

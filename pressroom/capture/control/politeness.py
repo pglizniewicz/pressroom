@@ -25,8 +25,13 @@ HEADERS = {
 SLEEP = 1.5
 
 
-def fetch_cached(conn: sqlite3.Connection, session: requests.Session, url: str,
-                 timeout: int = 20, sleep: float = None) -> bytes:
+def fetch_cached(
+    conn: sqlite3.Connection,
+    session: requests.Session,
+    url: str,
+    timeout: int = 20,
+    sleep: float = None,
+) -> bytes:
     """Fetch a live page's raw bytes, caching them in page_cache on first hit.
 
     The live-site counterpart to wayback.fetch_snapshot, and it exists for the
@@ -50,7 +55,9 @@ def fetch_cached(conn: sqlite3.Connection, session: requests.Session, url: str,
     other scraper to a crawl. Only a real fetch sleeps - a cache hit stays
     free, which is what makes an interrupted run cheap to resume.
     """
-    row = conn.execute("SELECT content FROM page_cache WHERE url = ?", (url,)).fetchone()
+    row = conn.execute(
+        "SELECT content FROM page_cache WHERE url = ?", (url,)
+    ).fetchone()
     if row:
         return row[0]
 
@@ -69,8 +76,14 @@ def fetch_cached(conn: sqlite3.Connection, session: requests.Session, url: str,
         "INSERT OR IGNORE INTO page_cache "
         "(url, content, id_content_type, bs4_encoding, content_sha256, fetched_at) "
         "VALUES (?, ?, ?, ?, ?, ?)",
-        (url, content, r.headers.get("Content-Type"), bs4_encoding,
-         page.content_hash(content), time.time()),
+        (
+            url,
+            content,
+            r.headers.get("Content-Type"),
+            bs4_encoding,
+            page.content_hash(content),
+            time.time(),
+        ),
     )
     conn.commit()
     time.sleep(SLEEP if sleep is None else sleep)

@@ -39,8 +39,7 @@ PATH_RE = re.compile(r"`(boundary|control|entity)/([a-z_0-9]+\.py)`")
 
 
 def _components() -> set:
-    return {p.name for p in PACKAGE.iterdir()
-            if p.is_dir() and p.name != "__pycache__"}
+    return {p.name for p in PACKAGE.iterdir() if p.is_dir() and p.name != "__pycache__"}
 
 
 def _rows() -> list:
@@ -69,17 +68,22 @@ class LayoutMapTest(unittest.TestCase):
         mapped = {name for names, _ in self.rows for name in names}
         for component in sorted(self.components):
             with self.subTest(component=component):
-                self.assertIn(component, mapped,
-                              f"pressroom/{component}/ has no row in "
-                              f"docs/layout.md")
+                self.assertIn(
+                    component,
+                    mapped,
+                    f"pressroom/{component}/ has no row in docs/layout.md",
+                )
 
     def test_every_row_names_a_component_that_exists(self):
         for names, _ in self.rows:
             for name in names:
                 with self.subTest(component=name):
-                    self.assertIn(name, self.components,
-                                  f"docs/layout.md has a row for {name}, which "
-                                  f"is not a component")
+                    self.assertIn(
+                        name,
+                        self.components,
+                        f"docs/layout.md has a row for {name}, which "
+                        f"is not a component",
+                    )
 
     def test_every_path_in_a_row_resolves_inside_that_row_s_component(self):
         for names, prose in self.rows:
@@ -87,10 +91,13 @@ class LayoutMapTest(unittest.TestCase):
                 rel = f"{layer}/{filename}"
                 with self.subTest(component="/".join(names), path=rel):
                     self.assertTrue(
-                        any((PACKAGE / name / layer / filename).exists()
-                            for name in names),
+                        any(
+                            (PACKAGE / name / layer / filename).exists()
+                            for name in names
+                        ),
                         f"docs/layout.md's {'/'.join(names)} row names {rel}, "
-                        f"which is not there")
+                        f"which is not there",
+                    )
 
     def test_two_levels_down_there_are_only_the_three_layers(self):
         """The convention CLAUDE.md states: `pressroom/<component>/<layer>/`."""

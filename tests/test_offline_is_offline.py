@@ -35,9 +35,15 @@ PYPROJECT = support.HERE.parent / "pyproject.toml"
 
 # The commands that are not scrapers: two readers, three verify passes, two
 # calibration passes. They take no --offline and have no discovery phase.
-NOT_A_SCRAPER = {"pressroom-search", "pressroom-serve", "pressroom-verify-names",
-                 "pressroom-verify-body-origin", "pressroom-verify-encoding",
-                 "pressroom-calibrate-containers", "pressroom-calibrate-attachments"}
+NOT_A_SCRAPER = {
+    "pressroom-search",
+    "pressroom-serve",
+    "pressroom-verify-names",
+    "pressroom-verify-body-origin",
+    "pressroom-verify-encoding",
+    "pressroom-calibrate-containers",
+    "pressroom-calibrate-attachments",
+}
 
 
 def console_scripts() -> dict:
@@ -52,8 +58,11 @@ POSITIONALS = {"pressroom-terratec-cms": (["en"], ["de"])}
 
 
 def scrapers() -> dict:
-    return {name: target for name, target in console_scripts().items()
-            if name not in NOT_A_SCRAPER}
+    return {
+        name: target
+        for name, target in console_scripts().items()
+        if name not in NOT_A_SCRAPER
+    }
 
 
 def invocations(flag: str):
@@ -120,6 +129,7 @@ class NoCrawlBranchTest(support.DbCase):
         an AttributeError - which the loops above would catch, but naming it
         here says which line to look at."""
         from pressroom.soundonsound.control import magazine
+
         with contextlib.redirect_stdout(io.StringIO()), support.no_network():
             magazine.scrape(catch={"offline": True, "catch_up": True})
 
@@ -129,12 +139,14 @@ class NetworkRefusalTest(unittest.TestCase):
 
     def test_a_request_inside_the_block_raises(self):
         import requests
+
         with self.assertRaises(support.NetworkTouched):
             with support.no_network():
                 requests.get("http://127.0.0.1:1/")
 
     def test_it_is_not_an_exception_so_a_graceful_degrade_cannot_swallow_it(self):
         import requests
+
         with self.assertRaises(support.NetworkTouched):
             with support.no_network():
                 try:
@@ -144,6 +156,7 @@ class NetworkRefusalTest(unittest.TestCase):
 
     def test_a_raw_socket_is_refused_too(self):
         import socket
+
         with self.assertRaises(support.NetworkTouched):
             with support.no_network():
                 socket.create_connection(("127.0.0.1", 1), timeout=0.1)
@@ -151,6 +164,7 @@ class NetworkRefusalTest(unittest.TestCase):
     def test_the_originals_come_back_afterwards(self):
         import requests
         import socket
+
         before = (requests.Session.request, socket.socket.connect)
         with support.no_network():
             pass

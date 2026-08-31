@@ -17,18 +17,24 @@ from tests import support
 
 
 def indexed(conn, token):
-    return {r[0] for r in conn.execute(
-        "SELECT rowid FROM releases_fts WHERE releases_fts MATCH ?", (token,))}
+    return {
+        r[0]
+        for r in conn.execute(
+            "SELECT rowid FROM releases_fts WHERE releases_fts MATCH ?", (token,)
+        )
+    }
 
 
 def disagreements(conn):
     """(orphans, missing) - index rows with no content row, and the reverse."""
     orphans = conn.execute(
         "SELECT count(*) FROM releases_fts f"
-        " LEFT JOIN releases r ON r.id = f.rowid WHERE r.id IS NULL").fetchone()[0]
+        " LEFT JOIN releases r ON r.id = f.rowid WHERE r.id IS NULL"
+    ).fetchone()[0]
     missing = conn.execute(
         "SELECT count(*) FROM releases r WHERE NOT EXISTS"
-        " (SELECT 1 FROM releases_fts f WHERE f.rowid = r.id)").fetchone()[0]
+        " (SELECT 1 FROM releases_fts f WHERE f.rowid = r.id)"
+    ).fetchone()[0]
     return orphans, missing
 
 
@@ -53,8 +59,12 @@ class TriggerTest(support.DbCase):
         """Invariant 2. Only releases_ai existed once, so every UPDATE-based
         recovery left its text unsearchable and every out-of-band DELETE left an
         orphan - which also skews bm25() for every other query."""
-        got = {r[0] for r in self.conn.execute(
-            "SELECT name FROM sqlite_master WHERE type = 'trigger'")}
+        got = {
+            r[0]
+            for r in self.conn.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'trigger'"
+            )
+        }
         self.assertEqual(got, {"releases_ai", "releases_au", "releases_ad"})
 
     def test_an_insert_is_findable(self):
@@ -90,12 +100,14 @@ class StaleIndexRepairTest(unittest.TestCase):
         # then rows changed underneath the index.
         self.conn.executescript(schema.SCHEMA_SQL)
         self.conn.executescript(
-            schema.TRIGGERS_SQL.split("CREATE TRIGGER IF NOT EXISTS releases_au")[0])
+            schema.TRIGGERS_SQL.split("CREATE TRIGGER IF NOT EXISTS releases_au")[0]
+        )
         for i in range(3):
             self.conn.execute(
                 "INSERT INTO releases (source, url, title, body, grade)"
                 " VALUES ('src', ?, 'T', 'the listing teaser', 'teaser')",
-                (f"http://x/{i}",))
+                (f"http://x/{i}",),
+            )
         self.conn.execute("UPDATE releases SET body = 'Radium the real article'")
         self.conn.commit()
         self.addCleanup(self.conn.close)
@@ -104,8 +116,9 @@ class StaleIndexRepairTest(unittest.TestCase):
         """Asserted, not assumed: this is why none of the other tests here use
         it. The index is internally consistent - it simply does not know the
         content table moved underneath it."""
-        self.conn.execute("INSERT INTO releases_fts(releases_fts)"
-                          " VALUES('integrity-check')")
+        self.conn.execute(
+            "INSERT INTO releases_fts(releases_fts) VALUES('integrity-check')"
+        )
         self.assertFalse(indexed(self.conn, "Radium"))
 
     def test_init_db_repairs_before_installing_the_update_trigger(self):
@@ -118,8 +131,9 @@ class StaleIndexRepairTest(unittest.TestCase):
         migration.init_db(self.conn)
         self.assertEqual(
             self.conn.execute("PRAGMA user_version").fetchone()[0],
-            schema.SCHEMA_VERSION)
-        index.sync_fts_triggers(self.conn)          # idempotent
+            schema.SCHEMA_VERSION,
+        )
+        index.sync_fts_triggers(self.conn)  # idempotent
         self.assertEqual(disagreements(self.conn), (0, 0))
 
 
@@ -137,17 +151,23 @@ class MigrationTest(support.DbCase):
         re-derived which of the two a value was by counting digits."""
         self.conn.execute(
             "INSERT INTO releases (source, url, title, body, detail_id, grade)"
-            " VALUES ('src', 'http://x/1', 'T', 'b', 'teaser', 'full')")
+            " VALUES ('src', 'http://x/1', 'T', 'b', 'teaser', 'full')"
+        )
         self.conn.commit()
         schema.migrate(self.conn)
         row = self.conn.execute(
-            "SELECT grade, detail_id FROM releases WHERE url = 'http://x/1'").fetchone()
+            "SELECT grade, detail_id FROM releases WHERE url = 'http://x/1'"
+        ).fetchone()
         self.assertEqual(row, ("teaser", None))
 
         # Nothing left to move, and a title or body is never touched either way.
-        self.assertEqual(self.conn.execute(
-            "UPDATE releases SET grade = detail_id, detail_id = NULL"
-            " WHERE detail_id IN ('teaser', 'stub')").rowcount, 0)
+        self.assertEqual(
+            self.conn.execute(
+                "UPDATE releases SET grade = detail_id, detail_id = NULL"
+                " WHERE detail_id IN ('teaser', 'stub')"
+            ).rowcount,
+            0,
+        )
 
 
 class ReadOnlyTest(support.DbCase):
@@ -165,5 +185,4 @@ class ReadOnlyTest(support.DbCase):
         handle would raise rather than quietly do nothing."""
         ro = connection.connect_ro(self.db_path)
         self.addCleanup(ro.close)
-        self.assertIsNotNone(
-            ro.execute("SELECT count(*) FROM releases").fetchone())
+        self.assertIsNotNone(ro.execute("SELECT count(*) FROM releases").fetchone())

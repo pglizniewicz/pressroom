@@ -26,8 +26,16 @@ SCHEMA_SQL = """
 """
 
 
-def record(conn, *, kind: str, url: str, attempt: int,
-           timeout_budget: float, outcome: str, duration: float) -> None:
+def record(
+    conn,
+    *,
+    kind: str,
+    url: str,
+    attempt: int,
+    timeout_budget: float,
+    outcome: str,
+    duration: float,
+) -> None:
     """Append one attempt, whatever it resulted in.
 
     Swallows its own failure by design: a connection opened before the

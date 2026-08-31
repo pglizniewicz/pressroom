@@ -107,6 +107,7 @@ from pressroom.database.control import connection
 from pressroom.provenance.entity import origin
 from pressroom.release.control import storage
 from pressroom.reporting.entity.outcome import Stats
+
 # _wordchars is the repo's single implementation of "compare two extractions of
 # the same text": it drops indentation, line wrapping, bullets and the ordinals
 # to_text() prepends. Imported rather than copied, private name and all.
@@ -161,8 +162,11 @@ def domain_variants(url: str) -> list[str]:
     """`url` first, then the same path on each of the other mirror domains."""
     for domain in MIRROR_DOMAINS:
         if domain in url:
-            return [url] + [url.replace(domain, other)
-                            for other in MIRROR_DOMAINS if other != domain]
+            return [url] + [
+                url.replace(domain, other)
+                for other in MIRROR_DOMAINS
+                if other != domain
+            ]
     return [url]
 
 
@@ -215,7 +219,9 @@ def reextract_from_cache(limit: int = None, sources: list = None) -> None:
     rows = conn.execute(CACHED_ATTACHMENT_SQL.format(where=where), params).fetchall()
     if limit:
         rows = rows[:limit]
-    print(f"[from-cache] {len(rows)} attachment rows whose bytes are cached", flush=True)
+    print(
+        f"[from-cache] {len(rows)} attachment rows whose bytes are cached", flush=True
+    )
 
     stats = Stats(total=len(rows))
     held, gained_layout = [], 0
@@ -239,7 +245,9 @@ def reextract_from_cache(limit: int = None, sources: list = None) -> None:
         stats.upgraded()
 
     stats.summary()
-    print(f"  layout recovered: {gained_layout} rows now have line breaks where they had none")
+    print(
+        f"  layout recovered: {gained_layout} rows now have line breaks where they had none"
+    )
     if held:
         print(f"WSTRZYMANE przez bramke: {len(held)} - nic nie zapisano")
         for url, why in held[:10]:
@@ -260,7 +268,9 @@ RICHTEXT_SQL = """
 """
 
 
-def write_richtext(limit: int = None, sources: list = None, dry_run: bool = False) -> None:
+def write_richtext(
+    limit: int = None, sources: list = None, dry_run: bool = False
+) -> None:
     """Store the structured form of every PDF attachment whose bytes we hold.
 
     PDFs only. .doc keeps the text route by decision - see conversion.py - so
@@ -281,8 +291,11 @@ def write_richtext(limit: int = None, sources: list = None, dry_run: bool = Fals
     rows = conn.execute(RICHTEXT_SQL.format(where=where), params).fetchall()
     if limit:
         rows = rows[:limit]
-    print(f"[richtext] {len(rows)} attachment rows with cached bytes"
-          f"{' (dry run)' if dry_run else ''}", flush=True)
+    print(
+        f"[richtext] {len(rows)} attachment rows with cached bytes"
+        f"{' (dry run)' if dry_run else ''}",
+        flush=True,
+    )
 
     stats = Stats(total=len(rows))
     decisions, gained = [], 0
@@ -297,8 +310,9 @@ def write_richtext(limit: int = None, sources: list = None, dry_run: bool = Fals
             decisions.append((rid, url, "converter returned nothing"))
             stats.dead()
             continue
-        ok, why = gate.same_words(text, body, conversion.rotated_text(content),
-                                body_html.count("<li>"))
+        ok, why = gate.same_words(
+            text, body, conversion.rotated_text(content), body_html.count("<li>")
+        )
         if not ok:
             decisions.append((rid, url, why))
             stats.skipped()
@@ -339,17 +353,23 @@ def no_own_bytes_rows(conn) -> list[tuple[str, str]]:
     same nothing again.
     """
     own, anywhere = set(), set()
-    for (key,) in conn.execute("SELECT url FROM page_cache WHERE lower(url) LIKE '%.pdf' "
-                               "OR lower(url) LIKE '%.doc'"):
+    for (key,) in conn.execute(
+        "SELECT url FROM page_cache WHERE lower(url) LIKE '%.pdf' "
+        "OR lower(url) LIKE '%.doc'"
+    ):
         if "id_/" not in key:
             continue
         page = key.split("id_/", 1)[1]
         own.add(page.lower())
         anywhere.add(page.rsplit("/", 1)[1].lower())
-    return [(url, body) for url, body in conn.execute(
-                "SELECT url, COALESCE(body, '') FROM releases "
-                "WHERE lower(url) LIKE '%.pdf' OR lower(url) LIKE '%.doc' ORDER BY id")
-            if url.lower() not in own and url.rsplit("/", 1)[1].lower() in anywhere]
+    return [
+        (url, body)
+        for url, body in conn.execute(
+            "SELECT url, COALESCE(body, '') FROM releases "
+            "WHERE lower(url) LIKE '%.pdf' OR lower(url) LIKE '%.doc' ORDER BY id"
+        )
+        if url.lower() not in own and url.rsplit("/", 1)[1].lower() in anywhere
+    ]
 
 
 def missing_bytes_rows(conn) -> list[tuple[str, str]]:
@@ -360,18 +380,29 @@ def missing_bytes_rows(conn) -> list[tuple[str, str]]:
     attachment/boundary/calibration.py and the richtext pass use.
     """
     cached = set()
-    for (key,) in conn.execute("SELECT url FROM page_cache WHERE lower(url) LIKE '%.pdf' "
-                               "OR lower(url) LIKE '%.doc'"):
+    for (key,) in conn.execute(
+        "SELECT url FROM page_cache WHERE lower(url) LIKE '%.pdf' "
+        "OR lower(url) LIKE '%.doc'"
+    ):
         if "id_/" in key:
             cached.add(key.rsplit("/", 1)[1].lower())
-    return [(url, body) for url, body in conn.execute(
-                "SELECT url, COALESCE(body, '') FROM releases "
-                "WHERE lower(url) LIKE '%.pdf' OR lower(url) LIKE '%.doc' ORDER BY id")
-            if url.rsplit("/", 1)[1].lower() not in cached]
+    return [
+        (url, body)
+        for url, body in conn.execute(
+            "SELECT url, COALESCE(body, '') FROM releases "
+            "WHERE lower(url) LIKE '%.pdf' OR lower(url) LIKE '%.doc' ORDER BY id"
+        )
+        if url.rsplit("/", 1)[1].lower() not in cached
+    ]
 
 
-def catch_up_network_source(source: str, limit: int = None, only_short: bool = False,
-                    rows: list = None, in_db: bool = True) -> None:
+def catch_up_network_source(
+    source: str,
+    limit: int = None,
+    only_short: bool = False,
+    rows: list = None,
+    in_db: bool = True,
+) -> None:
     """One source's attachment rows, or an explicit `rows` list spanning several.
 
     `in_db=False` says the label is not a source tag - the --missing-bytes run
@@ -382,14 +413,19 @@ def catch_up_network_source(source: str, limit: int = None, only_short: bool = F
     conn = connection.connect()
     session = requests.Session()
 
-    rows = rows if rows is not None else conn.execute(ATTACHMENT_SQL, (source,)).fetchall()
+    rows = (
+        rows if rows is not None else conn.execute(ATTACHMENT_SQL, (source,)).fetchall()
+    )
     if only_short:
         full = [r for r in rows if len(r[1] or "") >= RECOVERED_LENGTH]
         rows = [r for r in rows if len(r[1] or "") < RECOVERED_LENGTH]
         # Say what was dropped: a bare "12 rows to attempt" after a 90-row run
         # would otherwise read as most of the work having vanished.
-        print(f"[{source}] --only-short: skipping {len(full)} rows that already "
-              f"hold >{RECOVERED_LENGTH} characters", flush=True)
+        print(
+            f"[{source}] --only-short: skipping {len(full)} rows that already "
+            f"hold >{RECOVERED_LENGTH} characters",
+            flush=True,
+        )
     if limit:
         rows = rows[:limit]
     print(f"[{source}] {len(rows)} attachment-linked rows to attempt", flush=True)
@@ -413,8 +449,13 @@ def catch_up_network_source(source: str, limit: int = None, only_short: bool = F
             # a 2003-era attachment path. is_attachment rejects those and the
             # walk-back tries the next-older capture instead of giving up.
             content, found_ts, confirmed = archive.fetch_first_matching_snapshot(
-                conn, session, candidate, conversion.is_attachment,
-                max_attempts=WALKBACK_ATTEMPTS, timeout=30)
+                conn,
+                session,
+                candidate,
+                conversion.is_attachment,
+                max_attempts=WALKBACK_ATTEMPTS,
+                timeout=30,
+            )
 
             if content is None:
                 if not confirmed:
@@ -453,16 +494,24 @@ def catch_up_network_source(source: str, limit: int = None, only_short: bool = F
     conn.close()
 
 
-def catch_up_network(limit: int = None, sources: list = None, only_short: bool = False,
-             missing_bytes: bool = False, no_own_bytes: bool = False) -> None:
+def catch_up_network(
+    limit: int = None,
+    sources: list = None,
+    only_short: bool = False,
+    missing_bytes: bool = False,
+    no_own_bytes: bool = False,
+) -> None:
     if no_own_bytes:
         conn = connection.connect_ro()
         rows = no_own_bytes_rows(conn)
         conn.close()
         if limit:
             rows = rows[:limit]
-        print(f"[no-own-bytes] {len(rows)} attachment rows whose bytes we only hold "
-              f"under a mirror domain", flush=True)
+        print(
+            f"[no-own-bytes] {len(rows)} attachment rows whose bytes we only hold "
+            f"under a mirror domain",
+            flush=True,
+        )
         catch_up_network_source("no-own-bytes", rows=rows, in_db=False)
         return
     if missing_bytes:
@@ -471,9 +520,11 @@ def catch_up_network(limit: int = None, sources: list = None, only_short: bool =
         conn.close()
         if limit:
             rows = rows[:limit]
-        print(f"[missing-bytes] {len(rows)} attachment rows have no cached bytes "
-              f"under any mirror name - the only ones a crawl can still help",
-              flush=True)
+        print(
+            f"[missing-bytes] {len(rows)} attachment rows have no cached bytes "
+            f"under any mirror name - the only ones a crawl can still help",
+            flush=True,
+        )
         catch_up_network_source("missing-bytes", rows=rows, in_db=False)
         return
     for source in sources or SOURCES:

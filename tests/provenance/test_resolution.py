@@ -28,7 +28,8 @@ class OriginKeyTest(support.DbCase):
 
     def test_empty_for_a_row_with_no_capture_at_all(self):
         self.assertEqual(
-            resolution.origin_key(self.conn, "https://intc.com/x", "970"), "")
+            resolution.origin_key(self.conn, "https://intc.com/x", "970"), ""
+        )
 
 
 class OwnPageTest(support.DbCase):

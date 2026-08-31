@@ -109,12 +109,18 @@ class Stats:
             eta = f", ~{int(left // 60)}h{int(left % 60):02d}m left"
 
         prefix = f"[{self.source}] " if self.source else ""
-        print(f"\n{time.strftime('%H:%M:%S')} {prefix}{progress}"
-              f" · {self._counts_text()} · {rate:.1f}/min{eta}", flush=True)
+        print(
+            f"\n{time.strftime('%H:%M:%S')} {prefix}{progress}"
+            f" · {self._counts_text()} · {rate:.1f}/min{eta}",
+            flush=True,
+        )
 
     def _counts_text(self) -> str:
-        parts = [label.format(n=self.counts[k]) for k, (_, label) in _OUTCOMES.items()
-                 if self.counts[k]]
+        parts = [
+            label.format(n=self.counts[k])
+            for k, (_, label) in _OUTCOMES.items()
+            if self.counts[k]
+        ]
         return ", ".join(parts) if parts else "nothing yet"
 
     def added(self) -> None:

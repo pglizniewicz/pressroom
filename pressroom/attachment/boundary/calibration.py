@@ -67,9 +67,11 @@ warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
 
 def artefacts(text: str) -> tuple[int, int, int]:
     words = text.split()
-    return (len(DUP_RE.findall(" ".join(words))),
-            len(MERGE_RE.findall(text)),
-            sum(1 for w in words if CASE_RE.search(w)))
+    return (
+        len(DUP_RE.findall(" ".join(words))),
+        len(MERGE_RE.findall(text)),
+        sum(1 for w in words if CASE_RE.search(w)),
+    )
 
 
 def documents(conn) -> dict[str, tuple[str, list[tuple[int, str, str, str]]]]:
@@ -80,8 +82,9 @@ def documents(conn) -> dict[str, tuple[str, list[tuple[int, str, str, str]]]]:
     """
     cached = {}
     for key, head in conn.execute(
-            "SELECT url, substr(content, 1, 8) FROM page_cache "
-            "WHERE lower(url) LIKE '%.pdf' OR lower(url) LIKE '%.doc'"):
+        "SELECT url, substr(content, 1, 8) FROM page_cache "
+        "WHERE lower(url) LIKE '%.pdf' OR lower(url) LIKE '%.doc'"
+    ):
         if "id_/" not in key:
             continue
         name = key.rsplit("/", 1)[1].lower()
@@ -96,8 +99,9 @@ def documents(conn) -> dict[str, tuple[str, list[tuple[int, str, str, str]]]]:
                 cached[name] = key
     rows = collections.defaultdict(list)
     for rid, source, url, body in conn.execute(
-            "SELECT id, source, url, COALESCE(body, '') FROM releases "
-            "WHERE lower(url) LIKE '%.pdf' OR lower(url) LIKE '%.doc' ORDER BY id"):
+        "SELECT id, source, url, COALESCE(body, '') FROM releases "
+        "WHERE lower(url) LIKE '%.pdf' OR lower(url) LIKE '%.doc' ORDER BY id"
+    ):
         rows[url.rsplit("/", 1)[1].lower()].append((rid, source, url, body))
     return {name: (cached[name], rs) for name, rs in rows.items() if name in cached}
 
@@ -162,14 +166,18 @@ REVIEW_RETENTION = 0.95
 def review(limit_preview, out_path: str) -> None:
     conn = connection.connect_ro()
     docs = documents(conn)
-    print(f"[calibrate] {len(docs)} distinct attachment files with cached bytes", flush=True)
+    print(
+        f"[calibrate] {len(docs)} distinct attachment files with cached bytes",
+        flush=True,
+    )
 
     verdicts = collections.Counter()
     retention, defects, cards, decisions = [], collections.Counter(), [], []
     for name in sorted(docs):
         key, rows = docs[name]
-        content = conn.execute("SELECT content FROM page_cache WHERE url = ?",
-                               (key,)).fetchone()[0]
+        content = conn.execute(
+            "SELECT content FROM page_cache WHERE url = ?", (key,)
+        ).fetchone()[0]
         text, kind = conversion.plain_text(content)
         if not kind:
             verdicts["not an attachment (soft-404)"] += 1
@@ -181,11 +189,30 @@ def review(limit_preview, out_path: str) -> None:
             # not: it means the converter failed, and that is a decision for a
             # person, not a silent fall back to the text route.
             if kind == "pdf":
-                decisions.append((name, [r[0] for r in rows], "no structured output",
-                                  "look at the document: use its text, or fix the converter"))
+                decisions.append(
+                    (
+                        name,
+                        [r[0] for r in rows],
+                        "no structured output",
+                        "look at the document: use its text, or fix the converter",
+                    )
+                )
             verdicts[f"{kind}: text route"] += 1
-            cards.append((name, kind, key, rows, text, body, body_html, 0.0,
-                          artefacts(text), (0, 0, 0), False))
+            cards.append(
+                (
+                    name,
+                    kind,
+                    key,
+                    rows,
+                    text,
+                    body,
+                    body_html,
+                    0.0,
+                    artefacts(text),
+                    (0, 0, 0),
+                    False,
+                )
+            )
             continue
         tw, sw = len(text.split()), len(body.split())
         ratio = sw / tw if tw else 0.0
@@ -196,11 +223,23 @@ def review(limit_preview, out_path: str) -> None:
         retention.append((ratio, name))
         blocks = BeautifulSoup(body_html, "html.parser").find_all(recursive=False)
         if len(blocks) <= 1 and len(text.split("\n")) >= DEGENERATE_MIN_LINES:
-            decisions.append((name, [r[0] for r in rows], "one block for the whole document",
-                              "paragraph breaks were lost - check the gap rule"))
+            decisions.append(
+                (
+                    name,
+                    [r[0] for r in rows],
+                    "one block for the whole document",
+                    "paragraph breaks were lost - check the gap rule",
+                )
+            )
         elif ratio < REVIEW_RETENTION:
-            decisions.append((name, [r[0] for r in rows], f"retention {ratio:.1%}",
-                              "words missing against the text route"))
+            decisions.append(
+                (
+                    name,
+                    [r[0] for r in rows],
+                    f"retention {ratio:.1%}",
+                    "words missing against the text route",
+                )
+            )
 
         h3_at = first_heading_index(body_html)
         if kind == "pdf":
@@ -215,8 +254,10 @@ def review(limit_preview, out_path: str) -> None:
         defects["rejoined hyphenations"] += len(HYPHEN_RE.findall(body))
         cards.append((name, kind, key, rows, text, body, body_html, ratio, at, ab, ok))
 
-    print("\n=== verdict under the writing gate "
-          f"(retention >= {MIN_RETENTION:.0%}, or fewer interleaving artefacts)")
+    print(
+        "\n=== verdict under the writing gate "
+        f"(retention >= {MIN_RETENTION:.0%}, or fewer interleaving artefacts)"
+    )
     for k, v in sorted(verdicts.items()):
         print(f"  {v:5}  {k}")
 
@@ -228,8 +269,10 @@ def review(limit_preview, out_path: str) -> None:
         label = f"{lo:.2f}-{hi:.2f}" if hi < 9 else f">= {lo:.2f}"
         print(f"  {label:>12}: {n}")
     if retention:
-        print(f"  median {statistics.median(r for r, _ in retention):.3f}, "
-              f"worst {retention[0][0]:.3f} ({retention[0][1]})")
+        print(
+            f"  median {statistics.median(r for r, _ in retention):.3f}, "
+            f"worst {retention[0][0]:.3f} ({retention[0][1]})"
+        )
 
     print("\n=== decisions needed (a PDF must never fall back silently)")
     if decisions:
@@ -237,15 +280,17 @@ def review(limit_preview, out_path: str) -> None:
             print(f"  {str(ids):26} {name:44} {what}")
             print(f"  {'':26} -> {suggestion}")
     else:
-        print("  none - every cached PDF converted, none degenerate, "
-              f"none below {REVIEW_RETENTION:.0%} retention")
+        print(
+            "  none - every cached PDF converted, none degenerate, "
+            f"none below {REVIEW_RETENTION:.0%} retention"
+        )
 
     print("\n=== known defects, measured (thresholds live in conversion.py)")
     for k in sorted(defects):
         print(f"  {defects[k]:5}  {k}")
 
     if limit_preview:
-        chosen = cards if limit_preview == "all" else cards[:int(limit_preview)]
+        chosen = cards if limit_preview == "all" else cards[: int(limit_preview)]
         write_preview(chosen, out_path)
         print(f"\nreview page: {out_path} ({len(chosen)} documents)")
         print("  open it with file:// - a flatpak browser cannot read /tmp on the host")
@@ -288,14 +333,18 @@ Bytes are read from <code>page_cache</code>; nothing here is written to the data
 def write_preview(cards, out_path: str) -> None:
     esc = html_mod.escape
     parts = [_PAGE_HEAD]
-    for (name, kind, key, rows, text, body, body_html, ratio, at, ab, ok) in cards:
+    for name, kind, key, rows, text, body, body_html, ratio, at, ab, ok in cards:
         ids = ", ".join(f"#{rid} ({src})" for rid, src, _u, _b in rows)
         stored = rows[0][3]
         tags = {t: body_html.count(f"<{t}>") for t in ("p", "h3", "ul", "li", "strong")}
-        flag = "" if ok else " <span class=warn>&mdash; gate would keep the text version</span>"
+        flag = (
+            ""
+            if ok
+            else " <span class=warn>&mdash; gate would keep the text version</span>"
+        )
         parts.append(f"""
 <h2>{esc(name)} <span class=meta>&mdash; {kind}{flag}</span></h2>
-<p class=meta>rows: {esc(ids)}<br>bytes from: {esc(key.split('id_/')[1])}<br>
+<p class=meta>rows: {esc(ids)}<br>bytes from: {esc(key.split("id_/")[1])}<br>
 A {len(stored)} chars / {stored.count(chr(10))} newlines &middot;
 B {len(text)} chars / {text.count(chr(10))} newlines &middot;
 C {len(body)} chars, retention {ratio:.1%} &middot;
@@ -303,7 +352,7 @@ D {len(body_html)} chars {tags} &middot;
 interleaving artefacts text {at} vs structured {ab}</p>
 <div class=grid>
  <div class=card><h3 class=v>A &mdash; in the database now</h3><pre>{esc(stored)}</pre></div>
- <div class=card><h3 class=v>B &mdash; {'pdftotext -layout' if kind == 'pdf' else 'antiword -t'}</h3><pre>{esc(text)}</pre></div>
+ <div class=card><h3 class=v>B &mdash; {"pdftotext -layout" if kind == "pdf" else "antiword -t"}</h3><pre>{esc(text)}</pre></div>
  <div class=card><h3 class=v>C &mdash; structured, rendered</h3><div class=rendered>{body_html}</div></div>
  <div class=card><h3 class=v>D &mdash; body_html source</h3><div class=src>{esc(body_html)}</div></div>
 </div>""")
@@ -313,10 +362,16 @@ interleaving artefacts text {at} vs structured {ab}</p>
 
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__.strip().split("\n\n", 1)[0])
-    p.add_argument("--preview", default="12",
-                   help="documents on the review page: a number, 'all', or 0 for none")
-    p.add_argument("--out", default="attachments-review.html",
-                   help="where to write the review page")
+    p.add_argument(
+        "--preview",
+        default="12",
+        help="documents on the review page: a number, 'all', or 0 for none",
+    )
+    p.add_argument(
+        "--out",
+        default="attachments-review.html",
+        help="where to write the review page",
+    )
     args = p.parse_args()
     preview = args.preview if args.preview == "all" else int(args.preview)
     review(preview, args.out)

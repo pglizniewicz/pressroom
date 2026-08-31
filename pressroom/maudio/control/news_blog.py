@@ -41,7 +41,6 @@ site's actual UTF-8 bytes (e.g. "M-AUDIO(R)" -> "M-AUDIOÂ®"). BeautifulSoup's
 own encoding sniffing on raw bytes gets this right; requests' r.text does not.
 """
 
-
 import re
 import sqlite3
 from urllib.parse import urljoin
@@ -72,8 +71,10 @@ LISTING_PAGES = [
 DETAIL_URL_TMPL = "http://m-audio.com/news/articles/{}"
 SLUG_RE = re.compile(r"/news/articles/([\w-]+)")
 
-MONTHS = (r"(?:January|February|March|April|May|June|July|August|"
-          r"September|October|November|December)")
+MONTHS = (
+    r"(?:January|February|March|April|May|June|July|August|"
+    r"September|October|November|December)"
+)
 DATE_RE = re.compile(rf"{MONTHS} \d{{1,2}},\s*\d{{4}}")
 
 
@@ -106,14 +107,16 @@ def parse_listing_page(content: bytes, base_url: str) -> list[Entry]:
                 strong.decompose()
             teaser, teaser_html = richtext.extract(p)
 
-        entries.append({
-            "slug": slug,
-            "url": DETAIL_URL_TMPL.format(slug),
-            "title": title,
-            "teaser": teaser,
-            "teaser_html": teaser_html,
-            "date": _extract_date(teaser),
-        })
+        entries.append(
+            {
+                "slug": slug,
+                "url": DETAIL_URL_TMPL.format(slug),
+                "title": title,
+                "teaser": teaser,
+                "teaser_html": teaser_html,
+                "date": _extract_date(teaser),
+            }
+        )
     return entries
 
 
@@ -129,8 +132,12 @@ def parse_detail(content: bytes) -> Detail:
     body, body_html = richtext.extract(container)
     if not body:
         return {}
-    return {"title": title, "body": body, "body_html": body_html,
-            "date": _extract_date(body)}
+    return {
+        "title": title,
+        "body": body,
+        "body_html": body_html,
+        "date": _extract_date(body),
+    }
 
 
 def discover_listing(conn: sqlite3.Connection) -> list[Entry]:
@@ -160,7 +167,10 @@ def scrape(limit: int = None, catch: dict = None) -> None:
     session = requests.Session()
 
     entries = [] if catch_up.no_crawl(catch) else discover_listing(conn)
-    print(f"[{SOURCE}] {len(entries)} distinct articles found across all listing pages", flush=True)
+    print(
+        f"[{SOURCE}] {len(entries)} distinct articles found across all listing pages",
+        flush=True,
+    )
     if limit:
         entries = entries[:limit]
 
@@ -173,21 +183,38 @@ def scrape(limit: int = None, catch: dict = None) -> None:
             stats.skipped()
             continue
 
-        parsed, confirmed = archive.fetch_detail_snapshot(conn, session, url, parse_detail)
+        parsed, confirmed = archive.fetch_detail_snapshot(
+            conn, session, url, parse_detail
+        )
 
         if parsed.get("body"):
             title = parsed.get("title") or e["title"]
             date = parsed.get("date") or e["date"]
             if existing == "teaser":
-                storage.upgrade_release(conn, url, detail_id=parsed["detail_id"], title=title,
-                                   date=date, body=parsed["body"],
-                                   body_html=parsed["body_html"], grade="full",
-                                   commit=False)
+                storage.upgrade_release(
+                    conn,
+                    url,
+                    detail_id=parsed["detail_id"],
+                    title=title,
+                    date=date,
+                    body=parsed["body"],
+                    body_html=parsed["body_html"],
+                    grade="full",
+                    commit=False,
+                )
                 stats.upgraded()
             else:
-                storage.store_release(conn, SOURCE, url, title=title, date=date,
-                                 body=parsed["body"], body_html=parsed["body_html"],
-                                 detail_id=parsed["detail_id"], commit=False)
+                storage.store_release(
+                    conn,
+                    SOURCE,
+                    url,
+                    title=title,
+                    date=date,
+                    body=parsed["body"],
+                    body_html=parsed["body_html"],
+                    detail_id=parsed["detail_id"],
+                    commit=False,
+                )
                 stats.added()
             conn.commit()
             continue
@@ -204,14 +231,22 @@ def scrape(limit: int = None, catch: dict = None) -> None:
             continue
 
         if e["teaser"]:
-            storage.store_release(conn, SOURCE, url, title=e["title"], date=e["date"],
-                             body=e["teaser"], body_html=e["teaser_html"] or None,
-                             grade="teaser")
+            storage.store_release(
+                conn,
+                SOURCE,
+                url,
+                title=e["title"],
+                date=e["date"],
+                body=e["teaser"],
+                body_html=e["teaser_html"] or None,
+                grade="teaser",
+            )
             stats.teaser()
         else:
             stats.dead()
 
     stats.summary(conn)
-    catch_up.run(conn, SOURCE, catch, parser=parse_detail, session=session,
-                  twins_too=True)
+    catch_up.run(
+        conn, SOURCE, catch, parser=parse_detail, session=session, twins_too=True
+    )
     conn.close()

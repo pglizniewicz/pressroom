@@ -15,8 +15,9 @@ class TableTest(unittest.TestCase):
         seen = {}
         for slug, (_label, sources) in company.COMPANIES.items():
             for src in sources:
-                self.assertNotIn(src, seen,
-                                 f"{src} is under both {seen.get(src)} and {slug}")
+                self.assertNotIn(
+                    src, seen, f"{src} is under both {seen.get(src)} and {slug}"
+                )
                 seen[src] = slug
 
     def test_the_unknown_bucket_is_not_a_company(self):
@@ -38,8 +39,10 @@ class TableTest(unittest.TestCase):
         """Not cosmetic: midiman.com serves releases signed M-Audio and
         m-audio.com serves ones signed Midiman, so a split by domain would not
         be a split by brand."""
-        self.assertEqual(company.company_of("midiman_com_pressdb"),
-                         company.company_of("maudio_com_media_news"))
+        self.assertEqual(
+            company.company_of("midiman_com_pressdb"),
+            company.company_of("maudio_com_media_news"),
+        )
 
     def test_sources_for_dedups_and_ignores_unknown_slugs(self):
         got = company.sources_for(["intel", "intel", "nonsense"])
@@ -50,13 +53,19 @@ class TableTest(unittest.TestCase):
 class RollUpTest(unittest.TestCase):
     def _row(self, source, count, first="", last="", **kw):
         row = {"source": source, "count": count, "first": first, "last": last}
-        row.update({k: kw.get(k, 0) for k in
-                    ("teaser", "short", "nodate", "mojibake", "plain")})
+        row.update(
+            {
+                k: kw.get(k, 0)
+                for k in ("teaser", "short", "nodate", "mojibake", "plain")
+            }
+        )
         return row
 
     def test_totals_are_preserved(self):
-        rows = [self._row("intel", 10, "2007-01-01", "2026-01-01", teaser=2),
-                self._row("amd", 5, "2010-01-01", "2020-01-01", teaser=1)]
+        rows = [
+            self._row("intel", 10, "2007-01-01", "2026-01-01", teaser=2),
+            self._row("amd", 5, "2010-01-01", "2020-01-01", teaser=1),
+        ]
         out = company.roll_up(rows)
         self.assertEqual(sum(c["count"] for c in out), 15)
         self.assertEqual(sum(c["teaser"] for c in out), 3)
@@ -64,8 +73,10 @@ class RollUpTest(unittest.TestCase):
     def test_an_empty_date_never_wins_a_min(self):
         """midiman_net's single row has no date at all; `""` would otherwise
         beat 1996 and give its company a first year of nothing."""
-        rows = [self._row("midiman_net", 1),
-                self._row("midiman_com", 9, "1999-03-01", "1999-11-01")]
+        rows = [
+            self._row("midiman_net", 1),
+            self._row("midiman_com", 9, "1999-03-01", "1999-11-01"),
+        ]
         out = company.roll_up(rows)
         self.assertEqual(out[0]["first"], "1999-03-01")
         self.assertEqual(out[0]["last"], "1999-11-01")

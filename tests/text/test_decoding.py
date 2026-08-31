@@ -18,8 +18,8 @@ class DecodeHtmlTest(unittest.TestCase):
         came out as mojibake - 14 titles corrupted over one pasted apostrophe."""
         content = "smart “quotes”".encode("utf-8") + b" and Word\x92s byte"
         got = decoding.decode_html(content)
-        self.assertIn("“quotes”", got)      # the valid sequences survive
-        self.assertIn("Word’s", got)             # the stray reads as cp1252
+        self.assertIn("“quotes”", got)  # the valid sequences survive
+        self.assertIn("Word’s", got)  # the stray reads as cp1252
 
     def test_the_five_undefined_bytes_become_one_replacement_each(self):
         # errors="replace" for them: one U+FFFD beats an exception that loses
