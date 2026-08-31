@@ -1,10 +1,10 @@
 # Checks
 
-Site-specific checks for the browser served by `serve.py` (http://127.0.0.1:8765),
+Site-specific checks for the browser served by `pressroom-serve` (http://127.0.0.1:8765),
 in the format the `web-static` skill executes: one labelled line, one
 observation a browser can contradict. Labels are stable — retire, never reuse.
 
-Run them against a plain `python3 serve.py` instance, in the same pass as the
+Run them against a plain `pressroom-serve` instance, in the same pass as the
 skill's standard checks (console, accessibility snapshot, 375/1280 resize,
 `emulate colorScheme: dark`, `lighthouse_audit`).
 
@@ -58,7 +58,7 @@ skill's standard checks (console, accessibility snapshot, 375/1280 resize,
 ## Release body
 
 The body is stored twice: `body` (plain text, what FTS indexes) and
-`body_html` (the subset `richtext.py` emits). A row whose `body_html` is NULL
+`body_html` (the subset `text/control/richtext.py` emits). A row whose `body_html` is NULL
 predates that change and falls back to preformatted text — both paths have to
 keep working while the re-scrape runs.
 
@@ -68,7 +68,7 @@ keep working while the re-scrape runs.
 - [body-img] `/#r/5009` at 1280px: the `img` is built from the stored `src` verbatim, carries `loading="lazy"` and `referrerpolicy="no-referrer"`, and — the source site being dead — is replaced on load failure by a `.img-missing` caption naming the address. An image declaring 1–2 px in either dimension is removed instead of captioned; none currently survive pruning, so that branch is not observable in the corpus
 - [body-table] `/#r/5010` at 1280px: the two-column photo table inside `.body--rich` scrolls inside its own box — the document itself has no horizontal scroll
 - [body-layout] `/#r/5519` at 1280px and 375px: this **.doc**-derived row renders through `p.body--text` with `white-space: pre-wrap` and its **layout is visible** — centred headline, indented subhead, columns intact — and the document has no horizontal scroll at either width. Until 2026-08-23 all 381 attachment rows held the flattened output of the old `normalize()`; 140 got their layout back from cached bytes, so a row like this is what the pre-wrap renderer exists for. Fixture moved off #4986 on 2026-08-24: that row is a PDF and PDFs now carry real `body_html` (see `[body-richtext]`), so it no longer exercises this path. Word files keep it — `antiword`'s text is all there is for them
-- [body-richtext] `/#r/4986` at 1280px: a **PDF**-derived row renders as `.body--rich` with real `p` elements, not one preformatted block, and its paragraphs are flowing text rather than the PDF's line breaks. 73 attachment rows were converted on 2026-08-24 through `attachments.to_richtext()`; the pre-wrap fallback stays for .doc. `/#r/5003` is the same for a list: an `ol` with 6 items where the PDF wrote `1)`..`6)`, and `/#r/5572` for a nested one, a `ul` whose items carry their own `ul`
+- [body-richtext] `/#r/4986` at 1280px: a **PDF**-derived row renders as `.body--rich` with real `p` elements, not one preformatted block, and its paragraphs are flowing text rather than the PDF's line breaks. 73 attachment rows were converted on 2026-08-24 through `conversion.to_richtext()`; the pre-wrap fallback stays for .doc. `/#r/5003` is the same for a list: an `ol` with 6 items where the PDF wrote `1)`..`6)`, and `/#r/5572` for a nested one, a `ul` whose items carry their own `ul`
 - [audit-plain] `/#audit` at 1280px: a "bez formatowania" card and a "bez form." column are present, and the column's numbers link to `flags=plain`
 - [untitled] `/#r/3683` at 1280px: the row has no `title`, so the h2 reads "(bez tytułu)" rather than being empty — a heading with no text is what the corpus is left with on the 17 captures that carry no headline at all - `reextract._fill_title` writes a title only over an empty one, and these captures have none to offer. The same fallback covers the result list and both neighbour links
 
@@ -103,5 +103,5 @@ keep working while the re-scrape runs.
 
 ## Read-only guarantee
 
-- [read-only] `python3 -c "import db; db.connect_ro().execute('DELETE FROM releases WHERE id=-1')"` raises `sqlite3.OperationalError: attempt to write a readonly database`
-- [static-whitelist] request `/static/../db.py` and `/static/%2e%2e/db.py`: both 404, no file contents
+- [read-only] `.venv/bin/python -c "from pressroom.database.control.connection import connect_ro; connect_ro().execute('DELETE FROM releases WHERE id=-1')"` raises `sqlite3.OperationalError: attempt to write a readonly database`
+- [static-whitelist] request `/static/../http.py` and `/static/%2e%2e/http.py`: both 404, no file contents
