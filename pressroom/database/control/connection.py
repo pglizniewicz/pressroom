@@ -3,6 +3,14 @@
 Knows no table. That is the whole point of keeping it apart from migration.py:
 a reader can open the database without dragging in a single component that owns
 a schema.
+
+Both ways set `row_factory = sqlite3.Row`, so a query may read its columns by
+name. It is stdlib and it is not an ORM, a query builder or a row dataclass -
+it is the same tuple with labels. Nothing had to change for it: a Row still
+indexes positionally, slices to a tuple and unpacks, so the reads that predate
+it keep working. Use the names for anything wider than two columns; a SELECT
+read as row[0]..row[10] shifts silently the day a column is inserted, which is
+what this repo already lost a body-origin query to.
 """
 
 import os
@@ -25,6 +33,7 @@ DB_PATH = Path(os.environ.get("PRESSROOM_DB") or _DEFAULT)
 def connect(db_path=None) -> sqlite3.Connection:
     """Open pressroom.db with the schema ensured."""
     conn = sqlite3.connect(db_path or DB_PATH)
+    conn.row_factory = sqlite3.Row
     migration.init_db(conn)
     return conn
 
@@ -40,4 +49,6 @@ def connect_ro(db_path=None) -> sqlite3.Connection:
     browser hands each request thread its own connection.
     """
     path = Path(db_path) if db_path else DB_PATH
-    return sqlite3.connect(f"file:{path}?mode=ro", uri=True, check_same_thread=False)
+    conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True, check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    return conn

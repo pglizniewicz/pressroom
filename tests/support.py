@@ -25,13 +25,12 @@ import json
 import os
 import pathlib
 import socket
-import sqlite3
 import tempfile
 import unittest
 
 import requests
 
-from pressroom.database.control import connection, migration
+from pressroom.database.control import connection
 
 HERE = pathlib.Path(__file__).resolve().parent
 CAPTURES = HERE / "fixtures" / "captures"
@@ -88,15 +87,19 @@ class DbCase(unittest.TestCase):
         connection.DB_PATH = self.db_path
         self.addCleanup(setattr, connection, "DB_PATH", self._saved_db_path)
 
-        self.conn = sqlite3.connect(self.db_path)
-        self.addCleanup(self.conn.close)
+        # connection.connect(), not a bare sqlite3.connect: it is the write
+        # path's own opener, so a test runs against the same connection the
+        # scrapers get - row_factory included. A fixture on a differently
+        # configured connection tests a database this repo does not have.
+        #
         # Quiet: sync_fts_triggers announces its one-off repair on every
         # database whose user_version is 0, and a brand-new one always is - so
         # the line is printed once per test and says nothing. The test that
         # cares about that repair (release/test_index.py) builds its own
         # connection and reads the output.
         with contextlib.redirect_stdout(io.StringIO()):
-            migration.init_db(self.conn)
+            self.conn = connection.connect(self.db_path)
+        self.addCleanup(self.conn.close)
 
     # Seeding goes through storage.store_release rather than an INSERT of its
     # own: the write path is under test in half these files, and a fixture that

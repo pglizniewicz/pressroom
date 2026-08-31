@@ -158,7 +158,7 @@ class MigrationTest(support.DbCase):
         row = self.conn.execute(
             "SELECT grade, detail_id FROM releases WHERE url = 'http://x/1'"
         ).fetchone()
-        self.assertEqual(row, ("teaser", None))
+        self.assertEqual((row["grade"], row["detail_id"]), ("teaser", None))
 
         # Nothing left to move, and a title or body is never touched either way.
         self.assertEqual(

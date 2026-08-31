@@ -24,32 +24,35 @@ _MAX_OFFSET = 1000
 # joins it: a row's detail_id timestamp does not always name a capture of that
 # row's own url, so a reader cannot build the capture link from the timestamp
 # alone. NULL is the common case and means it can.
+#
+# Every computed column carries an AS. The rows arrive as sqlite3.Row and
+# _row_dict reads them by name, and an unaliased expression gets whatever label
+# SQLite invents for it - not a name to depend on.
 _ROW_COLS = (
     "r.id, r.source, r.date, r.title, r.url, r.detail_id, r.grade, "
-    "length(COALESCE(r.body, '')), " + MOJIBAKE_SQL + ", c.origin_url"
+    "length(COALESCE(r.body, '')) AS body_len, "
+    + MOJIBAKE_SQL
+    + " AS damaged, c.origin_url"
 )
 
 _ROW_JOIN = " LEFT JOIN body_origin c ON c.url = r.url"
 
 
-def _row_dict(row, excerpt_key: str) -> dict[str, object]:
-    (rid, source, date, title, url, detail_id, grade, body_len, damaged, origin_url) = (
-        row[:10]
-    )
+def _row_dict(row) -> dict[str, object]:
     return {
-        "id": rid,
-        "source": source,
-        "date": date or "",
-        "title": title or "",
-        "url": url or "",
-        "detail_id": detail_id,
-        "grade": grade,
-        "body_len": body_len,
+        "id": row["id"],
+        "source": row["source"],
+        "date": row["date"] or "",
+        "title": row["title"] or "",
+        "url": row["url"] or "",
+        "detail_id": row["detail_id"],
+        "grade": row["grade"],
+        "body_len": row["body_len"],
         # Judged over the whole body in SQL, not client-side over the excerpt:
         # most damage sits past the 240 characters a listing row ever shows.
-        "damaged": bool(damaged),
-        "origin_url": origin_url,
-        excerpt_key: row[10] or "",
+        "damaged": bool(row["damaged"]),
+        "origin_url": row["origin_url"],
+        "excerpt": row["excerpt"] or "",
     }
 
 
@@ -121,7 +124,8 @@ def search_releases(
             offset = min(int(after[2:]), _MAX_OFFSET)
         ordering = "r.date DESC, r.id DESC" if order == "date" else "bm25(releases_fts)"
         sql = f"""
-            SELECT {_ROW_COLS}, snippet(releases_fts, 1, '>>>', '<<<', '…', 24)
+            SELECT {_ROW_COLS},
+                   snippet(releases_fts, 1, '>>>', '<<<', '…', 24) AS excerpt
               FROM releases_fts
               JOIN releases r ON releases_fts.rowid = r.id{_ROW_JOIN}
              WHERE releases_fts MATCH ?{where}
@@ -132,7 +136,7 @@ def search_releases(
         more = len(rows) > limit
         nxt = f"o:{offset + limit}" if more and offset + limit < _MAX_OFFSET else None
         return {
-            "results": [_row_dict(r, "excerpt") for r in rows[:limit]],
+            "results": [_row_dict(r) for r in rows[:limit]],
             "next": nxt,
             "truncated": more and nxt is None,
             "query_mode": mode,
@@ -144,7 +148,7 @@ def search_releases(
         keyset = " AND (r.date < ? OR (r.date = ? AND r.id < ?))"
         keyset_params = [date, date, int(rid)]
     sql = f"""
-        SELECT {_ROW_COLS}, substr(COALESCE(r.body, ''), 1, 240)
+        SELECT {_ROW_COLS}, substr(COALESCE(r.body, ''), 1, 240) AS excerpt
           FROM releases r{_ROW_JOIN}
          WHERE 1=1{where}{keyset}
          ORDER BY r.date DESC, r.id DESC
@@ -152,9 +156,9 @@ def search_releases(
     """
     rows = conn.execute(sql, params + keyset_params + [limit + 1]).fetchall()
     page = rows[:limit]
-    nxt = f"d:{page[-1][2] or ''}:{page[-1][0]}" if len(rows) > limit else None
+    nxt = f"d:{page[-1]['date'] or ''}:{page[-1]['id']}" if len(rows) > limit else None
     return {
-        "results": [_row_dict(r, "excerpt") for r in page],
+        "results": [_row_dict(r) for r in page],
         "next": nxt,
         "truncated": False,
         "query_mode": None,
@@ -171,7 +175,7 @@ def get_release(conn: sqlite3.Connection, rid: int):
     for these rows that guess is a page that never existed."""
     row = conn.execute(
         f"""SELECT r.id, r.source, r.detail_id, r.grade, r.title, r.date, r.url,
-                  r.body, {MOJIBAKE_SQL}, r.body_html, c.origin_url
+                  r.body, {MOJIBAKE_SQL} AS damaged, r.body_html, c.origin_url
              FROM releases r
              LEFT JOIN body_origin c ON c.url = r.url
             WHERE r.id = ?""",
@@ -180,17 +184,17 @@ def get_release(conn: sqlite3.Connection, rid: int):
     if row is None:
         return None
     return {
-        "id": row[0],
-        "source": row[1],
-        "detail_id": row[2],
-        "grade": row[3],
-        "title": row[4] or "",
-        "date": row[5] or "",
-        "url": row[6] or "",
-        "body": row[7] or "",
-        "damaged": bool(row[8]),
-        "body_html": row[9],
-        "origin_url": row[10],
+        "id": row["id"],
+        "source": row["source"],
+        "detail_id": row["detail_id"],
+        "grade": row["grade"],
+        "title": row["title"] or "",
+        "date": row["date"] or "",
+        "url": row["url"] or "",
+        "body": row["body"] or "",
+        "damaged": bool(row["damaged"]),
+        "body_html": row["body_html"],
+        "origin_url": row["origin_url"],
     }
 
 
@@ -205,8 +209,7 @@ def neighbours(
     ).fetchone()
     if row is None:
         return {"prev": None, "next": None}
-    source, date, _ = row
-    date = date or ""
+    source, date = row["source"], row["date"] or ""
     out = {}
     for key, cmp, direction in (("prev", "<", "DESC"), ("next", ">", "ASC")):
         hit = conn.execute(
@@ -219,7 +222,9 @@ def neighbours(
             (source, date, date, rid),
         ).fetchone()
         out[key] = (
-            {"id": hit[0], "title": hit[1] or "", "date": hit[2] or ""} if hit else None
+            {"id": hit["id"], "title": hit["title"] or "", "date": hit["date"] or ""}
+            if hit
+            else None
         )
     return out
 
@@ -244,33 +249,23 @@ def quality_counts(conn: sqlite3.Connection) -> dict[str, int]:
     re-implemented in seven places, and it silently decided what a new source
     was allowed to store (soundonsound's docstring says so outright)."""
     row = conn.execute(f"""
-        SELECT count(*),
-               sum(r.grade = 'teaser'),
-               sum(r.grade = 'stub'),
-               sum(c.url IS NOT NULL),
-               sum(c.url IS NULL AND r.detail_id IS NOT NULL),
-               sum(length(COALESCE(r.body, '')) < 300),
-               sum(COALESCE(r.body, '') = ''),
-               sum(r.date IS NULL OR r.date = ''),
-               sum({MOJIBAKE_SQL}),
+        SELECT count(*)                                        AS total,
+               sum(r.grade = 'teaser')                         AS teaser,
+               sum(r.grade = 'stub')                           AS stub,
+               sum(c.url IS NOT NULL)                          AS wayback,
+               sum(c.url IS NULL AND r.detail_id IS NOT NULL)  AS platform_id,
+               sum(length(COALESCE(r.body, '')) < 300)         AS short,
+               sum(COALESCE(r.body, '') = '')                  AS empty,
+               sum(r.date IS NULL OR r.date = '')              AS nodate,
+               sum({MOJIBAKE_SQL})                             AS mojibake,
                sum(r.body_html IS NULL AND lower(r.url) NOT LIKE '%.pdf'
-                                       AND lower(r.url) NOT LIKE '%.doc')
+                                       AND lower(r.url) NOT LIKE '%.doc') AS plain
           FROM releases r
           LEFT JOIN body_origin c ON c.url = r.url
     """).fetchone()
-    keys = (
-        "total",
-        "teaser",
-        "stub",
-        "wayback",
-        "platform_id",
-        "short",
-        "empty",
-        "nodate",
-        "mojibake",
-        "plain",
-    )
-    return {k: (v or 0) for k, v in zip(keys, row)}
+    # The key names are the column names now. They used to be a ten-name tuple
+    # twenty lines below the ten expressions it labelled, matched by position.
+    return {k: (row[k] or 0) for k in row.keys()}
 
 
 def list_sources(conn: sqlite3.Connection) -> list[dict[str, object]]:
