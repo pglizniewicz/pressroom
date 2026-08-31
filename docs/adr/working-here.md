@@ -34,14 +34,64 @@ these as instructions; here they keep the reason attached.
   example, so deliberate breaks are checked against the tests meant to catch
   them.
 
+- **`uvx ruff format .` and `uvx ruff check .` before a commit.** The tree went
+  years without either and did not drift much — the style it grew into *is*
+  ruff's default, measured rather than guessed: 88 columns, double quotes, four
+  spaces, and `target-version` it reads out of `requires-python` by itself. So
+  the config is a single pinned `select` and nothing else. Pinned rather than
+  inherited only so that a change to ruff's defaults is not silently a change to
+  this repo.
+
+  Three deliberate exclusions, each with a measurement behind it:
+
+  - **`E501` is out.** After formatting, the lines still over 88 are HTML
+    templates, SQL, a User-Agent and messages written for a human — none of them
+    things a formatter will split or should. Enabling it buys a `noqa` per line
+    and nothing else.
+  - **`docstring-code-format` stays off.** The archaeology in this repo's
+    docstrings carries markup samples, and they are not code to be reformatted.
+  - **No `dev` extra.** `uvx` keeps the property `pyproject.toml` already argues
+    for: a fresh checkout verifies itself with nothing installed beyond the three
+    real dependencies.
+
+  The adoption itself was gated on a proof rather than a promise: a digest over
+  `ast.dump()` of every module, before and after, came back identical. That is
+  what makes the reformat safe to read past — no literal moved, so no docstring
+  moved, so `--help` did not move, and `command.run()` hands a boundary's
+  docstring to argparse whole. Do the same before any future bulk rewrite of this
+  tree; a diff that size is not reviewable by eye.
+
+  What the linter is actually worth here is not tidiness. It is that this tree
+  gets *moved* — the BCE restructuring, the retired `backfill_`/`repair_` family,
+  the CMS-generation renames — and every move leaves the same two residues: a
+  name that moved without its import, and an import that stayed after its use
+  left. See the `F821` story in the next entry for what the first one cost.
+
 - **`pressroom-verify-names` after any change that renames or moves a
-  module-level name.** Three checks, each with a blind spot the next one covers,
-  and every one caught a real break during the restructuring: *imports* (every
-  module imports — executes module level only, which is exactly its blind spot),
-  *unbound qualified names* (`foo.bar` whose `foo` is bound nowhere, which found
-  a stale module alias that imported clean and raised at call time), and *a local
-  shadowing an imported module* (a line assigning to a local `gate` shadows the
-  module for the whole function, so the name *is* bound, just too late).
+  module-level name.** Two checks now, both of which caught a real break during
+  the restructuring: *imports* (every module imports — executes module level only,
+  which is exactly its blind spot) and *a local shadowing an imported module* (a
+  line assigning to a local `gate` shadows the module for the whole function, so
+  the name *is* bound, just too late).
+
+  There was a third, *unbound qualified names* — `foo.bar` whose `foo` is bound
+  nowhere — and ruff's `F821` replaced it. Not as a duplicate: it is strictly
+  stronger. `_walk_unbound` only inspected `ast.Attribute` nodes, so it saw
+  `foo.bar` and walked straight past a bare `foo(...)`, which is an `ast.Call` on
+  a plain `ast.Name`. That is not a hypothetical gap. `capture/control/archive.py`
+  called `snapshot_url()` in three places and imported the module it lives in
+  nowhere; this pass printed `unbound qualified names: 0` and `OK` over three
+  certain `NameError`s, in the network phase of two scrapers and the whole
+  `--attachments` crawl, where neither the hermetic suite nor `--offline` reaches.
+  `F821` found all three on its first run. Checked before deleting, not assumed:
+  an injected `foo.bar` into a real module is flagged by both, on the same line.
+
+  So the division is not "two overlapping name checkers". Ruff reasons inside one
+  file and does it better; this pass keeps the half a static linter cannot do at
+  all — it *executes* the import, so `from x import y` with no `y` in `x` fails
+  here and nowhere else (ruff sees only an unused import), and it is
+  dependency-free, which `uvx` is not. **Do not add bare-name detection back** —
+  that is re-implementing pyflakes.
 
   Its own blind spot — it is static, and a scraper's phase 1 has to be *run* — is
   `tests/test_offline_is_offline.py`, which invokes all 16 scrapers under

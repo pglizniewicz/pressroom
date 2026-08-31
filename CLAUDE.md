@@ -399,10 +399,19 @@ exists to keep you away from:
   is no database.
 - **`tests/refresh.py --golden` after an intentional parser change**, then read the
   git diff. `--captures` re-picks the fixtures and needs the corpus.
+- **`uvx ruff format .` and `uvx ruff check .` before a commit.** Ruff's defaults,
+  nothing of our own — 88 columns, double quotes, and `target-version` read out of
+  `requires-python`; the only pinned setting is `select`, so a change to those
+  defaults is not silently a change here. `uvx`, never a `dev` extra: a fresh
+  checkout still verifies itself with nothing installed. Formatting is proved
+  AST-identical, so docstrings and `--help` are untouchable.
 - **`pressroom-verify-names` after any change that renames or moves a module-level
-  name.** It is static, so two tests cover what it cannot see:
-  `tests/test_offline_is_offline.py` (a scraper's phase 1 has to be *run*) and
-  `tests/test_no_dead_module_references.py` (prose).
+  name.** It is down to the two checks a linter cannot do — it *runs* every import,
+  and it catches a local shadowing an imported module. `F821` owns undefined names
+  now, and is strictly better at it; do not add that back here. It is still static,
+  so two tests cover what it cannot see: `tests/test_offline_is_offline.py` (a
+  scraper's phase 1 has to be *run*) and `tests/test_no_dead_module_references.py`
+  (prose).
 - **The tests do not replace the `verify` and `calibrate` passes, or `checks.md`** —
   those print the per-class report you read when a test goes red.
 - **Copy the DB before a `'rebuild'` or a bulk update**; neither is reversible.
