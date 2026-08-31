@@ -1,0 +1,389 @@
+{
+  "amd__live": {
+    "base_url": "https://ir.amd.com/news-events/press-releases/detail/95/amd-announces-2010-financial-analyst-day-date-change",
+    "capture": "https://ir.amd.com/news-events/press-releases/detail/95/amd-announces-2010-financial-analyst-day-date-change",
+    "file": "amd__live",
+    "kind": "live",
+    "source": "amd",
+    "timestamp": "",
+    "url": "https://ir.amd.com/news-events/press-releases/detail/95/amd-announces-2010-financial-analyst-day-date-change"
+  },
+  "attachment_doc": {
+    "base_url": "",
+    "capture": "https://web.archive.org/web/20101226092847id_/http://www.m-audio.com/images/en/press_releases/Announcing_Operator.doc",
+    "file": "attachment_doc",
+    "kind": "attachment",
+    "source": "attachment",
+    "timestamp": "20101226092847",
+    "url": "http://www.m-audio.com/images/en/press_releases/Announcing_Operator.doc"
+  },
+  "attachment_pdf": {
+    "base_url": "",
+    "capture": "https://web.archive.org/web/20021016075137id_/http://www.midiman.com/news/pdf/PR07022002A.pdf",
+    "file": "attachment_pdf",
+    "kind": "attachment",
+    "source": "attachment",
+    "timestamp": "20021016075137",
+    "url": "http://www.midiman.com/news/pdf/PR07022002A.pdf"
+  },
+  "creative__live": {
+    "base_url": "https://sg.creative.com/corporate/pressroom?id=8348",
+    "capture": "https://sg.creative.com/corporate/pressroom?id=8348",
+    "file": "creative__live",
+    "kind": "live",
+    "source": "creative",
+    "timestamp": "",
+    "url": "https://sg.creative.com/corporate/pressroom?id=8348"
+  },
+  "creative_gnw__live": {
+    "base_url": "https://www.globenewswire.com/news-release/2011/09/01/455399/14982/en/creative-unveils-new-sound-blaster-gaming-headsets-at-2011-ifa-berlin.html",
+    "capture": "https://www.globenewswire.com/news-release/2011/09/01/455399/14982/en/creative-unveils-new-sound-blaster-gaming-headsets-at-2011-ifa-berlin.html",
+    "file": "creative_gnw__live",
+    "kind": "live",
+    "source": "creative_gnw",
+    "timestamp": "",
+    "url": "https://www.globenewswire.com/news-release/2011/09/01/455399/14982/en/creative-unveils-new-sound-blaster-gaming-headsets-at-2011-ifa-berlin.html"
+  },
+  "intel__live": {
+    "base_url": "https://www.intc.com/news-events/press-releases/detail/970/correcting-and-replacing-intel-declares-regular-cash",
+    "capture": "https://www.intc.com/news-events/press-releases/detail/970/correcting-and-replacing-intel-declares-regular-cash",
+    "file": "intel__live",
+    "kind": "live",
+    "source": "intel",
+    "timestamp": "",
+    "url": "https://www.intc.com/news-events/press-releases/detail/970/correcting-and-replacing-intel-declares-regular-cash"
+  },
+  "maudio_com_media_news__detail": {
+    "base_url": "http://www.m-audio.com/index.php?do=media.new&ID=2032",
+    "capture": "https://web.archive.org/web/20121015065159id_/http://www.m-audio.com/index.php?do=media.new&ID=2032",
+    "file": "maudio_com_media_news__detail",
+    "kind": "detail",
+    "source": "maudio_com_media_news",
+    "timestamp": "20121015065159",
+    "url": "http://www.m-audio.com/index.php?do=media.new&ID=2032"
+  },
+  "maudio_com_media_news__listing": {
+    "base_url": "http://www.m-audio.com/index.php?do=media.news",
+    "capture": "https://web.archive.org/web/20120922165348id_/http://www.m-audio.com/index.php?do=media.news",
+    "file": "maudio_com_media_news__listing",
+    "kind": "listing",
+    "source": "maudio_com_media_news",
+    "timestamp": "20120922165348",
+    "url": ""
+  },
+  "maudio_com_media_pr__listing": {
+    "base_url": "http://www.m-audio.com/index.php?do=media.media_pr",
+    "capture": "https://web.archive.org/web/20041213101052id_/http://www.m-audio.com/index.php?do=media.media_pr",
+    "file": "maudio_com_media_pr__listing",
+    "kind": "listing",
+    "source": "maudio_com_media_pr",
+    "timestamp": "20041213101052",
+    "url": ""
+  },
+  "maudio_com_news__detail": {
+    "base_url": "http://m-audio.com/news/articles/m-audio-announces-the-m-track-eight-interface",
+    "capture": "https://web.archive.org/web/20230925200045id_/http://m-audio.com/news/articles/m-audio-announces-the-m-track-eight-interface",
+    "file": "maudio_com_news__detail",
+    "kind": "detail",
+    "source": "maudio_com_news",
+    "timestamp": "20230925200045",
+    "url": "http://m-audio.com/news/articles/m-audio-announces-the-m-track-eight-interface"
+  },
+  "maudio_com_news__listing": {
+    "base_url": "http://m-audio.com/news/P5",
+    "capture": "https://web.archive.org/web/20230804064707id_/http://m-audio.com/news/P5",
+    "file": "maudio_com_news__listing",
+    "kind": "listing",
+    "source": "maudio_com_news",
+    "timestamp": "20230804064707",
+    "url": ""
+  },
+  "midiman_com__detail": {
+    "base_url": "http://www.midiman.com/m-audio/html/press/prmult10.htm",
+    "capture": "https://web.archive.org/web/20010724115907id_/http://www.midiman.com/m-audio/html/press/prmult10.htm",
+    "file": "midiman_com__detail",
+    "kind": "detail",
+    "source": "midiman_com",
+    "timestamp": "20010724115907",
+    "url": "http://www.midiman.com/m-audio/html/press/prmult10.htm"
+  },
+  "midiman_com_media_news__detail": {
+    "base_url": "http://www.midiman.com/index.php?do=media.new&ID=505395e820ce9ea54e1dab25f755b14e",
+    "capture": "https://web.archive.org/web/20080929173352id_/http://www.midiman.com/index.php?do=media.new&ID=505395e820ce9ea54e1dab25f755b14e",
+    "file": "midiman_com_media_news__detail",
+    "kind": "detail",
+    "source": "midiman_com_media_news",
+    "timestamp": "20080929173352",
+    "url": "http://www.midiman.com/index.php?do=media.new&ID=505395e820ce9ea54e1dab25f755b14e"
+  },
+  "midiman_com_media_news__listing": {
+    "base_url": "http://www.midiman.com/index.php?do=media.news",
+    "capture": "https://web.archive.org/web/20081221093321id_/http://www.midiman.com/index.php?do=media.news",
+    "file": "midiman_com_media_news__listing",
+    "kind": "listing",
+    "source": "midiman_com_media_news",
+    "timestamp": "20081221093321",
+    "url": ""
+  },
+  "midiman_com_media_pr__listing": {
+    "base_url": "http://www.midiman.com/index.php?do=media.media_pr",
+    "capture": "https://web.archive.org/web/20060527183623id_/http://www.midiman.com/index.php?do=media.media_pr",
+    "file": "midiman_com_media_pr__listing",
+    "kind": "listing",
+    "source": "midiman_com_media_pr",
+    "timestamp": "20060527183623",
+    "url": ""
+  },
+  "midiman_com_pressdb__detail": {
+    "base_url": "http://www.midiman.com/news/php/M-Audio_Acquisition.php",
+    "capture": "https://web.archive.org/web/20031002031435id_/http://www.midiman.com/news/php/M-Audio_Acquisition.php",
+    "file": "midiman_com_pressdb__detail",
+    "kind": "detail",
+    "source": "midiman_com_pressdb",
+    "timestamp": "20031002031435",
+    "url": "http://www.midiman.com/news/php/M-Audio_Acquisition.php"
+  },
+  "midiman_com_pressdb__listing": {
+    "base_url": "http://www.midiman.com/news/pressdb.php",
+    "capture": "https://web.archive.org/web/20021016075137id_/http://www.midiman.com/news/pressdb.php",
+    "file": "midiman_com_pressdb__listing",
+    "kind": "listing",
+    "source": "midiman_com_pressdb",
+    "timestamp": "20021016075137",
+    "url": ""
+  },
+  "midiman_couk_news__detail": {
+    "base_url": "http://www.midiman.co.uk/index.php?do=media.new&ID=4c85caadddd63d01c08422ff6cd83e63",
+    "capture": "https://web.archive.org/web/20051103120008id_/http://www.midiman.co.uk/index.php?do=media.new&ID=4c85caadddd63d01c08422ff6cd83e63",
+    "file": "midiman_couk_news__detail",
+    "kind": "detail",
+    "source": "midiman_couk_news",
+    "timestamp": "20051103120008",
+    "url": "http://www.midiman.co.uk/index.php?do=media.new&ID=4c85caadddd63d01c08422ff6cd83e63"
+  },
+  "midiman_couk_news__listing": {
+    "base_url": "http://www.midiman.co.uk/index.php?do=media.news",
+    "capture": "https://web.archive.org/web/20041205213624id_/http://www.midiman.co.uk/index.php?do=media.news",
+    "file": "midiman_couk_news__listing",
+    "kind": "listing",
+    "source": "midiman_couk_news",
+    "timestamp": "20041205213624",
+    "url": ""
+  },
+  "midiman_de__detail": {
+    "base_url": "http://www.midiman.de/messe03.htm",
+    "capture": "https://web.archive.org/web/20050213191228id_/http://www.midiman.de/messe03.htm",
+    "file": "midiman_de__detail",
+    "kind": "detail",
+    "source": "midiman_de",
+    "timestamp": "20050213191228",
+    "url": "http://www.midiman.de/messe03.htm"
+  },
+  "midiman_de__listing": {
+    "base_url": "http://www.midiman.de/oldpress.htm",
+    "capture": "https://web.archive.org/web/19991002083542id_/http://www.midiman.de/oldpress.htm",
+    "file": "midiman_de__listing",
+    "kind": "listing",
+    "source": "midiman_de",
+    "timestamp": "19991002083542",
+    "url": "http://www.midiman.de/press/biport-2x4-s-midi-interface-f-r-pc-und-mac-1999-01-15"
+  },
+  "midiman_net__detail": {
+    "base_url": "http://www.midiman.net/m-audio/html/press/prmaudme.htm",
+    "capture": "https://web.archive.org/web/20010710111719id_/http://www.midiman.net/m-audio/html/press/prmaudme.htm",
+    "file": "midiman_net__detail",
+    "kind": "detail",
+    "source": "midiman_net",
+    "timestamp": "20010710111719",
+    "url": "http://www.midiman.net/m-audio/html/press/prmaudme.htm"
+  },
+  "midiman_net_media_news__detail": {
+    "base_url": "http://www.midiman.net/index.php?do=media.new&ID=505395e820ce9ea54e1dab25f755b14e",
+    "capture": "https://web.archive.org/web/20080923024228id_/http://www.midiman.net/index.php?do=media.new&ID=505395e820ce9ea54e1dab25f755b14e",
+    "file": "midiman_net_media_news__detail",
+    "kind": "detail",
+    "source": "midiman_net_media_news",
+    "timestamp": "20080923024228",
+    "url": "http://www.midiman.net/index.php?do=media.new&ID=505395e820ce9ea54e1dab25f755b14e"
+  },
+  "midiman_net_media_news__listing": {
+    "base_url": "http://www.midiman.net/index.php?do=media.news",
+    "capture": "https://web.archive.org/web/20081211055027id_/http://www.midiman.net/index.php?do=media.news",
+    "file": "midiman_net_media_news__listing",
+    "kind": "listing",
+    "source": "midiman_net_media_news",
+    "timestamp": "20081211055027",
+    "url": ""
+  },
+  "midiman_net_media_pr__listing": {
+    "base_url": "http://www.midiman.net/index.php?do=media.media_pr",
+    "capture": "https://web.archive.org/web/20060220064448id_/http://www.midiman.net/index.php?do=media.media_pr",
+    "file": "midiman_net_media_pr__listing",
+    "kind": "listing",
+    "source": "midiman_net_media_pr",
+    "timestamp": "20060220064448",
+    "url": ""
+  },
+  "midiman_net_pressdb__detail": {
+    "base_url": "http://www.midiman.net/news/presstemp.php?ID=20010727161816",
+    "capture": "https://web.archive.org/web/20020805190259id_/http://www.midiman.net/news/presstemp.php?ID=20010727161816",
+    "file": "midiman_net_pressdb__detail",
+    "kind": "detail",
+    "source": "midiman_net_pressdb",
+    "timestamp": "20020805190259",
+    "url": "http://www.midiman.net/news/presstemp.php?ID=20010727161816"
+  },
+  "midiman_net_pressdb__listing": {
+    "base_url": "http://www.midiman.net/news/pressdb.php",
+    "capture": "https://web.archive.org/web/20020804125531id_/http://www.midiman.net/news/pressdb.php",
+    "file": "midiman_net_pressdb__listing",
+    "kind": "listing",
+    "source": "midiman_net_pressdb",
+    "timestamp": "20020804125531",
+    "url": ""
+  },
+  "soundonsound__listing": {
+    "base_url": "https://www.soundonsound.com/search?f%5B0%5D=node%253Afield_subject%3A7099&page=2",
+    "capture": "https://www.soundonsound.com/search?f%5B0%5D=node%253Afield_subject%3A7099&page=2",
+    "file": "soundonsound__listing",
+    "kind": "listing",
+    "source": "soundonsound",
+    "timestamp": "",
+    "url": ""
+  },
+  "soundonsound__live": {
+    "base_url": "https://www.soundonsound.com/sound-advice/q-whats-best-way-monitor-any-instrument-connected-my-interface",
+    "capture": "https://www.soundonsound.com/sound-advice/q-whats-best-way-monitor-any-instrument-connected-my-interface",
+    "file": "soundonsound__live",
+    "kind": "live",
+    "source": "soundonsound",
+    "timestamp": "",
+    "url": "https://www.soundonsound.com/sound-advice/q-whats-best-way-monitor-any-instrument-connected-my-interface"
+  },
+  "terratec__detail": {
+    "base_url": "http://www.terratec.net:80/press/pressemit/cameoconnect.htm",
+    "capture": "https://web.archive.org/web/20030405102153id_/http://www.terratec.net:80/press/pressemit/cameoconnect.htm",
+    "file": "terratec__detail",
+    "kind": "detail",
+    "source": "terratec",
+    "timestamp": "20030405102153",
+    "url": "http://www.terratec.net:80/press/pressemit/cameoconnect.htm"
+  },
+  "terratec__listing": {
+    "base_url": "http://www.terratec.net/press/pressreleases.htm",
+    "capture": "https://web.archive.org/web/20030405064946id_/http://www.terratec.net/press/pressreleases.htm",
+    "file": "terratec__listing",
+    "kind": "listing",
+    "source": "terratec",
+    "timestamp": "20030405064946",
+    "url": ""
+  },
+  "terratec_de__detail": {
+    "base_url": "http://www.terratec.de/presse/pressemit/imdr.htm",
+    "capture": "https://web.archive.org/web/20030103162112id_/http://www.terratec.de/presse/pressemit/imdr.htm",
+    "file": "terratec_de__detail",
+    "kind": "detail",
+    "source": "terratec_de",
+    "timestamp": "20030103162112",
+    "url": "http://www.terratec.de/presse/pressemit/imdr.htm"
+  },
+  "terratec_de__listing": {
+    "base_url": "http://www.terratec.de/presse/pressemit.htm",
+    "capture": "https://web.archive.org/web/20030227043415id_/http://www.terratec.de/presse/pressemit.htm",
+    "file": "terratec_de__listing",
+    "kind": "listing",
+    "source": "terratec_de",
+    "timestamp": "20030227043415",
+    "url": ""
+  },
+  "terratec_early__listing": {
+    "base_url": "http://www.terratec.de/presse2.htm",
+    "capture": "https://web.archive.org/web/19980115084201id_/http://www.terratec.de/presse2.htm",
+    "file": "terratec_early__listing",
+    "kind": "listing",
+    "source": "terratec_early",
+    "timestamp": "19980115084201",
+    "url": ""
+  },
+  "terratec_early__listing_1": {
+    "base_url": "http://www.terratec.de:80/e/presse.htm",
+    "capture": "https://web.archive.org/web/19961129051606id_/http://www.terratec.de:80/e/presse.htm",
+    "file": "terratec_early__listing_1",
+    "kind": "listing",
+    "source": "terratec_early",
+    "timestamp": "19961129051606",
+    "url": ""
+  },
+  "terratec_new_de__detail": {
+    "base_url": "http://www.terratec.net/de/unternehmen/presse/Juni_2007_-_TerraTec_sponsort_Deutschen_Webradio_Award__16668.html",
+    "capture": "https://web.archive.org/web/20080310200013id_/http://www.terratec.net/de/unternehmen/presse/Juni_2007_-_TerraTec_sponsort_Deutschen_Webradio_Award__16668.html",
+    "file": "terratec_new_de__detail",
+    "kind": "detail",
+    "source": "terratec_new_de",
+    "timestamp": "20080310200013",
+    "url": "http://www.terratec.net/de/unternehmen/presse/Juni_2007_-_TerraTec_sponsort_Deutschen_Webradio_Award__16668.html"
+  },
+  "terratec_new_de__listing": {
+    "base_url": "http://www.terratec.net/de/unternehmen/presse/presse.html",
+    "capture": "https://web.archive.org/web/20090130055244id_/http://www.terratec.net/de/unternehmen/presse/presse.html",
+    "file": "terratec_new_de__listing",
+    "kind": "listing",
+    "source": "terratec_new_de",
+    "timestamp": "20090130055244",
+    "url": "http://www.terratec.net/de/unternehmen/presse/Januar_2009_-_Mit_TerraTec_und_MAGIX_kinderleicht_digitalisieren__80907.html"
+  },
+  "terratec_new_en__detail": {
+    "base_url": "http://www.terratec.net/en/company/press/Aptil_2007_-_TerraTec_Cinergy_Antenna_One_16621.html",
+    "capture": "https://web.archive.org/web/20080308190851id_/http://www.terratec.net/en/company/press/Aptil_2007_-_TerraTec_Cinergy_Antenna_One_16621.html",
+    "file": "terratec_new_en__detail",
+    "kind": "detail",
+    "source": "terratec_new_en",
+    "timestamp": "20080308190851",
+    "url": "http://www.terratec.net/en/company/press/Aptil_2007_-_TerraTec_Cinergy_Antenna_One_16621.html"
+  },
+  "terratec_new_en__listing": {
+    "base_url": "http://www.terratec.net/en/company/press/press.html",
+    "capture": "https://web.archive.org/web/20080918053853id_/http://www.terratec.net/en/company/press/press.html",
+    "file": "terratec_new_en__listing",
+    "kind": "listing",
+    "source": "terratec_new_en",
+    "timestamp": "20080918053853",
+    "url": "http://www.terratec.net/en/company/press/September_2008_-_NOXON_Internet_Radio_Full_Wireless_Access_to_Napster_Content_71290.html"
+  },
+  "terratec_pressde__detail": {
+    "base_url": "http://pressde.terratec.net:80/print.php?sid=152",
+    "capture": "https://web.archive.org/web/20030614185740id_/http://pressde.terratec.net:80/print.php?sid=152",
+    "file": "terratec_pressde__detail",
+    "kind": "detail",
+    "source": "terratec_pressde",
+    "timestamp": "20030614185740",
+    "url": "http://pressde.terratec.net:80/print.php?sid=152"
+  },
+  "terratec_pressde__listing": {
+    "base_url": "http://pressde.terratec.net:80/modules.php?op=modload&name=News&file=index&catid=13&topic=&allstories=1&menu=300",
+    "capture": "https://web.archive.org/web/20031115085312id_/http://pressde.terratec.net:80/modules.php?op=modload&name=News&file=index&catid=13&topic=&allstories=1&menu=300",
+    "file": "terratec_pressde__listing",
+    "kind": "listing",
+    "source": "terratec_pressde",
+    "timestamp": "20031115085312",
+    "url": ""
+  },
+  "terratec_pressen__detail": {
+    "base_url": "http://pressen.terratec.net:80/print.php?sid=188",
+    "capture": "https://web.archive.org/web/20040101065724id_/http://pressen.terratec.net:80/print.php?sid=188",
+    "file": "terratec_pressen__detail",
+    "kind": "detail",
+    "source": "terratec_pressen",
+    "timestamp": "20040101065724",
+    "url": "http://pressen.terratec.net:80/print.php?sid=188"
+  },
+  "terratec_pressen__listing": {
+    "base_url": "http://pressen.terratec.net/modules.php?op=modload&name=News&file=index&catid=18&topic=&allstories=1&menu=2&menu=309",
+    "capture": "https://web.archive.org/web/20070808232455id_/http://pressen.terratec.net/modules.php?op=modload&name=News&file=index&catid=18&topic=&allstories=1&menu=2&menu=309",
+    "file": "terratec_pressen__listing",
+    "kind": "listing",
+    "source": "terratec_pressen",
+    "timestamp": "20070808232455",
+    "url": ""
+  }
+}
