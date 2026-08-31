@@ -195,6 +195,14 @@ reproduce bodies, and nothing imports it back.
 against a flaky archive; a rerun must pick up exactly what the last one
 couldn't get. Commit per row unless a loop batches explicitly (`commit=False`).
 
+**A write that has two statements commits through `with conn:`, never a bare
+`conn.commit()`** — it rolls back on an exception, and a bare commit cannot, so
+a raising second statement used to leave the first in an open transaction for
+the next commit on that connection to adopt. That is how a row got stored
+without the `body_origin` entry the code had just refused to write. Wherever a
+body write and an `origin.record`/`origin.clear` sit together, they are one
+transaction and both take `commit=False`.
+
 **A network error is not a verdict.** `archive.fetch_detail_snapshot()` returns
 `(parsed, confirmed)`; `confirmed=False` means archive.org failed, so the caller
 writes *nothing* and leaves the item open to a full retry. Only a confirmed

@@ -50,10 +50,29 @@ involved. **So nothing has to be re-run after a crawl.**
 Drupal node id or a bare row url raises `ValueError` at the write site rather
 than minting a dead link.
 
+"In the same transaction" was a claim before it was a fact. `storage` ran the
+row write, then the origin write, then `conn.commit()` — and a bare commit has
+no failure branch. When `is_capture_address()` raised on a Q4 id, the release
+INSERT was left in an open transaction: not written, not rolled back, and the
+next `commit()` from anywhere on that connection adopted it. The row then
+existed with no `body_origin`, which is the exact false statement the guard
+above had just refused to make. `with conn:` is the fix and the whole of it —
+it commits on success and **rolls back on an exception**, which is the part
+`conn.commit()` cannot express. `tests/release/test_storage.py` holds it, and
+that test was checked against the old code first: it fails there.
+
 **An entry must be dropped the moment it stops being true.** `twin.fill` calls
 `origin.clear()` because the text it writes came out of a *sibling row*, so
 whatever capture was recorded has stopped describing it. Without that, the
 browser would link a listing for text that no longer came from one.
+
+That clear is in the same transaction as the upgrade, and had to be moved into
+one. `twin.fill` used to let `upgrade_release` commit the new body on its own
+and clear the entry afterwards, under a trailing `conn.commit()` at the end of
+the loop. Between those two points the row held the sibling's text and still
+advertised its old capture — a window the crawl could die inside, leaving
+behind precisely the false statement this section is about. Both calls now pass
+`commit=False` and one `with conn:` closes over the pair.
 
 The table covers every Wayback row, which is what lets `http.wayback_url()` be
 two lines with no idea what a timestamp looks like — no entry, no link, the right

@@ -151,16 +151,26 @@ def fill(conn, source: str = None, *, dry_run: bool = False) -> int:
         detail = best["detail_id"] if address.is_timestamp(best["detail_id"]) else None
         # grade follows too: the row now holds the twin's full article, so a
         # 'teaser' verdict on it has stopped being true.
-        if storage.upgrade_release(
-            conn, short["url"], body=body, detail_id=detail, grade="full"
-        ):
-            written += 1
-            # This text came out of another row, not out of a capture of this
-            # one. Whatever address was recorded for it has stopped describing
-            # the body, so drop it rather than leave a false statement - the
-            # only caller clear_body_origin has ever had.
-            origin.clear(conn, short["url"], commit=False)
-    conn.commit()
+        # One transaction for the pair, which is why both take commit=False.
+        # The recorded origin stops being true at the instant the body changes,
+        # so committing the upgrade first and clearing afterwards leaves a
+        # window - and anything raising inside it leaves exactly the false
+        # statement the clear exists to prevent.
+        with conn:
+            if storage.upgrade_release(
+                conn,
+                short["url"],
+                body=body,
+                detail_id=detail,
+                grade="full",
+                commit=False,
+            ):
+                written += 1
+                # This text came out of another row, not out of a capture of
+                # this one. Whatever address was recorded for it has stopped
+                # describing the body, so drop it rather than leave a false
+                # statement - the only caller clear_body_origin has ever had.
+                origin.clear(conn, short["url"], commit=False)
     if written:
         print(f"\nuzupełniono {written} wierszy z bliźniaków")
     return written

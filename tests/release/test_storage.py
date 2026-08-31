@@ -40,6 +40,34 @@ class OriginTest(support.DbCase):
                         self.conn, "src", f"http://x/{bad}", origin_url=bad
                     )
 
+    def test_a_refused_origin_takes_the_release_row_down_with_it(self):
+        """The write above and the entry it refuses are one transaction.
+
+        Without `with conn:` in storage, the INSERT that ran before the raise
+        stayed in an open transaction: not written, but not gone either, and
+        the next commit() from anywhere on that connection adopted it. The row
+        then existed with no body_origin - exactly the false statement the
+        guard had just refused to make. A bare conn.commit() cannot express
+        this; only a rollback can.
+        """
+        with self.assertRaises(ValueError):
+            storage.store_release(
+                self.conn, "src", "http://x/9", body="b", origin_url="970"
+            )
+        # Read on the same connection, which would see its own uncommitted
+        # INSERT - so this fails unless the write was actually rolled back.
+        self.assertIsNone(
+            self.conn.execute(
+                "SELECT 1 FROM releases WHERE url = 'http://x/9'"
+            ).fetchone()
+        )
+        self.conn.commit()
+        self.assertIsNone(
+            self.conn.execute(
+                "SELECT 1 FROM releases WHERE url = 'http://x/9'"
+            ).fetchone()
+        )
+
     def test_recorded_only_when_a_row_actually_came_into_being(self):
         """A url the UNIQUE constraint made this a no-op for holds a body some
         other pass wrote, and claiming our capture as its origin would be a

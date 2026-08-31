@@ -7,13 +7,30 @@ Commit per row by default. A caller that batches passes commit=False and
 commits after its loop - but the default is per-row because these are hour-long
 crawls against a flaky archive and a rerun must pick up exactly what the last
 one could not get.
+
+The commit goes through `with conn:`, which commits on success and **rolls back
+on an exception**. That is what makes a row and its body_origin entry one
+write. A bare conn.commit() cannot: when the origin write raised, the release
+INSERT was left sitting in an open transaction, and the next commit() from
+anywhere on that connection adopted it - a row stored without the provenance
+the code one line above had just refused to give it.
 """
+
+import contextlib
 
 from pressroom.capture.control import address
 from pressroom.provenance.entity import origin
 from pressroom.release.entity import schema
 from pressroom.release.entity.grade import Grade
 from pressroom.text.control.decoding import repaired
+
+
+def _transaction(conn, commit: bool):
+    """The transaction boundary for one write, or nothing when the caller owns
+    it. `with conn:` commits on success and rolls back on an exception;
+    commit=False means a batching loop will commit after it, so this function
+    must stay out of the way rather than commit early."""
+    return conn if commit else contextlib.nullcontext()
 
 
 def _record_origin(conn, url: str, origin_url) -> None:
@@ -52,27 +69,26 @@ def store_release(
     "stub" for title/date only) and leaves detail_id alone. Those two strings
     used to be written *into* detail_id, which is the union that split undid.
     """
-    cur = conn.execute(
-        schema.INSERT_SQL,
-        (
-            source,
-            detail_id,
-            repaired(title),
-            date,
-            url,
-            repaired(body) if body_html is None else body,
-            body_html,
-            str(grade),
-        ),
-    )
-    # Provenance only when the row actually came into being. A url the UNIQUE
-    # constraint made this a no-op for holds a body some other pass wrote, and
-    # claiming our capture as its origin would be a false statement about text
-    # we did not store.
-    if cur.rowcount > 0:
-        _record_origin(conn, url, origin_url)
-    if commit:
-        conn.commit()
+    with _transaction(conn, commit):
+        cur = conn.execute(
+            schema.INSERT_SQL,
+            (
+                source,
+                detail_id,
+                repaired(title),
+                date,
+                url,
+                repaired(body) if body_html is None else body,
+                body_html,
+                str(grade),
+            ),
+        )
+        # Provenance only when the row actually came into being. A url the
+        # UNIQUE constraint made this a no-op for holds a body some other pass
+        # wrote, and claiming our capture as its origin would be a false
+        # statement about text we did not store.
+        if cur.rowcount > 0:
+            _record_origin(conn, url, origin_url)
     return cur.rowcount > 0
 
 
@@ -107,25 +123,24 @@ def upgrade_release(
 
     Returns True if a row matched `url`.
     """
-    cur = conn.execute(
-        schema.UPGRADE_SQL,
-        (
-            detail_id,
-            repaired(title),
-            date,
-            repaired(body) if body_html is None else body,
-            body_html,
-            None if grade is None else str(grade),
-            url,
-        ),
-    )
-    # Same rule as store_release, one step further: the entry describes where a
-    # *body* came from, so a call that only moves a title or a date must not
-    # touch it.
-    if cur.rowcount > 0 and (body is not None or body_html is not None):
-        _record_origin(conn, url, origin_url)
-    if commit:
-        conn.commit()
+    with _transaction(conn, commit):
+        cur = conn.execute(
+            schema.UPGRADE_SQL,
+            (
+                detail_id,
+                repaired(title),
+                date,
+                repaired(body) if body_html is None else body,
+                body_html,
+                None if grade is None else str(grade),
+                url,
+            ),
+        )
+        # Same rule as store_release, one step further: the entry describes
+        # where a *body* came from, so a call that only moves a title or a date
+        # must not touch it.
+        if cur.rowcount > 0 and (body is not None or body_html is not None):
+            _record_origin(conn, url, origin_url)
     return cur.rowcount > 0
 
 
