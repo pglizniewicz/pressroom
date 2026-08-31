@@ -1,0 +1,44 @@
+"""`wayback_calls`: one row per HTTP attempt against archive.org.
+
+Never read by a scraper. It exists so that a timeout or a sleep constant is
+tuned from a latency distribution and a 503 cluster rather than from a handful
+of manual curl calls in one session - which is how CDX_TIMEOUT got mistuned
+twice before this table existed.
+
+Best-effort and silent on failure, same as the encoding diagnostics on
+page_cache: a side channel for later analysis must never be able to break an
+actual scrape.
+"""
+
+import time
+
+SCHEMA_SQL = """
+    CREATE TABLE IF NOT EXISTS wayback_calls (
+        id             INTEGER PRIMARY KEY AUTOINCREMENT,
+        ts             REAL NOT NULL,  -- time.time() when the attempt started
+        kind           TEXT NOT NULL,  -- 'cdx_probe' | 'cdx_bulk' | 'content'
+        url            TEXT,
+        attempt        INTEGER NOT NULL,  -- 0-based, within one call's retry loop
+        timeout_budget REAL NOT NULL,
+        outcome        TEXT NOT NULL,  -- 'ok' | '503' | '429' | 'timeout' | 'connection_error' | 'other'
+        duration       REAL NOT NULL   -- seconds this one attempt took
+    );
+"""
+
+
+def record(conn, *, kind: str, url: str, attempt: int,
+           timeout_budget: float, outcome: str, duration: float) -> None:
+    """Append one attempt, whatever it resulted in.
+
+    Swallows its own failure by design: a connection opened before the
+    migration ran must not turn a working scrape into a traceback.
+    """
+    try:
+        conn.execute(
+            "INSERT INTO wayback_calls (ts, kind, url, attempt, timeout_budget, outcome, duration) "
+            "VALUES (?,?,?,?,?,?,?)",
+            (time.time(), kind, url, attempt, timeout_budget, outcome, duration),
+        )
+        conn.commit()
+    except Exception:
+        pass

@@ -20,7 +20,59 @@ dependencies = [
 # it; only this source breaks, and it breaks with a plain ImportError.
 #
 # It is an extra rather than a base dependency because it ships a patched
-# libcurl in its wheel, and this repo's readers (db.py, search.py, serve.py)
-# are deliberately dependency-free. The documented install line includes it
-# anyway, so the normal path is not missing anything.
+# libcurl in its wheel, and this repo's readers (database/, release/control/
+# query.py, browser/) are deliberately dependency-free. The documented install
+# line includes it anyway, so the normal path is not missing anything.
+#
+# There is no `dev` extra: the test suite is stdlib unittest, run with
+# `python -m unittest discover -s tests`, so a fresh checkout needs nothing
+# extra to verify itself.
 globenewswire = ["curl_cffi"]
+
+# One entry point per thing anyone runs: sixteen scrapers, two readers, two
+# read-only checks, two calibration passes. Declared rather than left as
+# `python -m pressroom.terratec.boundary.portal`, because the layer path is an
+# implementation detail of where the code lives and has no business in a
+# documented command line.
+[project.scripts]
+# The corpus
+pressroom-search              = "pressroom.release.boundary.search:main"
+pressroom-serve               = "pressroom.browser.boundary.http:main"
+
+# Read-only checks - run after anything that touches bodies or origins
+pressroom-verify-body-origin  = "pressroom.provenance.boundary.verification:main"
+pressroom-verify-encoding     = "pressroom.text.boundary.encoding_check:main"
+
+# Read-only review passes over the whole cache
+pressroom-calibrate-containers  = "pressroom.text.boundary.container_calibration:main"
+pressroom-calibrate-attachments = "pressroom.attachment.boundary.calibration:main"
+
+# Sources, by firm
+pressroom-intel               = "pressroom.intel.boundary.press:main"
+pressroom-amd                 = "pressroom.amd.boundary.press:main"
+pressroom-creative            = "pressroom.creative.boundary.press:main"
+pressroom-creative-gnw        = "pressroom.creative.boundary.globenewswire:main"
+pressroom-soundonsound        = "pressroom.soundonsound.boundary.magazine:main"
+pressroom-terratec-early      = "pressroom.terratec.boundary.early:main"
+pressroom-terratec            = "pressroom.terratec.boundary.pressemit:main"
+pressroom-terratec-de         = "pressroom.terratec.boundary.presse:main"
+pressroom-terratec-portal     = "pressroom.terratec.boundary.portal:main"
+pressroom-terratec-cms        = "pressroom.terratec.boundary.cms:main"
+pressroom-maudio-golive       = "pressroom.maudio.boundary.golive:main"
+pressroom-maudio-pressdb      = "pressroom.maudio.boundary.pressdb:main"
+pressroom-maudio-media-pr     = "pressroom.maudio.boundary.media_pr:main"
+pressroom-maudio-media-news   = "pressroom.maudio.boundary.media_news:main"
+pressroom-maudio-de           = "pressroom.maudio.boundary.presse_de:main"
+pressroom-maudio-news         = "pressroom.maudio.boundary.news_blog:main"
+
+# Pinned rather than auto-discovered. Flat-layout auto-discovery refuses to
+# guess once a package and loose top-level modules coexist ("multiple
+# top-level packages discovered"), which is exactly the state a move through
+# this tree passes through.
+[tool.setuptools.packages.find]
+include = ["pressroom*"]
+
+# The browser's three files are served from a name whitelist in
+# browser/boundary/http.py, so they have to travel with the package.
+[tool.setuptools.package-data]
+"pressroom.browser.boundary" = ["static/*"]
