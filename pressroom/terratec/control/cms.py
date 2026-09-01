@@ -8,8 +8,8 @@ Two complementary techniques, since neither alone is complete:
      capture, since these pages are a rolling window that drops old
      entries over time - a single "latest" snapshot misses most of it.
 
-No automated English/German dedup - stored separately (source per
-language), preference applied by hand during terratec.json curation.
+No automated English/German dedup - stored separately, one source per
+language, and the preference between them is a call made by hand.
 """
 
 import re
@@ -277,10 +277,9 @@ def scrape_lang(lang: str, limit: int | None = None, catch: dict | None = None) 
     # entries that step 3 stores, so losing the prefix crawl must not discard
     # them - degrade to prefix-crawl-free and keep going.
     #
-    # Guarded like step 1, and it was not: this was the third place where a
-    # second discovery channel kept crawling under `--offline`. The bare except
-    # below is also why it went unnoticed for so long - it swallows anything a
-    # probe raises, so the check for this raises a BaseException instead.
+    # Guarded like step 1. The bare except below is why a miss here goes
+    # unnoticed - it swallows anything a probe raises, which is why the check
+    # for it raises a BaseException instead.
     if catch_up.no_crawl(catch):
         snapshots = []
     else:

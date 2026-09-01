@@ -2,50 +2,36 @@
 (midiman.net/news/pressdb.php and midiman.com/news/pressdb.php) ->
 unified pressroom.db, sourced entirely from Wayback Machine snapshots.
 
-Different system/era from the earlier golive.py (which covers the 2001 static
-GoLive pages under .../html/press/*.htm) - pressdb.php is a PHP
-script that dumps the ENTIRE press-release history as one long page, one
-<table width="780" ...> block per release (date + linked title + one-line
-teaser). The linked title points either at an external PDF or at one of the
-site's own HTML detail pages (presstemp.php?ID=... or /news/php/<name>.php).
-Both are followed for full text, from different places: the PDFs by
-attachment_crawl, the HTML detail pages by this module. Only
-when neither yields anything does a row keep the short listing teaser as its
-body.
+A different system from the earlier golive.py static pages: pressdb.php dumps
+the entire press-release history as one long page, one
+<table width="780" ...> block per release - date, linked title, one-line
+teaser. The linked title points either at an external PDF or at one of the
+site's own HTML detail pages (presstemp.php?ID=... or /news/php/<name>.php),
+and **both are followed**, from different places: the PDFs by
+attachment_crawl, the HTML detail pages by this module. A row keeps the short
+listing teaser as its body only when neither yields anything. Following just
+one of the two is how rows sat at teaser length with their full text archived
+and reachable the whole time.
 
-That split is recent. This scraper originally stored teasers and nothing else,
-on the reasoning that a PDF was unextractable and the HTML pages could be
-followed "later" - and later never came, leaving 40 rows sitting at ~150
-characters each with their full text archived and reachable the whole time.
+Every capture is a full re-dump of everything published up to its date, so
+`archive.list_all_captures` samples every historical capture of the bare
+pressdb.php url - no query-string addressing exists on this script, confirmed
+via CDX. Entries are deduped by (title, date) rather than by resolved target
+url: the template retargeted the same release's title link from its own
+presstemp.php detail page in early captures straight to the PDF in later ones,
+so url-based dedup would store it twice. Where both a detail page and a PDF are
+seen for one (title, date), the detail page wins - both are recoverable, but the
+HTML gives clean text where whole-document PDF extraction interleaves the
+running header mid-body. Then the longest teaser.
 
-Since every capture is a full re-dump of everything published up to that
-date, `archive.list_all_captures` is used to sample every historical
-capture of the bare pressdb.php URL (no query-string addressing exists on
-this script - confirmed via CDX). Entries are deduped by (title, date)
-rather than by their resolved target URL: the site's own template changed
-over the years, retargeting the same release's title link from its own
-presstemp.php detail page (early captures) straight to the PDF (later
-captures) - deduping by URL alone would store the same release twice. When
-both a detail-page URL and a PDF URL are seen for the same (title, date), the
-detail-page URL wins: both are recoverable, but the HTML page gives clean text
-where whole-document PDF extraction interleaves the running header/footer
-mid-body. Then the longest teaser - same `best`-dict idiom as
-terratec/control/cms.py, just keyed differently.
+Rerunnable against rows it already stored: a row is retried whenever its stored
+body is still teaser-length, because detail_id cannot tell those apart here - it
+holds the *listing* capture's timestamp.
 
-Rerunnable against rows it already stored: a row is retried whenever its
-stored body is still teaser-length, since detail_id cannot distinguish those
-here (it holds the *listing* capture's timestamp).
-
-Source tags are per-domain (midiman_net_pressdb / midiman_com_pressdb), same
-policy as golive.py and consistent with the terratec_pressde /
-terratec_pressen precedent (distinct source per distinct system+domain).
-The two domains' listings overlap heavily (most releases were cross-posted)
-- not deduped across domains, by design, same as everywhere else in this repo.
-
-Known quirk: one entry (09 Jul 2003, midiman.net) has a copy-paste bug in its
-href - an absolute URL pasted into what should be a relative path, producing
-a doubled/invalid link. Fixed by taking the last http(s):// occurrence in
-the href, but note the underlying target was never actually archived anyway.
+Known quirk: one entry (09 Jul 2003, midiman.net) has an absolute url pasted
+into what should be a relative path, producing a doubled link. Handled by taking
+the last http(s):// occurrence in the href - though that target was never
+archived anyway.
 """
 
 import re

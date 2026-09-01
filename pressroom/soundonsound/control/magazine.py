@@ -6,30 +6,24 @@ rather than issued by one, and the corpus runs unbroken from March 2000 to
 today - so it is also the first source whose oldest rows are as complete as
 its newest.
 
-Scope is two faceted-search subjects, both about the same hardware category:
-
-    6986  "Audio Interfaces"   721 articles
-    7099  "Soundcards"          64 articles
-
-They overlap, and that is fine: `releases.url` is the dedup key and inserts
-are INSERT OR IGNORE, so the second list only adds what the first missed.
+Scope is two faceted-search subjects about the same hardware category - 6986
+"Audio Interfaces" and 7099 "Soundcards". They overlap, and that is fine:
+`releases.url` is the dedup key, so the second list only adds what the first
+missed.
 
 MARKUP (Drupal 7, views + facetapi)
 
   listing   `div.views-row` per result, but only those containing
-            `article[about]` - three rows per page are promo blocks with no
-            article in them, which is why a naive count says 23 and the real
-            page size is 20. 37 pages for 6986 (36 x 20 + 1 = 721 exactly),
-            4 for 7099.
+            `article[about]`: three rows per page are promo blocks with no
+            article in them, so a naive count overstates the page size by
+            three.
   url       the `about` attribute ("/reviews/swissonic-usb-studio-d"), not the
             anchor href - the row contains several links (image, title, topic
             tags) and `about` is the one that names the node.
   detail_id `<article id="node-4935591">` -> "4935591". Drupal's own node id,
-            stable across URL changes. Deliberately NOT a timestamp: a
-            14-digit detail_id means "Wayback capture" everywhere in this repo
-            (the browser's wayback_url, built from body_origin), and faking
-            one here would put a
-            dead archive.org link on every row.
+            stable across url changes, and deliberately NOT a timestamp: a
+            14-digit detail_id means "Wayback capture" everywhere in this repo,
+            so faking one here would put a dead archive.org link on every row.
   date      TWO formats, both in the listing, and picking the wrong parser
             silently invents a day:
               news items      <span>Published 19/8/26</span>   d/m/yy
@@ -39,20 +33,20 @@ MARKUP (Drupal 7, views + facetapi)
             fills the day in from *today's* date and March 2000 becomes
             2000-03-21. Same trap as terratec/control/portal.py.
   body      `div.node__content`, stable on both the 2000 and the 2026
-            template. No paywall on this material - the March 2000 review
-            returns 16465 characters of full text.
+            template. No paywall on this material: the oldest review returns
+            its full text.
 
 ROBOTS.TXT
 
-  Crawl-delay: 30, honoured via fetch_cached(sleep=CRAWL_DELAY). ~826 requests
-  is therefore a ~7 hour run; it is resumable and everything lands in
-  page_cache, so it is a one-time cost.
+  Crawl-delay: 30, honoured through fetch_cached(sleep=CRAWL_DELAY), which makes
+  a full run several hours. It is resumable and everything lands in page_cache,
+  so the cost is paid once.
 
-  The *listing* URLs match `Disallow: /*?*f[0]=`; the articles do not. That
-  rule guards against faceted-search crawl traps - the combinatorial explosion
-  of filter permutations - and fetching 41 named pages at one every 30 seconds
-  is not the behaviour it defends against. Recorded here rather than assumed,
-  because it was a deliberate call and the next person deserves to see it.
+  The *listing* urls match `Disallow: /*?*f[0]=`; the articles do not. That rule
+  guards against faceted-search crawl traps - the combinatorial explosion of
+  filter permutations - and fetching a few dozen named pages at one every thirty
+  seconds is not the behaviour it defends against. Recorded here rather than
+  assumed, because it was a deliberate call.
 """
 
 import re
@@ -183,9 +177,7 @@ def scrape(
     session = requests.Session()
 
     # A dict, not a list: collect() returns {url: item} and the next line asks
-    # for .values(). The empty *list* this used to substitute made every
-    # no-network run of this source an AttributeError from the day the guard
-    # landed (2026-08-25) until the BCE pass ran it.
+    # for .values() - an empty *list* here is an AttributeError.
     found = {} if catch_up.no_crawl(catch) else collect(conn, session, pages)
     print(f"\n[{SOURCE}] {len(found)} unikalnych artykułów w obu listach", flush=True)
     if list_only:

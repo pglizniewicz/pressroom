@@ -1,41 +1,38 @@
 """Scraper for Midiman/M-Audio's dead 2001-era press room, sourced entirely
-from Wayback Machine snapshots (midiman.net, midiman.com, m-audio.com all
-mirrored the same GoLive-generated static pages under slightly different
-paths/brandings during the Midiman -> M-Audio transition).
+from Wayback Machine snapshots (midiman.net, midiman.com and m-audio.com all
+mirrored the same GoLive-generated static pages under slightly different paths
+and brandings through the Midiman -> M-Audio transition).
 
-Entry point: 5 known-good index-page snapshots (pressmn.htm), each a GoLive
-"URLPopup" dropdown widget listing release pages as relative paths. The
-dropdown data is duplicated in two inconsistent places on the page (a
-`<csobj data='{...}'>` JSON-ish blob, and the raw <option> tags themselves -
-closing tags present in some captures, absent in others) - neither source
-alone is complete (one snapshot has an option added by hand that never made
-it into the csobj blob), so both are parsed and unioned by resolved URL.
+Entry point: the known-good index-page snapshots (pressmn.htm), each a GoLive
+"URLPopup" dropdown widget listing release pages as relative paths. The dropdown
+data is duplicated in two inconsistent places on the page - a
+`<csobj data='{...}'>` blob and the raw <option> tags, whose closing tags are
+present in some captures and absent in others - and neither is complete on its
+own, since one snapshot has an option added by hand that never reached the csobj
+blob. So both are parsed and unioned by resolved url.
 
-Beyond the 5 known index pages, also prefix-crawls each domain's press/
-folder(s) via archive.list_snapshots_by_prefix, to catch any release pages
-that were archived but never linked from one of these particular dropdown
-snapshots (the index snapshots are just 5 points-in-time; the folders
-themselves were crawled independently and more densely).
+Beyond those index pages it also prefix-crawls each domain's press/ folders
+through archive.list_snapshots_by_prefix: the index snapshots are a handful of
+points in time, while the folders themselves were crawled independently and far
+more densely.
 
 Source tags are per-domain (midiman_net / midiman_com / maudio_com), not
-per-brand, since GoLive's Midiman/M-Audio branding is used inconsistently
-across mirrors and only the domain is a reliable dedup boundary.
+per-brand, because GoLive's Midiman/M-Audio branding is used inconsistently
+across the mirrors and only the domain is a reliable dedup boundary.
 
-Two release-page templates seen:
-  - GoLive (majority): heading in <font size="5"><b>, dateline is almost
-    always literally "Arcadia, CA" (company HQ) with NO explicit date in
-    most cases - this is a genuine data gap, not a parse bug; only
-    prsupdac.htm embeds a parenthetical date.
-  - Word/mso-export (prdighar.htm only, so far): AP-wire style, ALL-CAPS
-    city dateline with an explicit "Month Day, Year".
+Two release-page templates:
+  - GoLive (the majority): heading in <font size="5"><b>, and a dateline that is
+    almost always literally "Arcadia, CA" with **no explicit date** - a genuine
+    data gap, not a parse bug. Only prsupdac.htm embeds a parenthetical date.
+  - Word/mso-export (prdighar.htm so far): AP-wire style, an ALL-CAPS city
+    dateline with an explicit "Month Day, Year".
 
-Known likely-unrecoverable items (attempted anyway, matching the "let
-get_latest_working_snapshot return None" convention - no hardcoded
-skip-list): prcalfad.htm, prport44.htm, possibly pr2044.htm/prmixm10.htm.
-promni.pdf and MORE5.pdf are PDF press releases - out of format scope
-(no PDF text extraction anywhere in this repo); skipped by extension
-filter before any Wayback lookup is attempted, and NOT counted as "dead"
-since they were never attempted.
+Known likely-unrecoverable items are attempted anyway rather than kept in a
+skip-list, letting get_latest_working_snapshot return None: prcalfad.htm,
+prport44.htm, possibly pr2044.htm/prmixm10.htm. The two .pdf releases of this
+era (promni.pdf, MORE5.pdf) are filtered out by extension before any Wayback
+lookup and are not counted `dead`, because they were never attempted - the
+attachment converters exist, but these two have no capture anywhere to convert.
 """
 
 import re
@@ -222,10 +219,8 @@ def scrape(
         for url, title in links.items():
             candidates.setdefault((page["source"], url), title)
 
-    # Both halves of discovery need the guard, not just the first: this one
-    # was left out when no_crawl landed (2026-08-25), so `--offline` - the
-    # flag whose whole promise is 'touches nothing on the network' - still
-    # ran a CDX prefix listing per root.
+    # Both halves of discovery need the guard, not just the first: this one is
+    # a CDX prefix listing per root.
     if prefix_crawl and not catch_up.no_crawl(catch):
         for prefix, source in PREFIX_CRAWL_ROOTS:
             print(f"[{source}] Listing archived pages under {prefix}", flush=True)

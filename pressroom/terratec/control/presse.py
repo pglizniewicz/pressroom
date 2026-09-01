@@ -1,14 +1,12 @@
 """TerraTec's German press office, terratec.de/presse - and the gaps its
 newer sibling left behind.
 
-The primary pass for source="terratec_de", and the only one there has ever been:
-this file was called backfill_terratec_de_and_net_gaps.py for a long time, which
-described the order it was written in rather than what it does.
+The primary pass for source="terratec_de", and the only one there has ever been.
 
-It stamps **two** tags, which is ordinary here (six scrapers do): the .de pages
-are entirely its own territory, while the three .net index pages only corroborate
-what source="terratec" already holds, so those contribute *gaps* - an article the
-other scraper never found gets stored under its tag, not under a new one.
+It stamps **two** tags, which is ordinary here: the .de pages are entirely its
+own territory, while the .net index pages only corroborate what
+source="terratec" already holds, so those contribute *gaps* - an article the
+other scraper never found gets stored under its tag, not a new one.
 
 Cross-language duplicates between terratec_de and the English content are
 deliberately NOT auto-deduped: matching across languages is unreliable, so
@@ -16,27 +14,10 @@ everything is stored with correct provenance and the "prefer the newer office's
 English version" call is made by hand.
 
 Discovery has two channels, and the second exists because the first is
-incomplete: 5 archived index pages that link out to articles, plus 23 files that
-exist in the full Wayback directory listing but were linked from no index page at
-all (confirmed by a full site:terratec.de/presse/pressemit/ timemap diff against
-pressroom.db). The 23 used to be a separate script; a url list is archaeology
-worth keeping, the loop around it was a duplicate.
-
-Was: 5 archived press-release index pages that link out to
-individual articles:
-  - terratec.de/presse/{pressearchiv,pressemit}.htm  (German office)
-  - terratec.net/press/{pressarchive,pressreleases,pressreleases}.htm (newer office)
-
-The .net links mostly corroborate what source="terratec" already has (only
-genuine gaps get added there). The .de links are entirely new territory -
-same static-page template family, stored under a new source="terratec_de".
-
-Cross-language duplicates between terratec_de and existing English content
-are intentionally NOT auto-deduped here (unreliable to match automatically
-across languages) - everything gets stored with correct provenance, and the
-"prefer the newer office's English version" call is made by hand during
-terratec.json curation, same as every prior cross-source dedup in this
-project.
+incomplete: the archived index pages that link out to articles, plus the files
+that exist in the full Wayback directory listing but were linked from no index
+page at all (confirmed against a timemap diff). That url list is archaeology
+worth keeping; the loop around it was a duplicate of this one.
 """
 
 import re
@@ -129,10 +110,7 @@ DIRECTORY_URLS = [
 
 
 def extract_links(content: bytes, base_url: str) -> list[Entry]:
-    # cp1252 stated, never sniffed: these pages predate UTF-8 and declare no
-    # charset, so left to guess bs4 read them as ISO-8859-1 and stored the
-    # cp1252 punctuation range as C1 control characters (see
-    # the encoding repair, which had to undo exactly that).
+    # cp1252 stated, never sniffed - see pressemit.py's parse_snapshot for why.
     soup = BeautifulSoup(content, "html.parser", from_encoding="cp1252")
     entries = []
     for row in soup.select("tr"):
@@ -153,10 +131,7 @@ def extract_links(content: bytes, base_url: str) -> list[Entry]:
 
 
 def parse_de_snapshot(content: bytes) -> Detail:
-    # cp1252 stated, never sniffed: these pages predate UTF-8 and declare no
-    # charset, so left to guess bs4 read them as ISO-8859-1 and stored the
-    # cp1252 punctuation range as C1 control characters (see
-    # the encoding repair, which had to undo exactly that).
+    # cp1252 stated, never sniffed - see pressemit.py's parse_snapshot for why.
     soup = BeautifulSoup(content, "html.parser", from_encoding="cp1252")
     text = soup.get_text(" ", strip=True)
     # Body from the DOM, date from the flat text. These pages are one big
@@ -214,8 +189,8 @@ def scrape(limit: int | None = None, catch: dict | None = None) -> None:
 
     for base_url, source, wayback_url in [] if offline else INDEX_PAGES:
         print(f"Fetching {wayback_url}", flush=True)
-        # Losing one of the five index pages just means fewer candidates, so
-        # warn and carry on rather than aborting the whole backfill.
+        # Losing one index page just means fewer candidates, so warn and carry
+        # on rather than aborting the run.
         try:
             content = archive.fetch_snapshot(conn, session, wayback_url, timeout=20)
         except Exception as e:

@@ -2,15 +2,12 @@
 detail pages at index.php?do=media.new&ID=...) across all four domains that
 ran it -> unified pressroom.db, sourced entirely from Wayback snapshots.
 
-Same "Hydra Media Labs" CMS as media_pr.py, different section.
-Structurally richer than media_pr: each item has its own archived HTML detail
-page carrying the FULL article, not an external .doc/.pdf link-out, so no
-attachment backfill is needed here.
+Same "Hydra Media Labs" CMS as media_pr.py, different section, and structurally
+richer: each item has its own archived HTML detail page carrying the full
+article rather than a .doc/.pdf link-out, so no attachment crawl is needed here.
 
-This covered only midiman.co.uk at first, on the assumption that the other
-domains' equivalents were out of scope. They are not - m-audio.com alone has
-379 distinct archived detail IDs against co.uk's 114, and none of them had
-ever been fetched.
+All four domains are in scope, not just midiman.co.uk. m-audio.com carries by
+far the most archived detail ids of the four.
 
 FOUR templates, two per tier. Every capture is fed all of them; whichever era
 a capture belongs to yields something and the rest yield nothing, so nothing
@@ -35,11 +32,11 @@ Two-tier discovery, same idiom as terratec/control/portal.py:
      listing teaser when the detail page was never archived.
   3. Prefix-crawl do=media.new&ID= (default on, --no-prefix-crawl to disable).
      The detail pages were crawled far more densely than the few listing
-     captures ever link to, and on these three added domains that is where
-     essentially all the content comes from - see the dead-end note below.
-     Prefix-only IDs have no listing metadata, so their date is recovered by
-     matching the detail page's own title against the listing map; left blank
-     when there is no match, a genuine gap rather than a parse failure.
+     captures ever link to, and on three of the four domains this is where
+     essentially all the content comes from - see the dead end below.
+     Prefix-only ids have no listing metadata, so their date is recovered by
+     matching the detail page's own title against the listing map, and left
+     blank when there is no match: a genuine gap, not a parse failure.
 
 Confirmed dead end, and the reason step 3 carries the weight: later captures
 link articles as news/en_us-<N>.html, a scheme with zero Wayback captures on
@@ -54,9 +51,8 @@ get_latest_working_snapshot: by 2019 do=media.news answered HTTP 200 with
 m-audio.com's modern home page, so the newest working capture is not a listing
 at all.
 
-Out of scope: locale variants (&setlocale=en_gb/fr_fr/...) and the separate
-m-audio.jp domain, both of which exist in Wayback and are most likely
-translations or duplicates of what is already covered here.
+Out of scope: the locale variants (&setlocale=en_gb/fr_fr/...) and m-audio.jp,
+both archived and both most likely translations of what is covered here.
 """
 
 import re
@@ -321,10 +317,8 @@ def scrape_domain(
     conn = connection.connect()
     session = requests.Session()
 
-    # Same miss as golive's, and worse: neither channel was guarded, so
-    # `--offline` on this source walked every listing capture and then a CDX
-    # prefix listing. An empty `best` leaves the loops below untouched, which
-    # is how the guard stays a one-line change.
+    # An empty `best` leaves the loops below untouched, which is how the
+    # offline guard stays a one-line change.
     offline = catch_up.no_crawl(catch)
     best = {} if offline else discover_listing_best(conn, source, base, limit=limit)
     id_to_key = {}

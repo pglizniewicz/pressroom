@@ -1,61 +1,44 @@
 """Scraper for MIDIMAN/M-Audio's German site (midiman.de) press archive ->
 unified pressroom.db, sourced entirely from Wayback Machine snapshots.
 
-midiman.de never had any CMS - confirmed via a full-domain CDX scan (no
-.php, no do=media.*, no cgi-bin, ever). It's static .htm from birth (1998)
-to death (~2006). Two pages hold the whole press history:
-  - oldpress.htm ("Aeltere Pressemitteilungen" - older releases archive)
-  - pressemt.htm ("Presseraum" - current/rolling releases, links to
-    oldpress.htm for older ones)
-Both are full re-dumps of the whole history (confirmed: identical releases
-appear verbatim across many captures of both pages), so - same idiom as
-pressdb.py/media_pr.py - every historical capture of both is sampled via
-archive.list_all_captures, and entries are deduped by (title, date), keeping
-the longest body seen.
+midiman.de never had any CMS - confirmed by a full-domain CDX scan: no .php, no
+do=media.*, no cgi-bin, ever. Static .htm from 1998 to its death around 2006,
+and two pages hold the whole press history:
+  - oldpress.htm ("Aeltere Pressemitteilungen" - the older releases)
+  - pressemt.htm ("Presseraum" - current releases, linking back to oldpress)
+Both are full re-dumps of the whole history - the same releases appear verbatim
+across many captures of both - so every historical capture of both is sampled
+through archive.list_all_captures and entries are deduped by (title, date),
+keeping the longest body.
 
 Each release lives in an HTML-comment-delimited block, either
 "<!-- start -->...<!-- stop -->" or product-name-tagged ("<!-- Radium
-start -->...<!-- Radium stop -->" - confirmed both forms coexist on the
-same page). The overwhelming majority ("inline" blocks - verified: all 46
-oldpress.htm blocks, 9/11 pressemt.htm blocks) contain the FULL release
-text directly: <h4> (descriptive headline) + <h3> (short product name) +
-a "Ort, DD.MM.YYYY" dateline paragraph + body <p> tags + an "Infos bei:"
-contact footer (cut off, not stored) + arrow-bulleted links. Verified
-against a live sample (tampa.htm) that the "weitere Produkt-Infos X" links
-in this footer point to product marketing pages, NOT richer versions of
-the press release - the inline block text already IS the complete release,
-so those links are correctly left unfetched (out of scope, matches how
-other product-page links are treated elsewhere in this project).
+start -->..."), and both forms coexist on the same page. The great majority of
+blocks are "inline": <h4> descriptive headline + <h3> short product name + a
+"Ort, DD.MM.YYYY" dateline + body <p> + an "Infos bei:" contact footer, which is
+cut. Verified against a live sample that the "weitere Produkt-Infos" links in
+that footer go to product marketing pages, not to richer versions of the
+release, so they are correctly left unfetched - the inline block already *is*
+the complete release.
 
-A minority ("linkout" blocks - seen only on pressemt.htm's newest entry so
-far) are just a placeholder: a single big link to a separate page (e.g.
-messe03.htm) plus a one-line teaser, with the real content living on that
-linked page - verified live that messe03.htm is itself a genuine, richer
-press writeup, not a product page. For these, this scraper reuses the same
-fetch_detail()/stored_grade() contract already proven in
-media_news.py/news_blog.py: a network hiccup never locks
-in a permanent teaser-only row, only a confirmed dead end does, and a
-teaser row is retried and upgraded on every future run until real content
-is recovered.
+A minority are "linkout" blocks: a placeholder with one big link to a separate
+page plus a one-line teaser, the real content living on the linked page (checked
+live - messe03.htm is a genuine, richer writeup rather than a product page).
+Those reuse fetch_detail()/stored_grade().
 
-Dates come in two formats depending on era: numeric "DD.MM.YYYY" (the
-common case, ~35/46 on oldpress.htm) and, for the oldest 1998-1999 entries,
-spelled-out German months ("15. Januar 1999") - both are extracted by
-_extract_date(), numeric tried first (some blocks' trailing credit-stamp
-footer repeats the date with a 2-digit year, so the numeric regex requires
-an unambiguous 4-digit year to avoid ever preferring that over the real
-dateline).
+Dates come in two formats: numeric "DD.MM.YYYY" for most, and spelled-out German
+months ("15. Januar 1999") for the oldest entries. _extract_date() tries numeric
+first and requires an unambiguous 4-digit year, because a block's trailing
+credit stamp repeats the date with two digits and would otherwise win over the
+real dateline.
 
-No `<a name>` anchors exist anywhere on either page (checked), so inline
-releases have no natural per-release URL - a stable synthetic one is
-generated from the slugified (title, date) key instead
-(http://www.midiman.de/press/{slug}-{date}), independent of which of the
-two mirror pages an entry was found on, so the same release found on both
-oldpress.htm and pressemt.htm collapses to a single row rather than two.
+No `<a name>` anchors exist on either page, so an inline release has no natural
+per-release url; a stable synthetic one is built from the slugified (title,
+date) - deliberately independent of which of the two pages the entry came off,
+so a release found on both collapses to one row.
 
-Encoding is Windows-1252, undeclared (confirmed via raw byte inspection -
-0x99 appearing as (TM) is only valid in cp1252, not Latin-1) - same
-treatment as pressdb.py.
+Encoding is Windows-1252, undeclared: 0x99 appearing as (TM) is only valid in
+cp1252, not Latin-1. Same treatment as pressdb.py.
 """
 
 import re

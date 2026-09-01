@@ -1,8 +1,8 @@
 """Scraper for soundonsound.com's audio-interface coverage.
 
 A full run is several hours: this site's robots.txt asks for a 30-second crawl
-delay and that is honoured, so ~820 requests take about seven. Everything lands
-in page_cache, so the cost is paid once and an interrupted run resumes free.
+delay and that is honoured. Everything lands in page_cache, so the cost is paid
+once and an interrupted run resumes free.
 
 Usage:
   pressroom-soundonsound --limit 3                    # dry run, 3 articles

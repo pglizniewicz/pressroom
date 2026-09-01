@@ -1,44 +1,23 @@
 """Scraper for M-Audio's m-audio.com "/news" blog -> unified pressroom.db,
 sourced entirely from Wayback Machine snapshots.
 
-Third distinct CMS generation for this company after the 2001-2003 PHP site
-(golive.py/pressdb.py) and the 2004-2013 "Hydra Media Labs" do=media.media_pr
-system (media_pr.py, source tag maudio_com_media_pr) - this is inMusic Brands'
-Foundation-CSS/jQuery blog
-built for m-audio.com after acquiring the brand (~2014-launch). Confirmed via
-CDX: exactly 25 articles published Oct 2014 - Oct 2019, then the site went
-completely dormant - captures from 2020 onward (including a 2025 one) are
-the identical frozen 25-article backlog re-skinned with newer chrome (mobile
-nav, TypeKit fonts). One scraper, one source, ~25 rows expected total, no
-growth expected on reruns.
+The fourth CMS generation for this company: inMusic Brands' Foundation-CSS blog,
+built after the brand was acquired. **The corpus is frozen** - CDX shows two
+dozen articles published between 2014 and 2019 and nothing since, with later
+captures being the identical backlog re-skinned with newer chrome. So one
+`get_latest_working_snapshot()` per pagination url recovers the final set: no
+historical-capture sampling as in media_pr.py, no prefix-crawl bonus discovery
+as in media_news.py. The listing is five items a page over five pages, and
+/news/P25 has never been captured.
 
-Listing is paginated, 5 items/page, exactly 5 pages exist (confirmed via
-CDX: /news, /news/P5, /news/P10, /news/P15, /news/P20 - /news/P25 has never
-been captured). Since the corpus is frozen, a single
-archive.get_latest_working_snapshot() per pagination URL is sufficient to
-recover the complete, final 25-article set - no historical-capture sampling
-(unlike media_pr.py's discover_listing_best) and no
-prefix-crawl bonus discovery (unlike media_news.py) are needed;
-the whole corpus is exhaustively enumerable from just these 5 fixed URLs.
+No structured date field anywhere on the site: dates are prose in the body
+("City, ST, USA - Month D, YYYY." or "City, ST, USA (Month D, YYYY)-", the dash
+varying by era) and recovered through DATE_RE, which is dash-agnostic.
 
-No structured date field anywhere on the site - dates are embedded as plain
-prose in the body ("City, ST, USA - Month D, YYYY." or "City, ST, USA
-(Month D, YYYY)-", dash style varies by article/era) and recovered via
-DATE_RE, dash-agnostic, tested against both formats.
-
-Same robust two-tier fetch/write pattern as media_news.py:
-fetch_detail() distinguishes a network hiccup (confirmed=False - never
-write anything, leave the row open to a full retry later) from a
-confirmed dead end (confirmed=True - safe to permanently record a
-teaser-only fallback or nothing). stored_grade() lets the main loop
-tell a fully-recovered row apart from a still-upgradeable teaser row.
-
-IMPORTANT: listing/detail HTML must be parsed from raw bytes (r.content),
-never r.text. Confirmed empirically: this site's later-era Wayback captures
-replay via the id_ raw-content modifier with a bare "Content-Type: text/html"
-(no charset param), which makes `requests` guess Latin-1 and mangle the
-site's actual UTF-8 bytes (e.g. "M-AUDIO(R)" -> "M-AUDIOÂ®"). BeautifulSoup's
-own encoding sniffing on raw bytes gets this right; requests' r.text does not.
+Encoding: these captures replay through the `id_` modifier with a bare
+"Content-Type: text/html" and no charset, so `r.text` guesses Latin-1 and turns
+the site's real UTF-8 into "M-AUDIOÂ®". Parsed from bytes through
+`decode_html()` - never `r.text`, and never left to BeautifulSoup to sniff.
 """
 
 import re

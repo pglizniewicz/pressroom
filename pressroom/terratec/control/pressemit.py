@@ -113,12 +113,12 @@ def is_html_page(original_url: str) -> bool:
 
 
 def parse_snapshot(content: bytes) -> Detail:
-    # from_encoding, not decode_html: these 2002 pages declare no charset at
-    # all and are wholly pre-UTF-8, so the bytes are cp1252 - and in prose full
-    # of German accents two adjacent high bytes can coincidentally form a valid
-    # UTF-8 sequence that decode_html would honour. Left to sniff, bs4 read
-    # them as ISO-8859-1 and stored the cp1252 punctuation range as C1 control
-    # characters (20 rows, since repaired; the repair is in the write path now).
+    # from_encoding, not decode_html: these 2002 pages declare no charset at all
+    # and are wholly pre-UTF-8, so the bytes are cp1252 - and in prose full of
+    # German accents two adjacent high bytes can coincidentally form a valid
+    # UTF-8 sequence that decode_html would honour. Left to sniff, bs4 reads
+    # these as ISO-8859-1 and stores the cp1252 punctuation range as C1 control
+    # characters.
     soup = BeautifulSoup(content, "html.parser", from_encoding="cp1252")
     text = soup.get_text(" ", strip=True)
     # Body from the DOM, date from the flat text. These pages are one big

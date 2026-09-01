@@ -30,8 +30,8 @@ def parse_list_page(session: requests.Session, year: int) -> list[Entry]:
     r = session.get(LIST_URL, headers=HEADERS, params={"year": year}, timeout=15)
     r.raise_for_status()
     # decode_html(r.content), never r.text: this page claims UTF-8, but requests
-    # falls back to ISO-8859-1 whenever the header omits the charset, which
-    # stored 174 bullet characters (cp1252 0x95) as C1 controls across 23 rows.
+    # falls back to ISO-8859-1 when the header omits the charset, which stored a
+    # page's worth of bullet characters as C1 controls.
     soup = BeautifulSoup(decode_html(r.content), "html.parser")
 
     items = []

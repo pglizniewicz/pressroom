@@ -5,15 +5,13 @@ neither site exists any more.
 The same PHP-Nuke install ran twice, once per language:
   - pressen.terratec.net (English) -> source terratec_pressen
   - pressde.terratec.net (German)  -> source terratec_pressde
-Identical markup, identical URL scheme, so one parser covers both and this
-script does both portals per run - the same shape as maudio/control/pressdb.py
-and maudio/control/media_pr.py, which likewise cover several instances of one
-system. (These were two near-identical files until the shared parser drifted:
-the German copy grew a fix the English copy never got, see END_MARKERS.)
+Identical markup, identical url scheme, so one parser covers both and one run
+does both portals - the same shape as maudio/control/pressdb.py and
+maudio/control/media_pr.py.
 
 Content likely overlaps with the older static terratec.net/press/pressemit/
-archive, but the URL schemes are unrelated so they can't share a dedup key.
-Kept as distinct sources, same as creative/creative_gnw.
+archive, but the url schemes are unrelated so they cannot share a dedup key.
+Kept as distinct sources.
 """
 
 import re
@@ -43,9 +41,8 @@ TITLE_TAG_MONTH_RE = re.compile(r"([A-Za-z]+\s+\d{4})\s*-\s*(.+?)\s*::\s*Press")
 
 # The same "{date} - {title}" shape as above, read off an `a.pn-title` link on a
 # category listing instead of out of a <title>, so there is no site name to stop
-# at. Used only by extract_teasers, and it was left behind in the file that
-# function came from when that file was deleted on 2026-08-25 - so the category
-# channel raised NameError on every run from then until this was restored.
+# at. Used only by extract_teasers - and it has to live here, not with that
+# function, which is how the category channel once lost it to a file deletion.
 TITLE_RE = re.compile(r"(\d{2}\.\d{2}\.\d{4})\s*-\s*(.+)")
 
 # Everything from the site name onward in a <title>. What is left in front of it
@@ -102,14 +99,12 @@ def article_body(soup, heading: str) -> tuple[str, str | None]:
     The same three cuts the text surgery above makes, done on elements instead
     of on a string:
 
-      container  the <td> carrying the most text. Calibrated over all 186
-                 cached portal captures: 100% land within 0.85-1.25 of the
-                 previously stored body, against 150/186 for the obvious
-                 `td[valign="top"][width="85%"]` selector - the attributes are
-                 not on every capture, the size is.
+      container  the <td> carrying the most text. Calibrated over every cached
+                 portal capture, and it beats the obvious
+                 `td[valign="top"][width="85%"]`: the attributes are not on
+                 every capture, the size is.
       heading    the "{date} - {title}" line, which the container includes and
-                 the stored body does not (median coverage was 1.05, and this
-                 plus the link block is the 5%).
+                 the stored body does not.
       tail       everything from the first END_MARKERS element onward.
 
     Returns ("", None) when there is no container, so the caller can fall back
@@ -136,9 +131,7 @@ def article_body(soup, heading: str) -> tuple[str, str | None]:
 
 
 def parse_snapshot(content: bytes) -> Detail:
-    # cp1252 stated, never sniffed - see pressemit.py's parse_snapshot for
-    # why (48 rows across pressde/pressen were stored with the cp1252
-    # punctuation range as C1 control characters until the repair landed).
+    # cp1252 stated, never sniffed - see pressemit.py's parse_snapshot for why.
     soup = BeautifulSoup(content, "html.parser", from_encoding="cp1252")
 
     # The heading anchor's CSS class isn't present in every capture (some
@@ -197,10 +190,9 @@ def parse_snapshot(content: bytes) -> Detail:
 
 
 # The yearly category listings (file=index&catid=N&allstories=1) - one archived
-# capture per category, id_ baked in, matching every other hardcoded-url table
-# here. This is the channel that finds sids the timemap prefix search never
-# surfaced at all, and it is irreplaceable archaeology: nobody is going to redo
-# the sweep that found these twelve captures.
+# capture per category, id_ baked in. This is the channel that finds sids the
+# timemap prefix search never surfaces at all, and the list is irreplaceable
+# archaeology: nobody is going to redo the sweep that found these captures.
 CATEGORY_PAGES = [
     (
         "http://pressde.terratec.net:80/",
@@ -267,10 +259,7 @@ CATEGORY_PAGES = [
 
 def extract_teasers(content: bytes) -> dict[str, Entry]:
     """Return {sid: (date, title, teaser_text)} for every article on this page."""
-    # cp1252 stated, never sniffed: these pages predate UTF-8 and declare no
-    # charset, so left to guess bs4 read them as ISO-8859-1 and stored the
-    # cp1252 punctuation range as C1 control characters (see
-    # the encoding repair, which had to undo exactly that).
+    # cp1252 stated, never sniffed - see pressemit.py's parse_snapshot for why.
     soup = BeautifulSoup(content, "html.parser", from_encoding="cp1252")
     teasers = {}
 
@@ -338,9 +327,8 @@ def recover_article(
 
     `confirmed` is False when any attempt hit a network error, so the caller must
     not record a dead end - a probe failure is not a verdict. Both urls are
-    parsed with this module's own parse_snapshot: measured over all 81 cached
-    print.php captures, it handles the print template, and the separate
-    print-only parser this replaces differed by 1-4 characters of whitespace.
+    parsed with this module's own parse_snapshot, which was calibrated over every
+    cached print.php capture and handles the print template too.
     """
     uncertain = False
     for url in (
@@ -371,8 +359,7 @@ def from_categories(conn, session, source: str, prefix: str) -> None:
     recovered in full where possible and stored as its teaser where not.
 
     A teaser-grade row is retried on every run and upgraded in place the moment
-    the full article can be reached - which is why this was never a one-shot. A
-    network error is reported `uncertain`, never allowed to lock in a teaser.
+    the full article can be reached, which is why this was never a one-shot.
     """
     teasers = {}
     for page_prefix, page_source, url in CATEGORY_PAGES:

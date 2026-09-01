@@ -62,8 +62,6 @@ SOURCE = "creative_gnw"
 def parse_list_page(session: requests.Session, page: int) -> list[Entry]:
     r = session.get(LIST_URL, headers=HEADERS, params={"page": page}, timeout=15)
     r.raise_for_status()
-    # decode_html(r.content), never r.text - the convention holds for live
-    # sites too: requests guesses ISO-8859-1 when the header omits a charset.
     soup = BeautifulSoup(decode_html(r.content), "html.parser")
 
     items = []
@@ -94,7 +92,7 @@ def fetch_body(conn, session: requests.Session, url: str) -> tuple[str, str]:
     is missing. Goes through fetch_cached, so a reparse costs no request.
 
     decode_html(bytes), never r.text - the convention holds for live sites too:
-    requests guesses ISO-8859-1 when the header omits a charset.
+    requests guesses ISO-8859-1 whenever the header omits a charset.
     """
     content = fetch_cached(conn, session, url)
     soup = BeautifulSoup(decode_html(content), "html.parser")

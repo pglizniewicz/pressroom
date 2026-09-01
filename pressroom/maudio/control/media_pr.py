@@ -2,43 +2,34 @@
 (index.php?do=media.media_pr on midiman.net, midiman.com, m-audio.com) ->
 unified pressroom.db, sourced entirely from Wayback Machine snapshots.
 
-A different, later CMS from both golive.py (2001 static pages) and pressdb.py
-(2001-2003 pressdb.php) - this one is a bespoke in-house system
-(self-identified in an HTML comment as built by "Hydra Media Labs"), reached
-via a index.php?do=<section>.<action> front controller.
-Same overall shape as pressdb.php though: one ever-growing listing page per
-domain, no pagination, no per-release detail page - the title just links
-straight out to an external .doc/.pdf under /images/en/press_releases/, which
-this scraper does not follow - so the rows it stores hold only the listing
-teaser, averaging ~150 characters. Recovering the real text from those
-attachments (roughly 2/3 .doc, 1/3 .pdf) is
+A later CMS than both golive.py and pressdb.py: a bespoke in-house system,
+self-identified in an HTML comment as built by "Hydra Media Labs", reached
+through an index.php?do=<section>.<action> front controller. Same overall shape
+as pressdb.php, though - one ever-growing listing page per domain, no
+pagination, no per-release detail page. The title links straight out to an
+external .doc/.pdf under /images/en/press_releases/, which this scraper does not
+follow, so its rows hold the listing teaser and recovering the real text is
 attachment_crawl's job.
 
-Two markup templates exist across time on the SAME endpoint (both are tried
-on every fetched capture - whichever matches yields entries, the other
-yields none, no need to know which era a given capture belongs to):
+Two markup templates exist across time on the SAME endpoint, and both are tried
+on every capture - whichever matches yields entries and the other yields none,
+so nothing has to know which era it is looking at:
   - 2004-2007: <td class="normaltextgraybold">MM/DD/YYYY</td> + a sibling
     <td class="normaltext"><a>Title</a></td>, teaser in the next <tr>.
-  - 2008+ redesign: <div id="short-news"> containing #news-title (date +
-    linked title, date in the first <strong>) and #news-short-content
-    (teaser).
-The earliest m-audio.com capture (2004-05-02) is a Flash-detection redirect
-stub with neither pattern present - naturally yields zero entries, no
-special-casing needed.
+  - 2008+ redesign: <div id="short-news"> with #news-title (date + linked
+    title, date in the first <strong>) and #news-short-content (teaser).
+The earliest m-audio.com capture is a Flash-detection redirect stub with neither
+pattern in it, which naturally yields nothing and needs no special-casing.
 
-Since every capture is a full re-dump of everything published up to that
-date (confirmed: the 2007 midiman.net capture is a strict superset of the
-2006 one), `archive.list_all_captures` samples every historical capture per
-domain. Entries are deduped by (title, date) rather than raw URL, keeping
-the longest teaser seen - there's no HTML-vs-binary axis to prefer here
-(every link is equally an external .doc/.pdf), unlike pressdb.php's rank().
+Every capture is a full re-dump of everything published up to its date - a later
+capture is a strict superset of an earlier one - so `archive.list_all_captures`
+samples every historical capture per domain. Entries are deduped by (title,
+date) rather than raw url, keeping the longest teaser: there is no
+HTML-vs-binary axis to prefer here, unlike pressdb.php's rank().
 
-Source tags are per-domain (midiman_net_media_pr / midiman_com_media_pr /
-maudio_com_media_pr), same policy as every other source in this repo.
-m-audio.com is by far the deepest source (34 captures 2004-2013, growing to
-~120+ releases) - the other two domains are shallower mirrors of the same
-underlying press history, kept separate since URL-based dedup can't cross
-domains.
+m-audio.com is by far the deepest of the three domains; the other two are
+shallower mirrors of the same underlying press history, kept separate because
+url-based dedup cannot cross domains.
 """
 
 from urllib.parse import urljoin
