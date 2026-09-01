@@ -9,12 +9,14 @@ the link does not open.
 """
 
 import json
+import sqlite3
 import threading
 import urllib.error
 import urllib.request
 from http.server import ThreadingHTTPServer
 
 from pressroom.browser.boundary import http
+from pressroom.database.control import connection
 from pressroom.provenance.entity import origin
 from pressroom.release.control import storage
 from tests import support
@@ -180,6 +182,7 @@ class ServerTest(support.DbCase):
             def log_message(self, fmt, *args):
                 pass
 
+        self.handler = Quiet
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), Quiet)
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
         self.addCleanup(self.server.server_close)
@@ -224,15 +227,60 @@ class ServerTest(support.DbCase):
                 with self.assertRaises(urllib.error.HTTPError) as caught:
                     self.get(path)
                 self.assertEqual(caught.exception.code, 404)
+                caught.exception.close()
 
     def test_a_bad_request_is_a_400_carrying_its_reason(self):
         with self.assertRaises(urllib.error.HTTPError) as caught:
             self.get("/api/search?flags=teasr")
         self.assertEqual(caught.exception.code, 400)
         self.assertIn("teasr", json.loads(caught.exception.read())["error"])
+        caught.exception.close()
 
     def test_the_server_opens_the_database_read_only(self):
-        """A browser has no business writing anything, and every request
-        thread gets its own connection."""
+        """A browser has no business writing anything, and every request gets
+        its own connection."""
         self.get("/api/search")
         self.assertIsNotNone(self.json("/api/quality"))
+
+    def test_every_request_closes_the_connection_it_opened(self):
+        """The leak this test exists to keep out: the connection used to be
+        parked on a threading.local and never closed, so a suite run printed
+        one `ResourceWarning: unclosed database` per request that reached the
+        database, and a long browsing session accumulated descriptors.
+
+        `daemon_threads = False` is what makes the assertion deterministic
+        rather than a poll: server_close() then joins the request threads, so
+        by the time it returns every handler has left its `with`. The client
+        otherwise has the response in hand before the server has closed
+        anything.
+        """
+        opened = []
+        real = connection.connect_ro
+
+        def spy(db_path=None):
+            conn = real(db_path)
+            opened.append(conn)
+            return conn
+
+        class Joining(ThreadingHTTPServer):
+            daemon_threads = False
+
+        connection.connect_ro = spy
+        self.addCleanup(setattr, connection, "connect_ro", real)
+
+        server = Joining(("127.0.0.1", 0), self.handler)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        try:
+            for path in ("/api/quality", "/api/search?q=Radium", "/api/sources"):
+                urllib.request.urlopen(base + path).close()
+            urllib.request.urlopen(base + "/static/app.css").close()
+        finally:
+            server.shutdown()
+            server.server_close()
+
+        # Three api requests, three connections - and the static file none.
+        self.assertEqual(len(opened), 3)
+        for conn in opened:
+            with self.assertRaises(sqlite3.ProgrammingError):
+                conn.execute("select 1")

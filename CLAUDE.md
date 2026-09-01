@@ -191,6 +191,9 @@ components back out of this sentence.
    the latter runs `init_db()`, i.e. `CREATE TABLE` and the FTS triggers, which
    a browser has no business doing. `?mode=ro` turns an accidental write into an
    OperationalError instead of a silently damaged index.
+   **And it closes what it opened, inside the request** — `ThreadingHTTPServer`
+   hands every request a thread of its own and joins none of them, so a
+   connection kept past the end of `do_GET` is a descriptor nothing will close.
 5. **`releases.url` is the dedup key** (UNIQUE) and inserts are
    `INSERT OR IGNORE`. Gate any "new" counter on `store_release()`'s bool
    return — an unconditional `count += 1` after it reports phantom inserts on

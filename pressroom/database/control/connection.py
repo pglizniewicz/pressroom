@@ -45,10 +45,15 @@ def connect_ro(db_path=None) -> sqlite3.Connection:
     Deliberately NOT connect(): that calls init_db(), which runs CREATE TABLE
     and installs FTS triggers. A browser has no business doing either, and
     ?mode=ro makes an accidental write an OperationalError from SQLite rather
-    than a corrupted index nobody notices. check_same_thread=False because the
-    browser hands each request thread its own connection.
+    than a corrupted index nobody notices.
+
+    check_same_thread stays at its default, so a handle that crosses threads
+    raises instead of working by luck. It used to be False, for a browser that
+    kept a connection on a threading.local; the browser now opens one per
+    request and closes it in the same thread, and every other caller here is
+    single-threaded.
     """
     path = Path(db_path) if db_path else DB_PATH
-    conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True, check_same_thread=False)
+    conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
     conn.row_factory = sqlite3.Row
     return conn

@@ -40,6 +40,24 @@ three longest tags to a third line. Both the sticky offset and the max height ar
 `100dvh` minus **`--topbar-h`, measured in `app.js` with a `ResizeObserver`**
 rather than hardcoded, because the filter form wraps between 60rem and ~72rem.
 
+**A connection lives one request, and the thread-local it replaced was never a
+cache.** `do_GET` used to park a `connect_ro()` handle on a
+`threading.local()` and hand it back on the next call from that thread — except
+that `ThreadingHTTPServer` spawns a thread per request and `Handler` sets no
+`protocol_version`, so HTTP/1.0 closes the socket after every response and the
+second call never came. Every request opened a connection, and nothing closed
+it: a suite run printed one `ResourceWarning: unclosed database` per
+database-touching request, each allocated inside `socketserver`, and a long
+browsing session did the same thing to file descriptors. It is now
+`contextlib.closing(connection.connect_ro(...))` around the api routes — the
+idiom `release/boundary/search.py` already used — with the non-api 404 lifted
+above it so a favicon request opens nothing. `connect_ro()` dropped
+`check_same_thread=False` with it: that flag existed only for the thread-local,
+and SQLite is a better guard of the rule than a comment is.
+`tests/browser/test_http.py` pins it with a server whose `daemon_threads` is
+False, because only then does `server_close()` join the request threads and
+make "closed by now" an assertion rather than a poll.
+
 **The frontend follows `web-static`/`web-conventions` with one deliberate
 deviation: web-static forbids JavaScript and this is a JS-rendered SPA.** By that
 skill's own routing rule the page belongs to `web-components`. Keep the

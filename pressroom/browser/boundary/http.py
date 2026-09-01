@@ -10,6 +10,11 @@ table, never touches the FTS triggers, and an accidental write is an Operational
 from SQLite rather than a quietly corrupted index. It binds 127.0.0.1 only -
 there is no auth because there is no remote listener.
 
+A connection lives exactly as long as the request that needs one, and closes
+with it. ThreadingHTTPServer runs every request in a thread of its own and
+joins none of them, so anything held past the end of do_GET is a file
+descriptor nothing will ever close - see docs/adr/browser-panel.md.
+
 Owns exactly one concern: HTTP. Every statement it runs lives in the release
 component's query module; there is no SQL in this file.
 
@@ -19,10 +24,10 @@ Usage:
 """
 
 import argparse
+import contextlib
 import json
 import re
 import sqlite3
-import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
@@ -46,19 +51,9 @@ STATIC_FILES = {
 
 VALID_FLAGS = ("teaser", "short", "nodate", "mojibake", "plain")
 
-_local = threading.local()
-
 
 class BadRequest(Exception):
     """A malformed query parameter - answered as 400 JSON, not a traceback."""
-
-
-def _conn(db_path):
-    """One connection per request thread. ThreadingHTTPServer runs each request
-    in its own thread and sqlite3 connections are not shareable across them."""
-    if getattr(_local, "conn", None) is None:
-        _local.conn = connection.connect_ro(db_path)
-    return _local.conn
 
 
 def capture_ts(origin_url):
@@ -258,30 +253,37 @@ class Handler(BaseHTTPRequestHandler):
             if path.startswith("/static/"):
                 return self._static(path[len("/static/") :])
 
-            conn = _conn(self.db_path)
-            if path == "/api/search":
-                return self._json(handle_search(conn, params))
-            if path == "/api/sources":
-                return self._json({"sources": query.list_sources(conn)})
-            if path == "/api/companies":
-                # Company rows carry their own sources, so the panel gets both
-                # levels - the default company view and the source view it
-                # toggles to - from one request.
-                return self._json(
-                    {"companies": company.roll_up(query.list_sources(conn))}
-                )
-            if path == "/api/quality":
-                return self._json(query.quality_counts(conn))
-            if path.startswith("/api/release/"):
-                try:
-                    rid = int(path.rsplit("/", 1)[1])
-                except ValueError:
-                    raise BadRequest("release id must be an integer")
-                row = handle_release(conn, rid)
-                if row is None:
-                    return self._json({"error": "no such release"}, status=404)
-                return self._json(row)
-            self._json({"error": "not found"}, status=404)
+            if not path.startswith("/api/"):
+                return self._json({"error": "not found"}, status=404)
+
+            # One connection per request, closed with it - `closing` covers the
+            # error paths below too. Nothing is cached across requests because
+            # there is no thread to cache it on: a request gets a thread of its
+            # own and that thread exits with the response.
+            with contextlib.closing(connection.connect_ro(self.db_path)) as conn:
+                if path == "/api/search":
+                    return self._json(handle_search(conn, params))
+                if path == "/api/sources":
+                    return self._json({"sources": query.list_sources(conn)})
+                if path == "/api/companies":
+                    # Company rows carry their own sources, so the panel gets
+                    # both levels - the default company view and the source
+                    # view it toggles to - from one request.
+                    return self._json(
+                        {"companies": company.roll_up(query.list_sources(conn))}
+                    )
+                if path == "/api/quality":
+                    return self._json(query.quality_counts(conn))
+                if path.startswith("/api/release/"):
+                    try:
+                        rid = int(path.rsplit("/", 1)[1])
+                    except ValueError:
+                        raise BadRequest("release id must be an integer")
+                    row = handle_release(conn, rid)
+                    if row is None:
+                        return self._json({"error": "no such release"}, status=404)
+                    return self._json(row)
+                self._json({"error": "not found"}, status=404)
         except BadRequest as e:
             self._json({"error": str(e)}, status=400)
         except BrokenPipeError:
