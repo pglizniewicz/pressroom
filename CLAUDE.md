@@ -77,31 +77,36 @@ catch yourself writing a row count into any of these files, that is the signal;
 
 The tree is `pressroom/<business component>/<boundary|control|entity>/`. A
 component owns one responsibility and is named after it; the three layers say
-who may call what. That is the whole of the convention, and the two rules that
-matter in practice are:
+who may call what. That is the whole of the convention, and the three rules
+that matter in practice are:
 
 - **the boundary is what an outside actor reaches** — a command line, an HTTP
   request. Nothing else runs a scraper or serves a page.
 - **control may be called across components; entity owns a table.** A
   component's entity layer holds its table's DDL and the statements that
   change it, and nothing else creates that table.
+- **the source components live under `pressroom/sources/`.** That directory
+  is not a component — it owns no responsibility, has no layers, and holds
+  nothing but them; the convention above simply runs one level down inside it.
+  What sits there *is* a source component, which is what makes the dependency
+  direction below a fact about a path rather than a list kept by hand.
 
 Adding shared logic means a **new component named for its concern**, never a
 grab-bag (`common.py` was split for exactly this reason, and `db.py` after it).
 
 The components: `database`, `release`, `capture`, `provenance`, `text`,
-`attachment`, `scraping`, `reporting`, `taxonomy`, `browser`, `q4`, and one per
-firm — `intel`, `amd`, `creative`, `terratec`, `maudio`, `soundonsound`. **Which
-file inside a component owns which job is `docs/layout.md`**: a lookup rather
-than a rule, which is why it is not here, and `tests/test_layout_map.py` keeps it
-honest against the tree.
+`attachment`, `scraping`, `reporting`, `taxonomy`, `browser` and `q4`, plus one
+per firm under `sources/` — `intel`, `amd`, `creative`, `terratec`, `maudio`,
+`soundonsound`. **Which file inside a component owns which job is
+`docs/layout.md`**: a lookup rather than a rule, which is why it is not here, and
+`tests/test_layout_map.py` keeps it honest against the tree.
 
 **A source component splits the same way every time**: the crawl, the parser
 and the listing collector go in `control/<generation>.py`, and the command line
 in `boundary/<generation>.py`. The module name is the **CMS generation**, not
 the domain, because that is what a source tag identifies — which is why
-`terratec/control/pressemit.py` is not called `terratec.py` and
-`maudio/control/golive.py` is not called `midiman.py`.
+`sources/terratec/control/pressemit.py` is not called `terratec.py` and
+`sources/maudio/control/golive.py` is not called `midiman.py`.
 
 **The markup archaeology travels with the parser.** Every control module's
 docstring records what its source's markup actually does, including the quirks

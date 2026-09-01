@@ -34,7 +34,7 @@ from pressroom.scraping.control import catch_up
 from pressroom.scraping.control import discovery
 from pressroom.text.control import richtext
 from pressroom.reporting.entity.outcome import Stats
-from pressroom.terratec.control.pressemit import (
+from pressroom.sources.terratec.control.pressemit import (
     find_headline,
     parse_snapshot as parse_net_snapshot,
 )

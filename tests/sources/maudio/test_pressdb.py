@@ -16,7 +16,7 @@ import io
 from unittest import mock
 
 from pressroom.capture.control import archive
-from pressroom.maudio.control import pressdb
+from pressroom.sources.maudio.control import pressdb
 from pressroom.release.entity.grade import Grade
 from tests import support
 

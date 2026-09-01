@@ -5,7 +5,7 @@ Usage:
 """
 
 from pressroom.scraping.boundary import command
-from pressroom.terratec.control import early
+from pressroom.sources.terratec.control import early
 
 
 def main():

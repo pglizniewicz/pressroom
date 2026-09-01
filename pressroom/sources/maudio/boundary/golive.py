@@ -7,7 +7,7 @@ Usage:
   pressroom-maudio-golive --no-prefix-crawl           # index-page candidates only
 """
 
-from pressroom.maudio.control import golive
+from pressroom.sources.maudio.control import golive
 from pressroom.scraping.boundary import command
 
 

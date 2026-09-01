@@ -125,7 +125,7 @@ class NoCrawlBranchTest(support.DbCase):
         called .values() on a dict, so every no-network run of that source was
         an AttributeError - which the loops above would catch, but naming it
         here says which line to look at."""
-        from pressroom.soundonsound.control import magazine
+        from pressroom.sources.soundonsound.control import magazine
 
         with contextlib.redirect_stdout(io.StringIO()), support.no_network():
             magazine.scrape(catch={"offline": True, "catch_up": True})

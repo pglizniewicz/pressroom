@@ -116,10 +116,10 @@ class CollectorTest(support.DbCase):
     """
 
     COLLECTORS = {
-        "midiman_de": ("maudio.control.presse_de", "cached_entries", ()),
-        "terratec_new_de": ("terratec.control.cms", "cached_entries", ("de",)),
-        "terratec_new_en": ("terratec.control.cms", "cached_entries", ("en",)),
-        "terratec_early": ("terratec.control.early", "cached_entries", ()),
+        "midiman_de": ("sources.maudio.control.presse_de", "cached_entries", ()),
+        "terratec_new_de": ("sources.terratec.control.cms", "cached_entries", ("de",)),
+        "terratec_new_en": ("sources.terratec.control.cms", "cached_entries", ("en",)),
+        "terratec_early": ("sources.terratec.control.early", "cached_entries", ()),
     }
 
     def _collect(self, source):

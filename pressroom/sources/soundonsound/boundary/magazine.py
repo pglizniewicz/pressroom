@@ -11,7 +11,7 @@ Usage:
 """
 
 from pressroom.scraping.boundary import command
-from pressroom.soundonsound.control import magazine
+from pressroom.sources.soundonsound.control import magazine
 
 
 def main():

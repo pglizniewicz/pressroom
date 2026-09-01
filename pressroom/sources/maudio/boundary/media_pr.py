@@ -7,7 +7,7 @@ Usage:
   pressroom-maudio-media-pr --attachments             # also crawl for .doc/.pdf bytes
 """
 
-from pressroom.maudio.control import media_pr
+from pressroom.sources.maudio.control import media_pr
 from pressroom.scraping.boundary import command
 
 

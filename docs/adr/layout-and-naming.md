@@ -79,6 +79,52 @@ reader.** They write nothing, ever:
   half is not decoration — a column of metrics once said "100% of words kept"
   about a conversion that had put the release's headline after the footer.
 
+## The source components moved under `sources/`
+
+`pressroom/` used to hold the firms — `intel`, `amd`, `creative`, `terratec`,
+`maudio`, `soundonsound` — in the same row as `database`, `release`, `capture`
+and the rest. They are a minority of the components and most of what anyone
+runs, so the root read as a list of companies with the architecture filed
+somewhere among it. They sit under `pressroom/sources/` now, and what is left in
+the root is the shared components, `q4`, and one directory that is not one.
+
+The tidiness is the reason it was raised. The reason it was worth doing is
+underneath it: **"a source component" stopped being a list of names and became
+a fact about a path.** That list was literal in three independent places —
+`CLAUDE.md`'s roll-call, `SOURCE_COMPONENTS` in
+`tests/test_import_direction.py`, and the company slugs in
+`taxonomy/entity/company.py` — with nothing checking the first against the
+third, so a seventh firm had to be added by hand in two of them before the
+dependency direction below would cover it at all. The test reads the directory
+now, and a firm that is in the tree is in the rule.
+
+Three decisions inside that one, each of which could have gone the other way:
+
+- **`sources`, not `firms`.** `soundonsound` is a magazine, not a company whose
+  press releases these are — and a source tag names a scraper, not a domain, so
+  the directory is named for what the components are rather than for who they
+  are about.
+- **`sources/` is a grouping directory, not a component.** It gets no layers and
+  no row in `../layout.md`; its `__init__.py` says what it is not, the way
+  `integrity.py` does. A component owns one responsibility, and "the firms" is
+  not one — inventing a responsibility for it would be `common.py` again, in a
+  directory instead of a module.
+- **`q4` stayed in the root.** It is the Q4 Inc. platform parser two firms
+  delegate to, and the direction paragraph below already puts it on the library
+  side of the rule. Moving it under `sources/` would have made "nothing outside
+  `sources/` imports anything inside it" false the day it landed, for a module
+  that is a dependency of two sources rather than a source.
+
+What the move cost was one thing worth naming, because it would have passed
+silently. `tests/test_import_direction.py` derived a module's component and
+layer positionally, from `parts[0]` and `parts[1]` of its path under
+`pressroom/`. Left alone, every source module would have reported the component
+`sources` with the layer `terratec`, `SOURCE_COMPONENTS` would have matched
+none of them, and the four isolation classes would have gone green by asserting
+over an empty set. `_inside_component()` drops the grouping segment, and
+`ImportGraphTest` now refuses an empty `pressroom/sources/` for the same reason
+it refuses a graph with no edges: a rule that cannot fail is not a rule.
+
 ## Two BCE deviations
 
 **Two BCE deviations, recorded rather than glossed** — the same way `checks.md`

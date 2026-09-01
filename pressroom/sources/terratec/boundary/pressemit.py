@@ -6,7 +6,7 @@ Usage:
 """
 
 from pressroom.scraping.boundary import command
-from pressroom.terratec.control import pressemit
+from pressroom.sources.terratec.control import pressemit
 
 
 def main():

@@ -7,16 +7,17 @@ fragile in another: nothing loads it any more, so a rename that misses it is
 silent, and a stale map is read as current rather than as a leftover. It is the
 most rename-sensitive prose in the repo, so it gets the check.
 
-Three claims, because the table can be wrong in three directions: a component
+Three claims about the table, because it can be wrong in three directions: a component
 with no row (the map has a hole), a row naming a component that is gone (the map
 points nowhere), and a row naming a file that has moved inside its component
 (the map is subtly wrong, which is worse than either).
 
-The fourth assertion is the convention itself, which `CLAUDE.md` states and
-nothing enforced: two levels down from `pressroom/` there are only the three
-layers. `tests/test_no_dead_module_references.py` catches a dead `<name>.py` in
-this file too, but only by basename - `release/entity/schema.py` passes there as
-long as some `schema.py` exists anywhere, which is exactly the subtly-wrong case.
+The last two assertions are the convention itself, which `CLAUDE.md` states and
+nothing enforced: a component holds only the three layers, and `sources/` - the
+one directory that is not a component - holds only components.
+`tests/test_no_dead_module_references.py` catches a dead `<name>.py` in this file
+too, but only by basename - `release/entity/schema.py` passes there as long as
+some `schema.py` exists anywhere, which is exactly the subtly-wrong case.
 """
 
 import re
@@ -30,6 +31,11 @@ MAP = ROOT / "docs" / "layout.md"
 
 LAYERS = {"boundary", "control", "entity"}
 
+# The one directory under `pressroom/` that is not a component: it groups the
+# source components and owns nothing itself, so it has no row here and its
+# children are components rather than layers.
+GROUP = "sources"
+
 # A row is `| `name`[, `name`...] | prose |`; the prose names paths relative to
 # the component, e.g. `control/connection.py`.
 ROW_RE = re.compile(r"^\|\s*(`[^|]+?`)\s*\|\s*(.+?)\s*\|$")
@@ -37,8 +43,19 @@ NAME_RE = re.compile(r"`([a-z_0-9]+)`")
 PATH_RE = re.compile(r"`(boundary|control|entity)/([a-z_0-9]+\.py)`")
 
 
-def _components() -> set:
-    return {p.name for p in PACKAGE.iterdir() if p.is_dir() and p.name != "__pycache__"}
+def _dirs(parent) -> list:
+    return [p for p in parent.iterdir() if p.is_dir() and p.name != "__pycache__"]
+
+
+def _components() -> dict:
+    """Component name -> its directory, one level down or two under `sources/`."""
+    out = {}
+    for path in _dirs(PACKAGE):
+        if path.name == GROUP:
+            out.update({p.name: p for p in _dirs(path)})
+        else:
+            out[path.name] = path
+    return out
 
 
 def _rows() -> list:
@@ -91,21 +108,29 @@ class LayoutMapTest(unittest.TestCase):
                 with self.subTest(component="/".join(names), path=rel):
                     self.assertTrue(
                         any(
-                            (PACKAGE / name / layer / filename).exists()
+                            (self.components[name] / layer / filename).exists()
                             for name in names
                         ),
                         f"docs/layout.md's {'/'.join(names)} row names {rel}, "
                         f"which is not there",
                     )
 
-    def test_two_levels_down_there_are_only_the_three_layers(self):
-        """The convention CLAUDE.md states: `pressroom/<component>/<layer>/`."""
-        for component in sorted(self.components):
-            for child in sorted((PACKAGE / component).iterdir()):
-                if not child.is_dir() or child.name == "__pycache__":
-                    continue
+    def test_a_component_holds_only_the_three_layers(self):
+        """The convention CLAUDE.md states: `<component>/<layer>/`, wherever the
+        component sits. `sources/` is exempt by not being a component - it is
+        the grouping directory, so what it holds is components."""
+        for component, path in sorted(self.components.items()):
+            for child in sorted(_dirs(path)):
                 with self.subTest(component=component, directory=child.name):
                     self.assertIn(child.name, LAYERS)
+
+    def test_the_grouping_directory_holds_only_source_components(self):
+        """`sources/` owns no responsibility of its own, so a layer directly
+        inside it would be code that belongs to no component."""
+        for child in sorted(_dirs(PACKAGE / GROUP)):
+            with self.subTest(directory=child.name):
+                self.assertNotIn(child.name, LAYERS)
+                self.assertIn(child.name, self.components)
 
 
 if __name__ == "__main__":

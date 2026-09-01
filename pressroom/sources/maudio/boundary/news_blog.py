@@ -5,7 +5,7 @@ Usage:
   pressroom-maudio-news --limit 5                     # cap articles (testing)
 """
 
-from pressroom.maudio.control import news_blog
+from pressroom.sources.maudio.control import news_blog
 from pressroom.scraping.boundary import command
 
 

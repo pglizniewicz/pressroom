@@ -47,7 +47,7 @@ NAME_RE = re.compile(r"`([a-z_0-9]+)`")
 # relative to `pressroom/`. The values are what a failure quotes back.
 READER_PATH = {
     "database/control/*.py": "database/control/",
-    "*/entity/*.py": "every entity layer",
+    "**/entity/*.py": "every entity layer",
     "release/control/query.py": "release/control/query.py",
     "taxonomy/**/*.py": "taxonomy/",
     "text/control/decoding.py": "text/control/decoding.py",
@@ -61,8 +61,17 @@ READERS = {
 
 POLITENESS = "pressroom.capture.control.politeness"
 
+# The grouping directory the source components live in, and the components
+# themselves - read off the tree, not typed out. This list was literal here and
+# again in CLAUDE.md's roll-call, and a seventh firm had to be added to both
+# before the dependency-direction rule would cover it. It is a fact about a
+# path now: what is under `pressroom/sources/` is a source component.
+GROUP = "sources"
+
 SOURCE_COMPONENTS = frozenset(
-    {"intel", "amd", "creative", "terratec", "maudio", "soundonsound"}
+    p.name
+    for p in (PACKAGE / GROUP).iterdir()
+    if p.is_dir() and p.name != "__pycache__"
 )
 
 # What a source component is allowed to reach, and what for. The rulebook
@@ -189,14 +198,31 @@ def _relative_path(module: str) -> pathlib.PurePosixPath | None:
     return pathlib.PurePosixPath(*parts) if len(parts) > 1 else None
 
 
-def _component(module: str) -> str | None:
+def _inside_component(module: str) -> tuple:
+    """The module's path from its component down: `(component, layer, file)`.
+
+    `sources/` is a grouping directory, not a component, so it is dropped here
+    rather than in `_relative_path` - the reader-path patterns and every failure
+    message still want the whole path under `pressroom/`. Doing it the other way
+    round is how the move under `sources/` could have passed silently: every
+    source module would have reported the component `sources` with the layer
+    `terratec`, and half the classes below would have matched nothing.
+    """
     rel = _relative_path(module)
-    return rel.parts[0] if rel else None
+    if rel is None:
+        return ()
+    parts = rel.parts[1:] if rel.parts[0] == GROUP else rel.parts
+    return parts if len(parts) > 1 else ()
+
+
+def _component(module: str) -> str | None:
+    parts = _inside_component(module)
+    return parts[0] if parts else None
 
 
 def _layer(module: str) -> str | None:
-    rel = _relative_path(module)
-    return rel.parts[1] if rel and len(rel.parts) > 2 else None
+    parts = _inside_component(module)
+    return parts[1] if len(parts) > 2 else None
 
 
 def _rel(label: str) -> str:
@@ -300,6 +326,19 @@ class ImportGraphTest(unittest.TestCase):
             100,
             "barely any edges parsed",
         )
+
+    def test_the_grouping_directory_still_names_the_sources(self):
+        """`SOURCE_COMPONENTS` is read off `pressroom/sources/`, so an empty or
+        renamed directory would leave every isolation rule below matching
+        nothing and passing."""
+        self.assertTrue(SOURCE_COMPONENTS, f"pressroom/{GROUP}/ holds no component")
+        for component in sorted(SOURCE_COMPONENTS):
+            with self.subTest(component=component):
+                self.assertTrue(
+                    (PACKAGE / GROUP / component / "boundary").is_dir(),
+                    f"{GROUP}/{component}/ has no boundary; a source's command "
+                    f"is the only thing anyone runs",
+                )
 
     def test_both_readers_have_a_closure_worth_walking(self):
         """ReaderClosureTest proves nothing about a reader with no imports."""
@@ -521,7 +560,7 @@ class LazyImportTest(unittest.TestCase):
 
     def test_curl_cffi_is_still_imported_inside_make_session(self):
         """Otherwise the assertion above passes because nothing uses it."""
-        path = _modules()["pressroom.creative.control.globenewswire"]
+        path = _modules()["pressroom.sources.creative.control.globenewswire"]
         tree = ast.parse(path.read_text(encoding="utf-8"))
         found = [
             node
@@ -534,7 +573,7 @@ class LazyImportTest(unittest.TestCase):
         ]
         self.assertTrue(
             found,
-            f"{_rel('pressroom.creative.control.globenewswire')} no longer "
+            f"{_rel('pressroom.sources.creative.control.globenewswire')} no longer "
             f"imports curl_cffi inside make_session()",
         )
 

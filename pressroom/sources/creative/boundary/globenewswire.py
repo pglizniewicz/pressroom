@@ -5,7 +5,7 @@ Usage:
   pressroom-creative-gnw --pages 2                    # first 2 pages only
 """
 
-from pressroom.creative.control import globenewswire
+from pressroom.sources.creative.control import globenewswire
 from pressroom.scraping.boundary import command
 
 

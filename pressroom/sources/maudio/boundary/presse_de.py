@@ -5,7 +5,7 @@ Usage:
   pressroom-maudio-de --limit 3                       # 3 captures per page (testing)
 """
 
-from pressroom.maudio.control import presse_de
+from pressroom.sources.maudio.control import presse_de
 from pressroom.scraping.boundary import command
 
 

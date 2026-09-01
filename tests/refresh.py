@@ -35,7 +35,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 from pressroom.attachment.control import conversion  # noqa: E402
 from pressroom.capture.entity import page  # noqa: E402
 from pressroom.database.control import creation  # noqa: E402
-from pressroom.maudio.control import (
+from pressroom.sources.maudio.control import (
     media_news,
     media_pr,  # noqa: E402
     news_blog,
@@ -43,7 +43,7 @@ from pressroom.maudio.control import (
 )
 from pressroom.provenance.entity import origin  # noqa: E402
 from pressroom.taxonomy.entity import company  # noqa: E402
-from pressroom.terratec.control import early, portal, presse  # noqa: E402
+from pressroom.sources.terratec.control import early, portal, presse  # noqa: E402
 from tests import parsers, support  # noqa: E402
 
 MIN_BODY = 800

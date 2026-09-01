@@ -8,7 +8,7 @@ Usage:
   pressroom-maudio-media-news --source maudio_com_media_news
 """
 
-from pressroom.maudio.control import media_news
+from pressroom.sources.maudio.control import media_news
 from pressroom.scraping.boundary import command
 
 

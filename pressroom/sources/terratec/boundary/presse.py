@@ -8,7 +8,7 @@ Usage:
 """
 
 from pressroom.scraping.boundary import command
-from pressroom.terratec.control import presse
+from pressroom.sources.terratec.control import presse
 
 
 def main():

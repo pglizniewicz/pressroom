@@ -6,7 +6,7 @@ Usage:
   pressroom-creative --from-year 2020 --to-year 2022
 """
 
-from pressroom.creative.control import press
+from pressroom.sources.creative.control import press
 from pressroom.scraping.boundary import command
 
 

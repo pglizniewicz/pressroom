@@ -7,7 +7,7 @@ Usage:
   pressroom-maudio-pressdb --attachments              # also crawl for .pdf bytes
 """
 
-from pressroom.maudio.control import pressdb
+from pressroom.sources.maudio.control import pressdb
 from pressroom.scraping.boundary import command
 
 

@@ -11,7 +11,7 @@ Usage:
 """
 
 from pressroom.scraping.boundary import command
-from pressroom.terratec.control import cms
+from pressroom.sources.terratec.control import cms
 
 
 def main():
