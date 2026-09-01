@@ -500,9 +500,8 @@ def scrape_portal(
 
     stats.summary(conn)
 
-    # Two more discovery channels, both of which used to be their own
-    # "backfill" script: the yearly category listings, and the sids whose only
-    # archived page is the print view.
+    # Two more discovery channels: the yearly category listings, and the sids
+    # whose only archived page is the print view.
     if not catch_up.no_crawl(catch):
         from_categories(conn, session, source, prefix)
         from_print_views(conn, session, source, prefix)

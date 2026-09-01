@@ -60,8 +60,7 @@ def store_release(
 
     `grade` defaults to 'full' because most callers store a real article; a
     caller that could only get the listing blurb passes grade="teaser" (or
-    "stub" for title/date only) and leaves detail_id alone. Those two strings
-    used to be written *into* detail_id, which is the union that split undid.
+    "stub" for title/date only) and leaves detail_id alone.
     """
     with _transaction(conn, commit):
         cur = conn.execute(

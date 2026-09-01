@@ -196,7 +196,7 @@ def looks_like_html(content: bytes) -> bool:
 def normalize(text: str) -> str:
     r"""Tidy an extractor's output without flattening it.
 
-    This used to be `re.sub(r"\s+", " ", text)`, which threw away the one thing
+    Never `re.sub(r"\s+", " ", text)`, which throws away the one thing
     `pdftotext -layout` and `antiword` are asked for: the layout. Only trailing
     spaces, form feeds (pdftotext's page breaks) and runs of blank lines go.
     """

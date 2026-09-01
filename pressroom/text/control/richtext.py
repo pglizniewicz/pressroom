@@ -373,8 +373,8 @@ def cut_from(soup, pattern) -> bool:
     The element-level equivalent of `text[:marker.start()]`, and it has to
     handle the case that broke the naive version: the marker is usually not in
     a tidy leaf element. "Infos bei:" on midiman.de sits in a bare text node
-    between two <br>, so a scan over leaf *elements* found nothing and the
-    contact footer survived into 37 bodies that used to have it cut.
+    between two <br>, so a scan over leaf *elements* finds nothing and the
+    contact footer survives into the body.
 
     So: find the text node, truncate it at the marker, then remove every node
     that follows it in document order. `pattern` is a compiled regex.

@@ -181,10 +181,9 @@ def _entries_short_news(soup: BeautifulSoup, base_url: str) -> list[Entry]:
 def extract_entries(
     html: bytes, base_url: str, timestamp: str | None = None
 ) -> list[Entry]:
-    # decode_html, not raw bytes: these pages declare utf-8 and are utf-8
-    # except for a few Word-pasted cp1252 bytes, which used to make bs4 fall
-    # back to chardet and decode the whole file as windows-1250/1258.
-    # See decoding.py.
+    # decode_html, not raw bytes: these pages declare utf-8 and are utf-8 except
+    # for a few Word-pasted cp1252 bytes, which make bs4 fall back to chardet and
+    # decode the whole file as windows-1250/1258. See decoding.py.
     soup = BeautifulSoup(decode_html(html), "html.parser")
     # Both templates are tried on every capture: whichever era the capture
     # belongs to yields entries and the other yields none, so there is no need

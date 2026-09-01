@@ -162,13 +162,10 @@ def extract_entries(
     page's own links are already absolute) - the 3-arg shape matches
     archive.sample_all_captures' parse_fn contract.
 
-    Takes bytes and decodes them here through encoding.decode_html: these pages
-    declare charset=utf-8 and are valid UTF-8, and handing the bytes to
-    BeautifulSoup instead let chardet guess - it picked cp1252 on some captures
-    and cp1258 (Vietnamese) on others, which is how 25 rows ended up storing
-    'FÃ¼hrungsduo' and 'FĂ¼r'. That was undone, and the repair now lives in the
-    write path, which is why it
-    cannot come back."""
+    Takes bytes and decodes them here through `decode_html`: these pages declare
+    charset=utf-8 and are valid UTF-8, and handing the bytes to BeautifulSoup
+    instead lets chardet guess - it picks cp1252 on some captures and cp1258 on
+    others, which is how 'FĂ¼r' gets stored."""
     soup = BeautifulSoup(decode_html(content), "html.parser")
     area = article_area(soup)
     headings = area.find_all("h2") if area else soup.find_all("h2")

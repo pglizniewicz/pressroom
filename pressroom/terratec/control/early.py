@@ -64,10 +64,9 @@ def headline(body: str, date_marker: str) -> str:
         TerraTec: Mit Erfolg von Deutschland nach Asien
         <the release>
 
-    2 entries use the first shape, 19 the second, and the English page ("Press-
-    Release as of 27.9.96:") only the second. The length guard is what keeps the
-    second shape from titling an entry with its opening paragraph on a page
-    where the headline is missing.
+    Most entries use the second shape, and the English page ("Press-Release as
+    of 27.9.96:") only that one. The length guard is what keeps it from titling
+    an entry with its opening paragraph where the headline is missing.
     """
     paras = [p.strip() for p in body.split("\n\n") if p.strip()]
     if not paras:

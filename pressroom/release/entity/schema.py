@@ -117,12 +117,9 @@ UPGRADE_SQL = """
 # written in SQL because SQLite has no regex; the audit view needs it as a
 # WHERE clause. Two languages, one rule: change one and change the other.
 #
-# The C1 half used to name five codepoints by hand - the ones that happened to
-# occur when it was written - while C1_RE has always matched the whole
-# 0x80-0x9F range. So the audit view under-reported: after the 2026-08-21
-# refetch it showed 12 damaged rows where the repair found 35. The range is
-# spelled out here instead, 32 instr() calls generated from the same bounds, so
-# the two cannot drift again.
+# The whole range, as 32 instr() calls generated from the same bounds rather
+# than a hand-written list of the codepoints that happened to occur - which is
+# how this half drifted from C1_RE and under-reported.
 C1_SQL = " OR ".join(f"instr(r.body, char({c})) > 0" for c in range(0x80, 0xA0))
 
 MOJIBAKE_SQL = f"(instr(r.body, 'â€') > 0 OR instr(r.body, 'Ã') > 0 OR {C1_SQL})"

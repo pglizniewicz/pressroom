@@ -42,10 +42,8 @@ def connect_ro(db_path=None) -> sqlite3.Connection:
     than a corrupted index nobody notices.
 
     check_same_thread stays at its default, so a handle that crosses threads
-    raises instead of working by luck. It used to be False, for a browser that
-    kept a connection on a threading.local; the browser now opens one per
-    request and closes it in the same thread, and every other caller here is
-    single-threaded.
+    raises instead of working by luck: the browser opens one connection per
+    request and closes it in the same thread.
     """
     path = Path(db_path) if db_path else DB_PATH
     conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True)

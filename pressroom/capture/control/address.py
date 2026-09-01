@@ -24,13 +24,9 @@ TS_LEN = 14
 def is_timestamp(value) -> bool:
     """Whether `value` is a Wayback capture timestamp (14 digits).
 
-    The single implementation. This test used to be spelled out in seven places
-    - two regexes, a GLOB, `len() == 14 and isdigit()` twice, a bare isdigit(),
-    and a string compare in the browser - each of them deciding on its own what
-    a `detail_id` meant. The readers no longer ask at all (body_origin records
-    the capture, releases.grade records the verdict); what is left are the
-    archive-facing scripts, which legitimately need to turn a timestamp into a
-    page_cache key and now do it through here.
+    The single implementation, and only the archive-facing code asks: a reader
+    does not, because body_origin records the capture and releases.grade records
+    the verdict.
     """
     return bool(value) and str(value).isdigit() and len(str(value)) == TS_LEN
 

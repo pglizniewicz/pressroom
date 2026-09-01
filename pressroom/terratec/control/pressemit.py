@@ -24,9 +24,9 @@ DATE_RE = re.compile(r"Press Release,\s*(\d{1,2}\.\d{1,2}\.\d{2,4})", re.IGNOREC
 
 # The dateline that sits immediately above the headline, in all three languages
 # this one hand-built site was published in: terratec.net English, its
-# /press/*_fr.htm French pages, and terratec.de German (which
-# presse.py imports find_headline for). Used to
-# locate the headline, never the date - DATE_RE and DATE_RE_DE own that.
+# /press/*_fr.htm French pages, and terratec.de German (which presse.py imports
+# find_headline for). It locates the headline, never the date - DATE_RE and
+# DATE_RE_DE own that.
 MARKER_RE = re.compile(r"press\s*release|communiqu\w*\s+de\s+presse|presseinfo", re.I)
 
 _HEADINGS = ("h1", "h2", "h3", "h4")

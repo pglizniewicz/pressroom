@@ -36,8 +36,7 @@ def make_session():
     and the TLS handshake both succeed, then an HTTP/1.1 request gets no
     response at all (read timeout) and HTTP/2 gets an immediate RST_STREAM.
     Extra browser headers change nothing - the block is on the TLS/HTTP2
-    fingerprint, not the User-Agent - and all 53 rows of this source failed
-    that way on 2026-08-21.
+    fingerprint, not the User-Agent, so every row of this source fails that way.
 
     curl_cffi is libcurl with browser fingerprints (the maintained
     lexiforest/curl-impersonate fork), and its Session is API-compatible with
