@@ -1,19 +1,14 @@
 """pressdb's own phase-1 loop, and the verdict its upgrade branch has to state.
 
-This scraper predates the phase-1 library and keeps its own loop, for a reason
-the module docstring records: entries are deduped by (title, date) across every
-historical re-dump of one PHP page. What it inherits from nowhere, then, is the
-rule every other upgrade site carries - a write that replaces a teaser body with
-the real article passes `grade="full"`, or `stored_grade()` hands the row to the
-next run as still upgradable. Four of the nine upgrade sites outside storage.py
-did not, and this was the last of them.
+This scraper keeps its own loop, for the reason its module docstring records:
+entries are deduped by (title, date) across every historical re-dump of one PHP
+page. So it inherits from nowhere the rule every other upgrade site carries -
+a write that replaces a teaser body with the real article passes `grade="full"`.
 
-The row that makes the rule visible here is one graded honestly. pressdb itself
-writes `full` at insert time even when the body is a listing blurb - the
-documented state `length(body)` exists to see through, which is why this loop's
-cursor is `stored_body_length` - so the corpus has no teaser row of this source
-to lose. What the verdict buys is the row that arrives graded truthfully leaving
-that way.
+pressdb writes `full` at insert time even when the body is a listing blurb,
+which is why this loop's cursor is `stored_body_length` rather than the grade.
+What the verdict buys is the row that arrives graded truthfully leaving that
+way.
 """
 
 import contextlib

@@ -123,9 +123,8 @@ class VerdictTest(support.DbCase):
     """Which of the three writes here states `grade`, and which one must not.
 
     The rule is one line in CLAUDE.md - an upgrade that replaces a teaser body
-    with the real article passes `grade="full"`, or `stored_grade()` hands the
-    row to the next run as still upgradable. What that line does not settle is
-    that only two of this module's three writes are that upgrade, and the
+    with the real article passes `grade="full"`. What that line does not settle
+    is that only two of this module's three writes are that upgrade, and the
     difference is in the gates rather than in the passes' names:
 
       - `write_richtext` compares the two conversions of the same bytes to each
@@ -136,10 +135,8 @@ class VerdictTest(support.DbCase):
       - `reextract_from_cache` writes only what its gate proved is already
         stored character for character, so there is no verdict there to change.
 
-    These three sources' rows are all grade `full` today - the scrapers store
-    them that way even when the body is a blurb, which is the documented state
-    `length(body)` exists to see through - so this is what keeps the writes
-    honest for a row that arrives here graded truthfully.
+    Every row of these sources is graded `full` today, blurb or not, so what
+    this pins is the row that arrives graded truthfully leaving that way.
     """
 
     PDF = "http://www.midiman.com/news/pdf/PR07022002C.pdf"

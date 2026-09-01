@@ -49,7 +49,6 @@ RETIRED = {
     # Named to explain why a module is shaped the way it is, in the module that
     # replaced it. Deleting the name would delete the explanation.
     "common.py": "the grab-bag politeness.py and q4/control/platform.py were split out of",
-    "backfill_terratec_de_and_net_gaps.py": "what terratec/control/presse.py was called before the prefix was retired",
     # The second grab-bag, named in the rule that banned both. Same argument as
     # common.py: without the name the rule loses its example.
     "db.py": "the other grab-bag CLAUDE.md's Layout rule was written against",

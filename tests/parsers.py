@@ -12,10 +12,10 @@ Three shapes, matching the three the corpus actually has:
             inside fetch_body, and calling it with the bytes already in
             page_cache exercises the cache path as well as the parser.
 
-`verification.CACHED_PARSERS` is reused verbatim for the seven tags it covers -
-it is the same question asked for the same reason, and a second copy would drift.
-The rest cannot come from there: `verification.candidate_bodies` returns *bodies*
-so it can compare them, and a golden file needs the whole parse.
+`verification.CACHED_PARSERS` is reused verbatim where it covers a tag, because
+a second copy would drift. The rest cannot come from there:
+`verification.candidate_bodies` returns *bodies* so it can compare them, and a
+golden file needs the whole parse.
 """
 
 from pressroom.creative.control import globenewswire

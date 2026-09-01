@@ -9,10 +9,7 @@ were findable only this way.
 
 Two things make it work, and both were learned the hard way:
 
-  - the probe raises a **BaseException** (support.no_network). Half these fetch
-    sites wrap their call in `except Exception` and degrade gracefully, so an
-    Exception is swallowed and the source reports clean. The first version of
-    this probe did exactly that and pronounced five crawling sources offline.
+  - the probe raises a **BaseException** - `support.no_network`, which says why.
   - the guard belongs on the **candidate list**, not on the fetch. An empty
     candidate list leaves the loop body untouched, which is what keeps this a
     one-line change per source - and `creative`'s year loop is a computed range,

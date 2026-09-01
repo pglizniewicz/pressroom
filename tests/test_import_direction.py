@@ -5,29 +5,22 @@ about why: its import pass *runs* `importlib.import_module` on every module, so
 an `import requests` added to `release/control/query.py` is reported as a
 success - `requests` is installed in this venv. Its second pass does parse the
 AST, but keeps only the first segment of each imported name in a flat set, so it
-never holds an edge. The words boundary, control and entity do not appear in
-`integrity.py` at all.
+never holds an edge.
 
-That leaves the most valuable rule in the tree - the one the layout exists for -
-resting on two paragraphs of prose. A violation passes the whole suite on a
-development machine and surfaces only where someone runs `pressroom-serve`
-without `requests` and `bs4` installed, which is exactly the audience the two
-readers are kept dependency-free for.
+Without this, a violation passes the whole suite on a development machine and
+surfaces only where someone runs `pressroom-serve` without `requests` and `bs4`
+installed - which is exactly the audience the two readers are kept
+dependency-free for.
 
-So this builds the import graph out of source text, executing nothing, and
-asserts only rules `CLAUDE.md` already states: Invariant 4 (the reader path is
-stdlib-only), the dependency direction and its one documented exception, the
-boundary as the outside edge, and `curl_cffi` staying inside `make_session()`.
-Nothing here is a new rule. `ImportGraphTest` is the precondition for the rest:
-a graph that silently lost its edges would make every other class below pass by
-matching nothing.
+So this builds the import graph out of source text, executing nothing, and each
+class below names the rule it asserts. `ImportGraphTest` is the precondition for
+the rest: a graph that silently lost its edges would make every other class pass
+by matching nothing.
 
-Two things it deliberately does not check. `entity/` importing `control/` - the
-two edges out of `reporting/entity/outcome.py`, both in the summary line - is
-not checked because the rulebook never forbade it, and inventing that rule here
-is not this file's job. Import cycles are not checked because
-`pressroom-verify-names` really does import every module, so a cycle already
-takes it down.
+Two things it deliberately does not check. `entity/` importing `control/` is not
+forbidden by the rulebook, and inventing that rule here is not this file's job.
+Import cycles are not checked because `pressroom-verify-names` really does
+import every module, so a cycle already takes it down.
 """
 
 import ast
