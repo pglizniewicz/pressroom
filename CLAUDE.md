@@ -452,6 +452,20 @@ exists to keep you away from:
   defaults is not silently a change here. `uvx`, never a `dev` extra: a fresh
   checkout still verifies itself with nothing installed. Formatting is proved
   AST-identical, so docstrings and `--help` are untouchable.
+- **Ask the PyCharm MCP what it says about the files you touched and their
+  neighbours, and read it against the same files at `HEAD`** — the report in this
+  tree is never empty, so "is it clean" answers nothing and *what is new* is the
+  only question it can answer. Get that baseline by linting the `git show HEAD:`
+  versions out of a scratch `dupcheck/`, then delete the directory before the
+  real run, because while it exists every file duplicates against its own twin.
+  **The same run is what proves the inspection can still speak** — a file with
+  nothing to say gets no entry at all, so a quiet report and an unanalysed one
+  look identical. `Duplicated code fragment` is what makes the round trip worth
+  it: ruff has no copy-paste rule at all, so after a dedup or an extraction the
+  one thing it cannot answer is the question the change was asking, and a copy is
+  a pair — the other half sits in a file the change never opened. Nothing below
+  `warning` is visible this way, it is not a commit gate, and it is skipped where
+  no IDE is attached — ruff is the one that gates.
 - **`pressroom-verify-names` after any change that renames or moves a module-level
   name.** It is down to the two checks a linter cannot do — it *runs* every import,
   and it catches a local shadowing an imported module. `F821` owns undefined names

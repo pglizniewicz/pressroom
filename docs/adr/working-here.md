@@ -112,6 +112,67 @@ these as instructions; here they keep the reason attached.
   silently broke a follow-up script that imported it, and it was committed that
   way. The same class of break has happened more than once.
 
+- **The PyCharm inspection report, through the MCP, read against `HEAD`.** The
+  one check here that is not a command: it goes through whatever IDE session
+  happens to be attached, so it gates nothing and a fresh checkout does without
+  it.
+
+  **It is a diff, not a verdict.** This tree's report is never empty and never
+  will be, so a run that asks "is it clean" learns nothing; the only answer worth
+  having is which entries were not there before. That makes the baseline part of
+  the check rather than an optional extra: put the `git show HEAD:` versions of
+  the same files in a scratch `dupcheck/` *inside the project* — nothing outside
+  it is analysed — lint those, then delete the directory and lint the real files,
+  and compare on the description and the source line rather than the line number,
+  which the change has moved. Deleting before the real run is not tidiness: while
+  those copies exist, every real file duplicates wholesale against its own twin
+  and the report is unreadable. `dupcheck/` is gitignored, because a scratch
+  directory that survives one distracted `git add -A` is in the next commit.
+
+  **The baseline run doubles as proof the inspection can still speak**, which it
+  needs, because a file with nothing to say gets no entry at all: "clean" and
+  "never analysed" arrive as the same empty answer, and a batch can come back
+  short of what was asked for. Watching the duplicate you came to remove be
+  reported, by length and line, is what makes its later absence mean something.
+  Same rule as **a test that cannot fail is worse than no test** — `'integrity-check'`
+  passing over a corrupt index is this repo's own example of an answer that means
+  nothing until the check has been shown able to say no.
+
+  **`Duplicated code fragment` is what makes the round trip worth taking**, and
+  it is the reason this entry exists at all. Ruff has no copy-paste rule, in any
+  ruleset: it reasons about one construct inside one file, and a paragraph
+  transcribed into a second file is, to it, two correct paragraphs. The last two
+  copies removed from this tree were both invisible to it and both had survived a
+  linted commit — a parser body shared by two CMS generations of one firm,
+  comments and all, and a `{where}`/`limit` builder shared by two offline passes
+  over different queries. Run it on the files touched *and their neighbours*: a
+  copy is a pair, and the other half is in a file the change never opened.
+
+  **The standing noise is not a finding**, and telling the two apart is most of
+  what makes the report readable — which the baseline does for you, and this
+  names for a reader without one. bs4's stubs hand back `Tag | NavigableString |
+  None` everywhere, so every access the code has already proved safe is a weak
+  warning. `{where}` is a `.format()` placeholder inside a string the IDE parses
+  as SQL, so both attachment cursors raise a dialect error on something that is
+  not a query yet. And the requirements inspection calls `requests`, `bs4` and
+  `dateutil` undeclared against a `pyproject.toml` that declares all three. None
+  of this is silenced — silencing it is how the one line that mattered would go
+  with it.
+
+  **Two things it cannot see.** `min_severity` takes only `warning` or `error`,
+  so everything below that — the spellchecker included — is out of reach this
+  way; a docstring's typos are still nobody's job but the reader's. And it is the
+  IDE's analysis, not the project's: it does not know a rule from `CLAUDE.md`, so
+  a change can be clean here and still break something only the suite asserts.
+
+  **Not headless `bin/inspect.sh`, though it is installed.** It wants an
+  inspection-profile XML and this project deliberately has none: `.idea/` is
+  gitignored and `USE_PROJECT_PROFILE` is false, so what actually ran is the
+  IDE-wide Default profile. Wiring the headless path means committing IDE config
+  into a tree that excludes it, and spinning up a second IDE to re-index a
+  project the running one has indexed already. A hook cannot do it either —
+  hooks are shell, and no MCP is reachable from one.
+
 - **`tests/` is outside the package on purpose**, so `pressroom-verify-names`
   sees only the package's own modules.
 - `pressroom.db` is gitignored, along with `pressroom.db.bak`. `'rebuild'` and
