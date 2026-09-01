@@ -62,12 +62,11 @@ import requests
 from bs4 import BeautifulSoup
 
 from pressroom.text.control.dating import iso_date
-from pressroom.release.control.storage import already_stored
 from pressroom.text.control.decoding import decode_html
 from pressroom.capture.control.politeness import fetch_cached
 from pressroom.database.control import connection
-from pressroom.release.control import storage
 from pressroom.scraping.control import catch_up
+from pressroom.scraping.control import discovery
 from pressroom.text.control import richtext
 from pressroom.reporting.entity.outcome import Stats
 from pressroom.scraping.entity.parse import Entry
@@ -196,35 +195,9 @@ def scrape(
     items = list(found.values())[:limit] if limit else list(found.values())
     stats = Stats(SOURCE, total=len(items))
 
-    for item in items:
-        if already_stored(conn, item["url"]):
-            stats.skipped()
-            continue
-        try:
-            body, body_html = fetch_body(conn, session, item["url"])
-        except Exception as e:
-            # A network error is not a verdict: write nothing, retry next run.
-            print(f"\n    {item['url']}: {e}")
-            stats.uncertain()
-            continue
-        if not body:
-            stats.dead()
-            continue
-        # Gated on the return value: store_release is INSERT OR IGNORE, so an
-        # unconditional counter reports phantom inserts on every rerun.
-        if storage.store_release(
-            conn,
-            SOURCE,
-            item["url"],
-            title=item["title"],
-            date=item["date"],
-            body=body,
-            body_html=body_html,
-            detail_id=item["detail_id"],
-        ):
-            stats.added()
-        else:
-            stats.skipped()
+    discovery.from_items(
+        conn, session, SOURCE, items, fetch_body=fetch_body, stats=stats
+    )
 
     stats.summary(conn)
     catch_up.run(conn, SOURCE, catch, fetch_body=fetch_body, session=session)

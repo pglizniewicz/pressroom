@@ -14,10 +14,9 @@ from bs4 import BeautifulSoup
 from pressroom.text.control.decoding import decode_html
 from pressroom.capture.control.politeness import HEADERS, SLEEP, fetch_cached
 from pressroom.text.control import richtext
-from pressroom.release.control.storage import already_stored
 from pressroom.database.control import connection
-from pressroom.release.control import storage
 from pressroom.scraping.control import catch_up
+from pressroom.scraping.control import discovery
 from pressroom.reporting.entity.outcome import Stats
 from pressroom.scraping.entity.parse import Entry
 
@@ -96,33 +95,9 @@ def scrape(
             continue
         time.sleep(SLEEP)
 
-        for item in items:
-            if already_stored(conn, item["url"]):
-                stats.skipped()
-                continue
-
-            try:
-                body, body_html = fetch_body(conn, session, item["url"])
-            except Exception as e:
-                # Write nothing. An inserted empty row is worse than no row:
-                # already_stored() would skip it on every future run, so one
-                # timeout would cost the release permanently. A network error is
-                # not a verdict - report it and let the rerun pick it up.
-                print(f"\n    ERROR fetching {item['url']}: {e}")
-                stats.uncertain()
-                continue
-
-            if storage.store_release(
-                conn,
-                SOURCE,
-                item["url"],
-                title=item["title"],
-                date=item["date"],
-                body=body,
-                body_html=body_html,
-                detail_id=item["detail_id"],
-            ):
-                stats.added()
+        discovery.from_items(
+            conn, session, SOURCE, items, fetch_body=fetch_body, stats=stats
+        )
 
         print()
 
