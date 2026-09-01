@@ -157,9 +157,13 @@ class NetworkRefusalTest(unittest.TestCase):
     def test_a_raw_socket_is_refused_too(self):
         import socket
 
-        with self.assertRaises(support.NetworkTouched):
-            with support.no_network():
-                socket.create_connection(("127.0.0.1", 1), timeout=0.1)
+        # A socket of our own rather than create_connection()'s: that one closes
+        # what it built only on OSError, and NetworkTouched is not one, so the
+        # test used to prove its point and leak a descriptor doing it.
+        with socket.socket() as sock:
+            with self.assertRaises(support.NetworkTouched):
+                with support.no_network():
+                    sock.connect(("127.0.0.1", 1))
 
     def test_the_originals_come_back_afterwards(self):
         import requests
