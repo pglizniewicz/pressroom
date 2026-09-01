@@ -84,9 +84,8 @@ def documents(conn) -> dict[str, tuple[str, list[tuple[int, str, str, str]]]]:
         # a filename - the same document under two directory schemes, plus the
         # original server's soft-404 - and taking whichever came first reviewed
         # an error page and reported 0% retention against the real PDF.
-        if conversion.is_attachment(bytes(head)) or name not in cached:
-            if name not in cached or conversion.is_attachment(bytes(head)):
-                cached[name] = key
+        if name not in cached or conversion.is_attachment(bytes(head)):
+            cached[name] = key
     rows = collections.defaultdict(list)
     for rid, source, url, body in conn.execute(
         "SELECT id, source, url, COALESCE(body, '') FROM releases "
