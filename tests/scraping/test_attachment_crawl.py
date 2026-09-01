@@ -72,3 +72,45 @@ class ReextractWriteTest(support.DbCase):
             "SELECT origin_url FROM body_origin WHERE url = ?", (url,)
         ).fetchone()
         return row[0] if row else None
+
+
+class RichtextCursorTest(support.DbCase):
+    """`write_richtext`'s cursor is `body_html IS NULL`, and that is the whole
+    of what keeps its report honest.
+
+    Without the filter the pass re-converted every PDF it had already converted:
+    the same extractor over the same bytes, writing them back identical, and
+    `upgrade_release` returning True because the UPDATE did match a row. So the
+    counter said `upgraded` on a run that changed nothing, every run, and
+    gating on the write's return value - the rule that catches this everywhere
+    else - could not see it.
+    """
+
+    PDF = "http://www.midiman.com/news/pdf/PR07022002B.pdf"
+    PDF_CAPTURE = (
+        "https://web.archive.org/web/20021016075138id_/"
+        "http://www.midiman.com/news/pdf/PR07022002B.pdf"
+    )
+    HAND_WRITTEN = "<p>nie z konwertera</p>"
+
+    def hold(self, url: str, capture: str) -> None:
+        self.cache(capture, support.fixture("attachment_pdf"))
+        origin.record(self.conn, url, capture)
+
+    def test_a_row_that_already_has_markup_is_not_in_the_cursor(self):
+        self.seed(
+            source="midiman_com_pressdb",
+            url=self.PDF,
+            body="tekst",
+            body_html=self.HAND_WRITTEN,
+        )
+        self.hold(self.PDF, self.PDF_CAPTURE)
+        attachment_crawl.write_richtext()
+        self.assertEqual(self.row(self.PDF)["body_html"], self.HAND_WRITTEN)
+
+    def test_a_row_without_markup_still_gets_it(self):
+        """The filter has to sieve, not empty the cursor."""
+        self.seed(source="midiman_com_pressdb", url=self.PDF, body="zajawka")
+        self.hold(self.PDF, self.PDF_CAPTURE)
+        attachment_crawl.write_richtext()
+        self.assertIn("<p>", self.row(self.PDF)["body_html"] or "")

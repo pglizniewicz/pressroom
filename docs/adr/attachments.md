@@ -13,6 +13,18 @@ equivalent (`antiword -x db`, DocBook) was built and dropped after review: it
 flattens nested lists, loses paragraph breaks and mangles numbering, so **a .doc
 keeps `plain_text()` and `body_html` NULL**, rendered `pre-wrap`.
 
+**Both offline passes share one cursor, `body_html IS NULL`,** for two different
+reasons. Re-extracting text into a row that already carries markup would trade
+real paragraphs for a `pre-wrap` blob — a policy, not a near miss the gate should
+have to catch. Re-converting one runs the same extractor over the same bytes and
+writes them back identical, and `upgrade_release` still returns True because the
+UPDATE matched its row — so the counter reported `upgraded` on a run that changed
+nothing, and the rule that gates a counter on the write's return value could not
+see it. That is how the richtext pass shipped without the filter at all: the
+lie was in the report, never in the corpus. Neither pass has a flag that
+widens the cursor; a converter change is a one-off, and widening the query by
+hand for that one run is the same answer this project gives to a schema change.
+
 **Dispatch is on magic bytes, not the extension** — CMS-era attachments are
 routinely mislabeled and some of this corpus's `.pdf` URLs are an HTML error
 page. CDX's `statuscode:200` is necessary but not sufficient: it proves

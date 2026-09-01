@@ -264,6 +264,13 @@ RICHTEXT_SQL = """
       JOIN body_origin c ON c.url = r.url
       JOIN page_cache p ON p.url = c.origin_url
      WHERE (lower(r.url) LIKE '%.pdf' OR lower(r.url) LIKE '%.doc')
+       -- The same cursor reextract_from_cache walks, for the other half of the
+       -- reason: converting a row that already carries markup runs the same
+       -- extractor over the same bytes and writes them back identical, so every
+       -- rerun would report `upgraded` for work it did not do. The filter is the
+       -- only place that can be told apart - the UPDATE does match its row, so
+       -- upgrade_release's return value says True either way.
+       AND r.body_html IS NULL
        {where}
      ORDER BY r.source, r.id
 """
@@ -282,6 +289,11 @@ def write_richtext(
     the converter failed on that document; the choice between "use the text for
     this one" and "fix the converter" belongs to a person reading it. Same for a
     row the gate refuses. Both are listed at the end of the run.
+
+    The cursor is `body_html IS NULL`, and there is no flag that widens it -
+    neither offline pass has one, because a converter change is a one-off and
+    stays one: widen the query by hand for that run, the way the schema is
+    edited by hand. What the cursor buys every other run is an honest `Stats`.
     """
     with contextlib.closing(connection.connect()) as conn:
         where = ""
@@ -293,7 +305,7 @@ def write_richtext(
         if limit:
             rows = rows[:limit]
         print(
-            f"[richtext] {len(rows)} attachment rows with cached bytes"
+            f"[richtext] {len(rows)} attachment rows with cached bytes and no markup"
             f"{' (dry run)' if dry_run else ''}",
             flush=True,
         )
