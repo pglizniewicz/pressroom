@@ -298,6 +298,19 @@ def discover_prefix_ids(source: str, base: str) -> set[str]:
     return ids
 
 
+def fetch_detail_if_identified(conn, session, url: str, parse):
+    """`fetch_detail_snapshot`, unless the url is not a detail page at all.
+
+    A listing href with no ID in it is not a link to an article: the url is that
+    href itself and the entry's teaser is all there ever was. So the answer is a
+    confirmed absence rather than a failure, and the teaser gets stored instead
+    of the row staying open for a retry that has nothing to fetch.
+    """
+    if not ID_HREF_RE.search(url):
+        return {}, True
+    return archive.fetch_detail_snapshot(conn, session, url, parse)
+
+
 def scrape_domain(
     source: str,
     base: str,
@@ -335,14 +348,6 @@ def scrape_domain(
     # ETA span the whole run, not just the listing loop below.
     stats = Stats(source, total=len(work) + len(extra_ids_list))
 
-    def fetch_detail(conn, session, url, parse):
-        """No ID in the listing's href means there is no detail page to try -
-        the url is that href itself, and the teaser is all there ever was. A
-        confirmed absence rather than a failure, so the teaser gets stored."""
-        if not ID_HREF_RE.search(url):
-            return {}, True
-        return archive.fetch_detail_snapshot(conn, session, url, parse)
-
     entries = []
     for (date, title), e in work:
         m = ID_HREF_RE.search(e["href"])
@@ -365,7 +370,7 @@ def scrape_domain(
         entries,
         parse=parse_detail,
         stats=stats,
-        fetch_detail=fetch_detail,
+        fetch_detail=fetch_detail_if_identified,
     )
 
     for hexid in extra_ids_list:

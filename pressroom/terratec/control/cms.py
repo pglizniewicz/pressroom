@@ -129,6 +129,29 @@ def parse_detail(content: bytes) -> Detail:
     }
 
 
+def parse_first_entry(content: bytes) -> Detail:
+    """The article as its own page states it: on this CMS an article page is the
+    same template as a listing, so the article is the first entry
+    extract_entries yields. `{}` when it yields none, which is what every other
+    whole-page parser returns for "no article in this capture".
+
+    Not parse_detail(): that one is phase 2's and takes the *longest* entry
+    carrying markup, which is the right choice when reparsing a capture whose
+    shape is unknown and a different question from "the first thing on this
+    page".
+    """
+    entries = extract_entries(content)
+    if not entries:
+        return {}
+    first = entries[0]
+    return {
+        "title": first["title"],
+        "date": first["date"],
+        "body": first["body"],
+        "body_html": first["body_html"],
+    }
+
+
 def extract_entries(
     content: bytes, base_url: str | None = None, timestamp: str | None = None
 ) -> list[Entry]:
@@ -287,19 +310,16 @@ def scrape_lang(lang: str, limit: int | None = None, catch: dict | None = None) 
             stats.skipped()
             continue
 
-        # extract_entries, not a detail parser: on this CMS an article's own
-        # page is the same template as the listing, so the first entry it yields
-        # is that article.
-        found = discovery.capture(conn, session, url, extract_entries, stats=stats)
+        found = discovery.capture(conn, session, url, parse_first_entry, stats=stats)
         if found is None:
             continue
 
         title, date, body, body_html, detail_id = "", "", "", "", "stub"
         if found.parsed:
-            title, date = found.parsed[0]["title"], found.parsed[0]["date"]
+            title, date = found.parsed["title"], found.parsed["date"]
             body, body_html, detail_id = (
-                found.parsed[0]["body"],
-                found.parsed[0]["body_html"],
+                found.parsed["body"],
+                found.parsed["body_html"],
                 found.timestamp,
             )
 

@@ -74,7 +74,7 @@ from pressroom.capture.control import archive
 # aimed at the endpoint doing the rate-limiting.
 from pressroom.capture.control.politeness import SLEEP as CONTENT_SLEEP
 from pressroom.release.control import storage
-from pressroom.scraping.entity.parse import Detail, Entry
+from pressroom.scraping.entity.parse import Detail
 
 
 def from_items(conn, session, source: str, items, *, fetch_body, stats) -> None:
@@ -127,16 +127,9 @@ class Capture(NamedTuple):
     entity - `CLAUDE.md` rules out row dataclasses and this is neither a row nor
     a table. `timestamp is None` means archive.org has no working capture of the
     url; the other two fields are then empty with it.
-
-    `parsed` is whatever the caller's `parse` returned, which is a `Detail` for
-    every whole-page parser and a list of `Entry` for `terratec/control/cms.py`:
-    on that CMS an article's own page is the listing template, so its parser
-    yields entries and the loop reads the first one. Naming both is the same
-    call `parse.py` makes about `Entry` - the type says the one true thing
-    rather than a shape one caller would have to violate.
     """
 
-    parsed: Detail | list[Entry]
+    parsed: Detail
     timestamp: str | None
     origin_url: str | None
 
