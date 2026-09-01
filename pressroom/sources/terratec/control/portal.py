@@ -131,7 +131,7 @@ def article_body(soup, heading: str) -> tuple[str, str | None]:
 
 
 def parse_snapshot(content: bytes) -> Detail:
-    # cp1252 stated, never sniffed - see pressemit.py's parse_snapshot for why.
+    # cp1252 stated, never sniffed - see pressemit.py's parse_page for why.
     soup = BeautifulSoup(content, "html.parser", from_encoding="cp1252")
 
     # The heading anchor's CSS class isn't present in every capture (some
@@ -259,7 +259,7 @@ CATEGORY_PAGES = [
 
 def extract_teasers(content: bytes) -> dict[str, Entry]:
     """Return {sid: (date, title, teaser_text)} for every article on this page."""
-    # cp1252 stated, never sniffed - see pressemit.py's parse_snapshot for why.
+    # cp1252 stated, never sniffed - see pressemit.py's parse_page for why.
     soup = BeautifulSoup(content, "html.parser", from_encoding="cp1252")
     teasers = {}
 

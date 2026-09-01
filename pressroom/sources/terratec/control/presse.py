@@ -32,10 +32,9 @@ from pressroom.database.control import connection
 from pressroom.release.control import storage
 from pressroom.scraping.control import catch_up
 from pressroom.scraping.control import discovery
-from pressroom.text.control import richtext
 from pressroom.reporting.entity.outcome import Stats
 from pressroom.sources.terratec.control.pressemit import (
-    find_headline,
+    parse_page,
     parse_snapshot as parse_net_snapshot,
 )
 from pressroom.capture.control import archive
@@ -76,6 +75,12 @@ DATE_RE_DE = re.compile(
     r"Presse(?:Info|information) vom\s*(\d{1,2}\.\d{1,2}\.\d{2,4})", re.IGNORECASE
 )
 
+# terratec.de is the same hand-built template as terratec.net, so the same bold
+# dateline marks the headline - plus the German spelling the .net pages never
+# use. Wider than pressemit.BOLD_MARKERS, and no wider than that: see
+# parse_page.
+BOLD_MARKERS_DE = ("presseinfo", "press release")
+
 
 # Files that exist in the full Wayback directory listing for
 # terratec.de/presse/pressemit/ but were linked from none of the index pages
@@ -110,7 +115,7 @@ DIRECTORY_URLS = [
 
 
 def extract_links(content: bytes, base_url: str) -> list[Entry]:
-    # cp1252 stated, never sniffed - see pressemit.py's parse_snapshot for why.
+    # cp1252 stated, never sniffed - see pressemit.py's parse_page for why.
     soup = BeautifulSoup(content, "html.parser", from_encoding="cp1252")
     entries = []
     for row in soup.select("tr"):
@@ -131,43 +136,8 @@ def extract_links(content: bytes, base_url: str) -> list[Entry]:
 
 
 def parse_de_snapshot(content: bytes) -> Detail:
-    # cp1252 stated, never sniffed - see pressemit.py's parse_snapshot for why.
-    soup = BeautifulSoup(content, "html.parser", from_encoding="cp1252")
-    text = soup.get_text(" ", strip=True)
-    # Body from the DOM, date from the flat text. These pages are one big
-    # layout table, and the article's table is the one carrying the most text -
-    # see richtext.densest for why that beats a width= selector here. The flat
-    # text stays for DATE_RE_DE, which scans the whole page including the
-    # header where the date actually sits.
-    body, body_html = richtext.extract(richtext.densest(soup, "table", border="0"))
-    if not body:
-        # No layout table, or one with nothing in it: a handful of these
-        # captures are 290-byte "page moved" stubs. Fall back to the flat text
-        # rather than to nothing - an empty body_html means "not converted",
-        # an empty body would mean the row was wiped.
-        body, body_html = text, None
-
-    date = ""
-    m = DATE_RE_DE.search(text)
-    if m:
-        date = iso_date(m.group(1), dayfirst=True)
-
-    title = ""
-    bold_tags = soup.find_all(["b", "strong"])
-    for i, tag in enumerate(bold_tags):
-        t = tag.get_text(strip=True).lower()
-        if "presseinfo" in t or "press release" in t:
-            if i + 1 < len(bold_tags):
-                title = bold_tags[i + 1].get_text(strip=True)
-            break
-    # terratec.de is the same hand-built template as terratec.net, so the same
-    # three headline shapes turn up here - see scrape_terratec.find_headline.
-    # Fallback only: it runs when the rule above finds nothing, which is the
-    # only reason adding it changes no title that already parsed.
-    if not title:
-        title = find_headline(soup)
-
-    return {"title": title, "date": date, "body": body, "body_html": body_html}
+    """The .de pages - the tag `terratec_de`. Same template, German dateline."""
+    return parse_page(content, DATE_RE_DE, BOLD_MARKERS_DE)
 
 
 def already_have_net_filenames(conn: sqlite3.Connection) -> set[str]:

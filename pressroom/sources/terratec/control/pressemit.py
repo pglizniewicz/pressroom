@@ -22,6 +22,10 @@ SOURCE = "terratec"
 
 DATE_RE = re.compile(r"Press Release,\s*(\d{1,2}\.\d{1,2}\.\d{2,4})", re.IGNORECASE)
 
+# The bold dateline the headline follows, on the .net pages. Substrings, not
+# MARKER_RE - parse_page's docstring says why widening this is a trap.
+BOLD_MARKERS = ("press release",)
+
 # The dateline that sits immediately above the headline, in all three languages
 # this one hand-built site was published in: terratec.net English, its
 # /press/*_fr.htm French pages, and terratec.de German (which presse.py imports
@@ -112,7 +116,24 @@ def is_html_page(original_url: str) -> bool:
     return original_url.lower().split("?", 1)[0].endswith((".htm", ".html"))
 
 
-def parse_snapshot(content: bytes) -> Detail:
+def parse_page(content: bytes, date_re: re.Pattern, markers: tuple[str, ...]) -> Detail:
+    """One release page of the hand-built terratec.net/terratec.de template.
+
+    Both generations are the same document with two things swapped, so they are
+    two calls rather than two copies: `date_re` is the dateline as that site
+    spells it, and `markers` are the lowercase substrings that identify the bold
+    dateline the headline follows.
+
+    `markers` is deliberately not MARKER_RE, which covers all three languages
+    and would be wrong here. The rule below takes `bold_tags[i + 1]` blindly, so
+    on the French pages a "communiqué de presse" match would title all four of
+    them with the download-link label that follows it. Today nothing matches
+    there, the title stays empty, and find_headline - which *does* skip a bold
+    that is itself a marker - gets it right. Substrings rather than a regex for
+    the same reason of not widening anything in passing: `get_text(strip=True)`
+    joins with no separator, so a pattern with an optional space would match a
+    "PressRelease" that `"press release" in t` does not.
+    """
     # from_encoding, not decode_html: these 2002 pages declare no charset at all
     # and are wholly pre-UTF-8, so the bytes are cp1252 - and in prose full of
     # German accents two adjacent high bytes can coincidentally form a valid
@@ -124,7 +145,7 @@ def parse_snapshot(content: bytes) -> Detail:
     # Body from the DOM, date from the flat text. These pages are one big
     # layout table, and the article's table is the one carrying the most text -
     # see richtext.densest for why that beats a width= selector here. The flat
-    # text stays for DATE_RE, which scans the whole page including the
+    # text stays for `date_re`, which scans the whole page including the
     # header where the date actually sits.
     body, body_html = richtext.extract(richtext.densest(soup, "table", border="0"))
     if not body:
@@ -135,14 +156,15 @@ def parse_snapshot(content: bytes) -> Detail:
         body, body_html = text, None
 
     date = ""
-    m = DATE_RE.search(text)
+    m = date_re.search(text)
     if m:
         date = iso_date(m.group(1), dayfirst=True)
 
     title = ""
     bold_tags = soup.find_all(["b", "strong"])
     for i, tag in enumerate(bold_tags):
-        if "press release" in tag.get_text(strip=True).lower():
+        t = tag.get_text(strip=True).lower()
+        if any(marker in t for marker in markers):
             if i + 1 < len(bold_tags):
                 title = bold_tags[i + 1].get_text(strip=True)
             break
@@ -150,6 +172,11 @@ def parse_snapshot(content: bytes) -> Detail:
         title = find_headline(soup)
 
     return {"title": title, "date": date, "body": body, "body_html": body_html}
+
+
+def parse_snapshot(content: bytes) -> Detail:
+    """The .net pages, English and French - the tag `terratec`."""
+    return parse_page(content, DATE_RE, BOLD_MARKERS)
 
 
 def scrape(limit: int | None = None, catch: dict | None = None) -> None:

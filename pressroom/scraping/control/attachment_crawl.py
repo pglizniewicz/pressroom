@@ -104,6 +104,27 @@ CACHED_ATTACHMENT_SQL = """
 """
 
 
+def cursor_rows(conn, sql: str, sources: list | None, limit: int | None) -> list:
+    """Rows of a `{where}` cursor query, narrowed to `sources` and capped at `limit`.
+
+    The only thing the two offline passes share. Their columns differ, their
+    gates differ, and the comment above each SQL constant is the whole reason
+    that constant reads the way it does - so the query text stays with its pass
+    and only the assembly is here.
+
+    `limit` is a slice rather than a SQL LIMIT because that is what it has
+    always been: both queries are ordered, so the two agree today, and swapping
+    one for the other in passing would be a behaviour change hiding inside a
+    deduplication.
+    """
+    where, params = "", ()
+    if sources:
+        where = "AND r.source IN (%s)" % ",".join("?" * len(sources))
+        params = tuple(sources)
+    rows = conn.execute(sql.format(where=where), params).fetchall()
+    return rows[:limit] if limit else rows
+
+
 def reextract_from_cache(limit: int | None = None, sources: list | None = None) -> None:
     """Re-extract attachment text from bytes page_cache already holds. No network.
 
@@ -118,16 +139,7 @@ def reextract_from_cache(limit: int | None = None, sources: list | None = None) 
     other direction. The two writes that can replace a teaser say `grade="full"`.
     """
     with contextlib.closing(connection.connect()) as conn:
-        where = ""
-        params = ()
-        if sources:
-            where = "AND r.source IN (%s)" % ",".join("?" * len(sources))
-            params = tuple(sources)
-        rows = conn.execute(
-            CACHED_ATTACHMENT_SQL.format(where=where), params
-        ).fetchall()
-        if limit:
-            rows = rows[:limit]
+        rows = cursor_rows(conn, CACHED_ATTACHMENT_SQL, sources, limit)
         print(
             f"[from-cache] {len(rows)} attachment rows whose bytes are cached",
             flush=True,
@@ -203,14 +215,7 @@ def write_richtext(
     edited by hand.
     """
     with contextlib.closing(connection.connect()) as conn:
-        where = ""
-        params = ()
-        if sources:
-            where = "AND r.source IN (%s)" % ",".join("?" * len(sources))
-            params = tuple(sources)
-        rows = conn.execute(RICHTEXT_SQL.format(where=where), params).fetchall()
-        if limit:
-            rows = rows[:limit]
+        rows = cursor_rows(conn, RICHTEXT_SQL, sources, limit)
         print(
             f"[richtext] {len(rows)} attachment rows with cached bytes and no markup"
             f"{' (dry run)' if dry_run else ''}",
