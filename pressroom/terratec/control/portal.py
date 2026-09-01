@@ -17,18 +17,16 @@ Kept as distinct sources, same as creative/creative_gnw.
 """
 
 import re
-import time
 
 import requests
 from bs4 import BeautifulSoup
 
-from pressroom.capture.control.politeness import SLEEP
-from pressroom.release.control.storage import already_stored
 from pressroom.release.control.storage import stored_grade
 from pressroom.text.control.dating import iso_date
 from pressroom.database.control import connection
 from pressroom.release.control import storage
 from pressroom.scraping.control import catch_up
+from pressroom.scraping.control import discovery
 from pressroom.text.control import richtext
 from pressroom.reporting.entity.outcome import Stats
 from pressroom.capture.control import archive
@@ -465,24 +463,13 @@ def from_print_views(conn, session, source: str, prefix: str) -> None:
     stats = Stats(source, total=len(sids))
     for sid in sids:
         print_url = f"{prefix}print.php?sid={sid}"
-        try:
-            found = archive.get_latest_working_snapshot(print_url)
-        except Exception as e:
-            print(f"\n  ERROR probing {print_url}: {e}")
-            time.sleep(SLEEP * 2)
-            stats.uncertain()
+        found = discovery.capture(conn, session, print_url, parse_snapshot, stats=stats)
+        if found is None:
             continue
-        if not found:
+        if found.timestamp is None:
             stats.dead()
             continue
-        snapshot_url, timestamp = found
-        try:
-            content = archive.fetch_snapshot(conn, session, snapshot_url, timeout=20)
-            parsed = parse_snapshot(content)
-        except Exception as e:
-            print(f"\n  ERROR fetching {snapshot_url}: {e}")
-            stats.uncertain()
-            continue
+        parsed = found.parsed
         if not parsed.get("title"):
             stats.dead()
             continue
@@ -497,8 +484,8 @@ def from_print_views(conn, session, source: str, prefix: str) -> None:
             date=parsed["date"],
             body=parsed["body"],
             body_html=parsed["body_html"] or None,
-            detail_id=timestamp,
-            origin_url=snapshot_url,
+            detail_id=found.timestamp,
+            origin_url=found.origin_url,
         ):
             stats.added()
         else:
@@ -520,42 +507,9 @@ def scrape_portal(
 
     stats = Stats(source, total=len(urls))
 
-    for url in urls:
-        if already_stored(conn, url):
-            stats.skipped()
-            continue
-
-        try:
-            found = archive.get_latest_working_snapshot(url)
-        except Exception as e:
-            print(f"\n  ERROR probing snapshots for {url}: {e}")
-            time.sleep(SLEEP * 2)
-            stats.uncertain()
-            continue
-        if not found:
-            stats.dead()
-            continue
-        snapshot_url, timestamp = found
-
-        try:
-            content = archive.fetch_snapshot(conn, session, snapshot_url, timeout=20)
-            parsed = parse_snapshot(content)
-        except Exception as e:
-            print(f"\n  ERROR fetching {snapshot_url}: {e}")
-            stats.uncertain()
-            continue
-
-        if storage.store_release(
-            conn,
-            source,
-            url,
-            title=parsed["title"],
-            date=parsed["date"],
-            body=parsed["body"],
-            body_html=parsed["body_html"],
-            detail_id=timestamp,
-        ):
-            stats.added()
+    discovery.from_candidates(
+        conn, session, source, urls, parse=parse_snapshot, stats=stats
+    )
 
     stats.summary(conn)
 

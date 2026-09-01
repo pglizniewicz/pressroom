@@ -13,17 +13,16 @@ language), preference applied by hand during terratec.json curation.
 """
 
 import re
-import time
 
 import requests
 from bs4 import BeautifulSoup
 from dateutil import parser as du
 
-from pressroom.capture.control.politeness import SLEEP
 from pressroom.release.control.storage import already_stored
 from pressroom.database.control import connection
 from pressroom.release.control import storage
 from pressroom.scraping.control import catch_up
+from pressroom.scraping.control import discovery
 from pressroom.text.control import richtext
 from pressroom.reporting.entity.outcome import Stats
 from pressroom.capture.control import archive
@@ -288,33 +287,21 @@ def scrape_lang(lang: str, limit: int | None = None, catch: dict | None = None) 
             stats.skipped()
             continue
 
-        try:
-            found = archive.get_latest_working_snapshot(url)
-        except Exception as e:
-            print(f"\n  ERROR probing snapshots for {url}: {e}")
-            time.sleep(SLEEP * 2)
-            stats.uncertain()
+        # extract_entries, not a detail parser: on this CMS an article's own
+        # page is the same template as the listing, so the first entry it yields
+        # is that article.
+        found = discovery.capture(conn, session, url, extract_entries, stats=stats)
+        if found is None:
             continue
 
         title, date, body, body_html, detail_id = "", "", "", "", "stub"
-        if found:
-            snapshot_url, timestamp = found
-            try:
-                content = archive.fetch_snapshot(
-                    conn, session, snapshot_url, timeout=20
-                )
-                fetched = extract_entries(content)
-            except Exception as e:
-                print(f"\n  ERROR fetching {snapshot_url}: {e}")
-                stats.uncertain()
-                continue
-            if fetched:
-                title, date = fetched[0]["title"], fetched[0]["date"]
-                body, body_html, detail_id = (
-                    fetched[0]["body"],
-                    fetched[0]["body_html"],
-                    timestamp,
-                )
+        if found.parsed:
+            title, date = found.parsed[0]["title"], found.parsed[0]["date"]
+            body, body_html, detail_id = (
+                found.parsed[0]["body"],
+                found.parsed[0]["body_html"],
+                found.timestamp,
+            )
 
         # A listing-page capture may have a fuller body than the article's own page.
         listed = best.pop(url, None)

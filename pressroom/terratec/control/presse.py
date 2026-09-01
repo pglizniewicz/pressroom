@@ -41,17 +41,16 @@ project.
 
 import re
 import sqlite3
-import time
 
 import requests
 from bs4 import BeautifulSoup
 
-from pressroom.capture.control.politeness import SLEEP
 from pressroom.release.control.storage import already_stored
 from pressroom.text.control.dating import iso_date
 from pressroom.database.control import connection
 from pressroom.release.control import storage
 from pressroom.scraping.control import catch_up
+from pressroom.scraping.control import discovery
 from pressroom.text.control import richtext
 from pressroom.reporting.entity.outcome import Stats
 from pressroom.terratec.control.pressemit import (
@@ -267,48 +266,42 @@ def scrape(limit: int | None = None, catch: dict | None = None) -> None:
             parse_net_snapshot if e["source"] == "terratec" else parse_de_snapshot
         )
 
-        try:
-            found = archive.get_latest_working_snapshot(e["url"])
-        except Exception as err:
-            print(f"\n  ERROR probing snapshots for {e['url']}: {err}")
-            time.sleep(SLEEP * 2)
-            s.uncertain()
+        found = discovery.capture(conn, session, e["url"], parse_fn, stats=s)
+        if found is None:
             continue
 
-        if not found:
-            storage.store_release(
+        # A confirmed absence is a stub here rather than `dead`: these rows came
+        # off a listing that names them, so the title and date are real even
+        # when no capture of the article ever existed.
+        if found.timestamp is None:
+            if storage.store_release(
                 conn,
                 e["source"],
                 e["url"],
                 title=e["title"],
                 date=e["date"],
                 grade="stub",
-            )
-            s.stub()
+            ):
+                s.stub()
+            else:
+                s.skipped()
             continue
 
-        snapshot_url, timestamp = found
-        try:
-            content = archive.fetch_snapshot(conn, session, snapshot_url, timeout=20)
-            parsed = parse_fn(content)
-        except Exception as err:
-            print(f"\n  ERROR fetching {snapshot_url}: {err}")
-            s.uncertain()
-            continue
-
-        title = parsed["title"] or e["title"]
-        date = parsed["date"] or e["date"]
-        storage.store_release(
+        parsed = found.parsed
+        if storage.store_release(
             conn,
             e["source"],
             e["url"],
-            title=title,
-            date=date,
+            title=parsed["title"] or e["title"],
+            date=parsed["date"] or e["date"],
             body=parsed["body"],
             body_html=parsed["body_html"],
-            detail_id=timestamp,
-        )
-        s.added()
+            detail_id=found.timestamp,
+            origin_url=found.origin_url if parsed["body"] else None,
+        ):
+            s.added()
+        else:
+            s.skipped()
 
     for s in stats.values():
         s.summary(conn)

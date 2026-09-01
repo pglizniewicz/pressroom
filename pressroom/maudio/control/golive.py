@@ -39,17 +39,14 @@ since they were never attempted.
 """
 
 import re
-import time
 from urllib.parse import urljoin
 
 import requests
 from bs4 import BeautifulSoup
 
-from pressroom.capture.control.politeness import SLEEP
-from pressroom.release.control.storage import already_stored
 from pressroom.database.control import connection
-from pressroom.release.control import storage
 from pressroom.scraping.control import catch_up
+from pressroom.scraping.control import discovery
 from pressroom.text.control import richtext
 from pressroom.reporting.entity.outcome import Stats
 from pressroom.capture.control import archive
@@ -251,53 +248,26 @@ def scrape(
         items = items[:limit]
     print(f"{len(items)} total candidate release pages", flush=True)
 
-    stats = {}
-
+    # Grouped by tag rather than walked in candidate order: a tag is what says
+    # which rows a run owns, and it is what a Stats is labelled with - so one
+    # pass per tag is what lets the library own the loop. The listing's title
+    # rides along as the fallback for a capture whose own markup carries none.
+    by_tag: dict[str, dict[str, str]] = {}
     for item in items:
-        source = item["source"]
-        url = item["url"]
-        s = stats.setdefault(source, Stats(source))
+        by_tag.setdefault(item["source"], {})[item["url"]] = item["title"]
 
-        if already_stored(conn, url):
-            s.skipped()
-            continue
-
-        try:
-            found = archive.get_latest_working_snapshot(url)
-        except Exception as e:
-            print(f"\n  ERROR probing snapshots for {url}: {e}")
-            time.sleep(SLEEP * 2)
-            s.uncertain()
-            continue
-        if not found:
-            s.dead()
-            continue
-        snapshot_url, timestamp = found
-
-        try:
-            content = archive.fetch_snapshot(conn, session, snapshot_url, timeout=20)
-            parsed = parse_snapshot(content)
-        except Exception as e:
-            print(f"\n  ERROR fetching {snapshot_url}: {e}")
-            s.uncertain()
-            continue
-
-        title = parsed["title"] or item["title"]
-
-        if storage.store_release(
+    for tag, titles in by_tag.items():
+        stats = Stats(tag, total=len(titles))
+        discovery.from_candidates(
             conn,
-            source,
-            url,
-            title=title,
-            date=parsed["date"],
-            body=parsed["body"],
-            body_html=parsed["body_html"],
-            detail_id=timestamp,
-        ):
-            s.added()
-
-    for s in stats.values():
-        s.summary(conn)
+            session,
+            tag,
+            list(titles),
+            parse=parse_snapshot,
+            stats=stats,
+            titles=titles,
+        )
+        stats.summary(conn)
     # Phase 2 once per tag: three tags come out of this one CMS generation, and
     # the tag is what says which rows a run owns.
     for tag in sorted({p["source"] for p in INDEX_PAGES}):
