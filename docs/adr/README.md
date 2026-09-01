@@ -40,7 +40,7 @@ applies to these files too.
 | [encoding.md](encoding.md) | `r.text` never, the two correct decodes, the repair in the write path |
 | [text-and-markup.md](text-and-markup.md) | `body` + `body_html`, the richtext decisions, how a title is found |
 | [provenance.md](provenance.md) | `body_origin`, the three URL shapes, what the two removed columns cost |
-| [catch-up.md](catch-up.md) | why the six strategies are not interchangeable, the three rules inside each, the 122 articles |
+| [catch-up.md](catch-up.md) | a run's two phases: why the six strategies are not interchangeable, the three rules inside each, the 122 articles, and what the hand-written copies of phase 1 drifted on |
 | [gates.md](gates.md) | `safe_to_write` and `wordchars` — what each refuses, and every named allowance |
 | [attachments.md](attachments.md) | PDF gets markup, `.doc` does not, dispatch is on magic bytes |
 | [browser-panel.md](browser-panel.md) | why the panel sorts, labels and scrolls the way it does |

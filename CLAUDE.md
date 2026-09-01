@@ -349,9 +349,28 @@ are not.
 
 → `docs/adr/provenance.md`
 
-### The catch-up
+### The two phases
 
-**`scraping/control/catch_up.py` has six strategies and they are not
+**`scraping/control/discovery.py` is phase 1 and has three strategies** —
+`from_items`, `from_candidates`, `from_teasers`, plus `capture()` for the three
+tails that are genuinely per-source; **what each one takes is that module's
+docstring.** A source component owns everything above the loop — pagination, the
+`no_crawl` guard, `limit`, the dedup that picks the best of several captures —
+and nothing below it.
+
+**Three rules hold inside every one of them**, in one copy for the same reason
+phase 2's are:
+
+1. **a network error is not a verdict**: nothing is written, the item is
+   `uncertain`, and only a confirmed absence may be `dead`.
+2. **every counter is gated on the write's return value.** `store_release` is
+   `INSERT OR IGNORE`; an unconditional `added()` reports phantom inserts on
+   every rerun, and a write that inserted nothing is `skipped`.
+3. **a confirmed absence is asked about before an already-stored teaser**, and
+   **a bodyless row is never `full`** — `dead` with no row from a live fetch,
+   a `stub` carrying no origin from an archived candidate.
+
+**`scraping/control/catch_up.py` is phase 2 and its six strategies are not
 interchangeable** — `from_cache`, `from_listings`, `from_live`, `retry_missing`,
 `seed_cache`, `retext`; **what each one needs is that module's docstring.**
 `catch_up()` composes them **free first, network last**.

@@ -1,4 +1,11 @@
-# The catch-up
+# A run's two phases
+
+Phase 1 discovers and stores, phase 2 finishes what it could not get. Both are
+libraries now, `scraping/control/discovery.py` and
+`scraping/control/catch_up.py`, and both hold their rules in one copy for the
+same reason — the reason being what happened while phase 1 did not.
+
+## The catch-up
 
 The six strategies a rerun composes, and the three rules that hold inside every
 one of them. Rules 1 and 2 were bought with 122 articles.
@@ -62,3 +69,71 @@ row and needs no parser to exist yet. Two traps that cost real data:
 is the `plain` flag in the audit view, a progress bar rather than a defect. The
 flag excludes every `.pdf`/`.doc` url, a slight over-exclusion now that the
 cached PDFs carry markup.
+
+## Phase 1, and what nineteen copies of it drifted on
+
+`catch_up.py` opens with *"A scraper's first phase discovers and stores. This is
+the second"*, and for as long as it said so the first half existed only as a loop
+written out by hand in every scraper: nineteen copies over fourteen control
+modules, twelve of which PyCharm reported as `Duplicated code fragment`, the
+longest at 35 lines. The reason to consolidate them was never the line count.
+**It is that the copies disagreed, and each disagreement was a bug in whichever
+copy lost.**
+
+Four of them, and all four were found by reading the copies side by side rather
+than by any test going red:
+
+- **`maudio/presse_de.py` asked whether a row already held a teaser before
+  asking whether the probe was confirmed.** Its three siblings ask in the other
+  order and each carries a comment explaining that they must — "a failed probe
+  is not a verdict, so an already-stored teaser must be reported `uncertain`
+  rather than `skipped`". Under the reversed order a network error on a
+  teaser-grade row was filed under "already as good as it gets" — which is the
+  one bucket that means "nothing left to do here", so the summary a human reads
+  after an hour of crawling understated by exactly the rows worth re-running.
+- **`archive.fetch_detail_snapshot` threw away the capture's address.** It
+  annotated `detail_id` onto the parse and dropped `snap_url`, so no caller
+  could obey the rule that a body's capture is recorded at the write site, in
+  the same transaction — and for four maudio tags, none did.
+  `terratec/portal.py` is the tell: it grew its own `recover_article` returning
+  `snapshot_url`, and it is the only one of these loops that ever passed
+  `origin_url`. The corpus showed no gap, because phase 2 filled these in behind
+  the crawl; what made it worth fixing anyway is that a row discovered *today*
+  gets `body_html` and so never enters phase 2's `body_html IS NULL` cursor. The
+  gap was permanent for every future row, and invisible in every past one.
+- **Five copies bumped a counter unconditionally after an `INSERT OR IGNORE`**,
+  which is Invariant 5's phantom insert. `soundonsound/magazine.py` was the copy
+  that had it right, comment and all, and its two extra arms — an empty body is
+  `dead`, a write that inserted nothing is `skipped` — became the library's
+  defaults rather than flags, because a rule only one copy remembered is the
+  definition of a rule that belongs in the library.
+- **A bodyless row was stored as `full`.** Eleven rows in
+  `terratec_pressde`/`_pressen` say `full` over an empty body, all from this
+  loop; `cms.py` and `presse.py` computed `"full" if body else "stub"` and the
+  rest did not. What the two halves of the library then do differs on purpose: a
+  live fetch that came back empty leaves nothing to return to, so nothing is
+  written at all, while an archived candidate has a real url and a named capture
+  and the row is what lets phase 2 come back for the text.
+
+**The strategies are named for where the release's text comes from**, which is
+the only axis the copies differed on that was not a bug: `from_items` (a listing
+item, body from a live fetch), `from_candidates` (a bare url, the archive's
+newest working capture) and `from_teasers` (a listing entry that carries a
+teaser, which the detail capture may upgrade). **`capture()` is exposed
+separately because the split is at a seam, not at a line count**: the
+probe/fetch/report half is identical in five modules, and what happens when
+archive.org confirms there is *no* capture genuinely differs — `dead`, a
+title-only stub, or falling through to a listing copy — so that decision stays
+with the source and the half above it does not.
+
+**Only one flag survived**, `prefer_parsed`, and it is the one real question:
+whether the detail page states the headline and date better than the listing
+does. On the m-audio blog it does; on `media_news` and `presse_de` the listing
+wins and the upgrade writes the body alone.
+
+**What proved it: the corpus, on a copy.** Deleting five rows per source and
+re-running the scraper brings them back identical to the byte — title, date,
+grade, body length, markup length, `detail_id` **and** `origin_url` — and the
+one row whose probe failed mid-rehearsal was reported `uncertain`, written
+nowhere, and picked up by the next run and nothing else. That is the whole
+contract of a resumable crawl, observed rather than asserted.

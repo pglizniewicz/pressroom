@@ -6,9 +6,10 @@ last one missed. There is no backfill, repair or migrate family: a pass that
 has to be re-run after a crawl belongs in the write path or in the scraper, and
 a fix that is genuinely finished gets deleted.
 
-The catch-up strategies take the parser, the collector and the fetcher from
-their caller rather than looking a source up in a registry, so nothing here
-imports a source and every source can import this.
+Both halves of a run live here, discovery.py and catch_up.py, and both take
+the parser, the collector and the fetcher from their caller rather than looking
+a source up in a registry - so nothing here imports a source and every source
+can import this.
 
 Free work first, network last. A network error is never a verdict: a failed
 fetch writes nothing and reports uncertain, so a rerun retries exactly that
