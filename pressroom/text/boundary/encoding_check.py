@@ -1,36 +1,31 @@
 """Prove that no stored text carries a wrong decode any more - and that the two
 places which detect one still agree.
 
-The repair itself moved into the write path on 2026-08-25:
-`richtext.extract()` undoes the damage on the markup *before* rendering the text
-from it (so `body == to_text(body_html)` holds by construction), and
-`storage.store_release`/`upgrade_release` do the same for a title and for a body with
-no markup twin. What used to be a standalone repair script - a pass CLAUDE.md told you
-to re-run after anything that refetched - therefore has nothing left to do, and
-what remains of it is a *report*, which is this file.
+The repair itself lives in the write path - `richtext.extract()` undoes the
+damage on the markup *before* rendering the text from it, and
+`storage.store_release`/`upgrade_release` do the same for a title and for a body
+with no markup twin - so there is nothing here to re-run. What remains is a
+report.
 
 Three claims, all read-only:
 
-1. **Nothing repairable is stored.** A row whose text `decoding.repair_text()`
-   can still fix means something wrote a body around `release/control/storage.py`,
-   or a new damage
-   shape appeared. The second is the interesting one.
-2. **The two detectors agree.** `decoding.C1_RE`/`MOJIBAKE_RE` drive the repair;
-   `schema.MOJIBAKE_SQL`/`_C1_SQL` drive the browser's audit flag, because SQLite
-   has no regex. They have drifted before - the SQL named five C1 codepoints by
-   hand while the regex matched the whole 0x80-0x9F range, so the audit view
-   reported 12 damaged rows where the repair found 35.
-3. **The known residue is exactly one row.** `midiman_net_pressdb` #4978 carries
-   three 0x81 bytes, and cp1252 does not define that byte - there is nothing to
-   decode it *to*, so `repair_text` refuses it by design and the audit view
-   shows it forever.
+1. **Nothing repairable is stored.** A row `decoding.repair_text()` can still
+   fix means something wrote a body around `release/control/storage.py`, or a
+   new damage shape appeared. The second is the interesting one.
+2. **The two detectors agree.** `decoding.C1_RE`/`MOJIBAKE_RE` drive the repair
+   and `schema.MOJIBAKE_SQL`/`_C1_SQL` drive the browser's audit flag, because
+   SQLite has no regex. They have drifted before, in the direction of the audit
+   view under-reporting.
+3. **The known residue is what KNOWN_UNFIXABLE names.** A byte cp1252 does not
+   define has nothing to decode *to*, so `repair_text` refuses it by design and
+   the audit view shows it forever.
 
 Bytes are the ground truth for claim 1, so `--bytes` cross-checks any damaged
 field against the original capture in `page_cache`: every word carrying a
 non-ASCII character is looked up in the capture with tags stripped, which says
-whether the database or the page is wrong. That distinction is not academic -
-ir.amd.com really does serve `\\xc2\\x99` where a trademark sign belongs, and for
-those rows the database is *better* than the page.
+whether the database or the page is wrong. Not academic - a server really does
+serve valid UTF-8 for a C1 control where a trademark sign belongs, and for those
+rows the database is *better* than the page.
 
 Usage:
   pressroom-verify-encoding
@@ -133,8 +128,7 @@ def run(source: str | None = None, check_bytes: bool = False) -> None:
         flag = "" if rid in KNOWN_UNFIXABLE else "  <-- NOWE"
         print(f"  #{rid} {src} {field}: {', '.join(why)}{flag}")
 
-    # The browser's audit flag is the same claim in SQL. Comparing the counts is
-    # what catches the two detectors drifting apart.
+    # Claim 2: the same question asked in SQL.
     audit = query.quality_counts(conn)["mojibake"]
     regex_rows = sum(per_source.values())
     verdict = "zgodne" if audit == regex_rows else "ROZJECHANE"

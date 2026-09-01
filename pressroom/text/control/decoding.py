@@ -2,38 +2,28 @@
 """Turning archived bytes into text when the page's declared charset is a lie.
 
 The specific failure this exists for: a CMS serves `charset=utf-8` and is
-genuinely UTF-8 almost everywhere, but a handful of bytes were pasted straight
-out of Word and never converted, so the document is *not* valid UTF-8. Three
-stray 0x92 bytes in one boilerplate footer sentence were enough to do this to
-midiman.co.uk's 40 KB news listing:
+genuinely UTF-8 almost everywhere, but a few bytes were pasted out of Word and
+never converted, so the document is not valid UTF-8. A strict decode then fails,
+BeautifulSoup falls back to chardet, and every *correct* UTF-8 sequence in the
+file comes out as mojibake - a whole listing's titles corrupted by one
+apostrophe. Decoding UTF-8 first and falling back per byte fixes both halves at
+once, and guesses nothing, which is the point: chardet's verdict on these files
+is on record as unreliable.
 
-  - a strict UTF-8 decode fails outright;
-  - BeautifulSoup then falls back to chardet, which guessed windows-1250;
-  - so every *correct* UTF-8 sequence in the file decoded as mojibake -
-    e.g. e2 80 9c ("u201c) came out as "â€ś", corrupting 14 stored titles
-    over one wrongly-pasted apostrophe.
+This is NOT a universal decoder. Use it for pages that claim UTF-8, and keep
+`from_encoding="cp1252"` where a source is wholly pre-UTF-8 (the 2001-era GoLive
+pages, midiman.de): there, two adjacent high bytes can coincidentally form a
+valid UTF-8 sequence and would be honoured as one.
 
-Decoding UTF-8 first and falling back per-byte fixes both halves at once: the
-valid sequences stay valid, and the strays are read as the cp1252 they are.
-Nothing in the process is a guess, which is the point - chardet's verdict on
-these files is unreliable (elsewhere in page_cache it landed on
-windows-1258 for two pages, which is Vietnamese).
-
-This is NOT a universal decoder. Use it for pages that claim UTF-8; keep
-`from_encoding="cp1252"` where a source is known to be wholly pre-UTF-8 (the
-2001-era GoLive pages, midiman.de). On such a page two adjacent high bytes can
-coincidentally form a valid UTF-8 sequence and would be honoured as one -
-harmless for a stray byte among ASCII, wrong for prose full of accents.
+→ docs/adr/encoding.md
 """
 
 import codecs
 import collections
 import re
 
-# What the write path had to undo, by method. Read and printed by the run
-# summary, and by the read-only encoding check. It lives here rather than
-# beside the database because the counter is a fact about decoding, not about
-# storage - which is where it spent a long time.
+# What the write path had to undo, by method. Read by the run summary and by the
+# read-only encoding check: a fact about decoding, not about storage.
 REPAIRS = collections.Counter()
 
 # What a byte that isn't valid UTF-8 is assumed to be instead. cp1252 because
@@ -90,19 +80,17 @@ MOJIBAKE_RE = re.compile(
     "[" + _MOJIBAKE_LEADS + "][" + chr(0x80) + "-" + chr(0x17F) + chr(0x20AC) + "]"
 )
 
-# Which 8-bit charset the text may have been read as, in the order worth
-# trying. Two actually occurred on terratec.net's German pages: cp1252, and -
-# this is not a typo - **cp1258**, Vietnamese, which is the guess chardet is
-# already on record for elsewhere in page_cache. cp1258 is what tells 'FĂ¼r'
-# apart from cp1250's otherwise identical A-breve: the same rows also carry
-# U+00BC, which cp1250 has no byte for. The rest are cheap to test.
-# mac-roman is deliberately absent. It re-encodes this text happily and its
-# output carries no damage markers, so the agreement check below would see a
-# second, contradicting candidate and refuse the row - while the text it
-# produces is simply wrong ('vÃ¶llig' becomes 'v-cedilla-llig', not 'völlig').
-# Nothing in this corpus was ever read as mac-roman; the codepages that remain
-# are the Windows/ISO family, which coincide exactly on the byte ranges UTF-8
-# uses, so when several of them qualify they agree character for character.
+# Which 8-bit charset the text may have been read as, in the order worth trying.
+# Two actually occurred on terratec.net's German pages: cp1252 and - not a typo -
+# **cp1258**, Vietnamese, which is what tells 'FĂ¼r' apart from cp1250's
+# otherwise identical A-breve, since the same rows carry U+00BC and cp1250 has no
+# byte for it. The rest are cheap to test.
+#
+# mac-roman is deliberately absent: it re-encodes this text happily, its output
+# carries no damage markers, and the text it produces is simply wrong. The
+# codepages that remain are the Windows/ISO family, which coincide exactly on the
+# byte ranges UTF-8 uses, so where several qualify they agree character for
+# character - which is what the agreement check below relies on.
 _MOJIBAKE_CODECS = ("cp1252", "cp1258", "cp1250", "cp1254", "cp1257", "latin-1")
 
 # Built from the codec, not typed out. The five bytes cp1252 leaves undefined
@@ -199,17 +187,14 @@ def repaired(text):
     """A value with a wrong decode undone, or the value unchanged.
 
     Applied at the write rather than by a pass afterwards, because part of this
-    damage is *upstream* and therefore recurs on every refetch: ir.amd.com
-    serves \\xc2\\x99 - valid UTF-8 for the C1 control U+0099 - where it means
-    (tm), so decoding it correctly still yields a control character. A refetch
-    used to bring 10 amd rows and 24 creative rows straight back after a repair
-    had fixed them, and the only thing standing between that and the database
-    was somebody remembering to re-run a script.
+    damage is *upstream* and recurs on every refetch: a server serving valid
+    UTF-8 for a C1 control where a (tm) belongs is still a control character
+    after a correct decode. A repair pass would need somebody to remember to
+    re-run it.
 
-    `repair_text` returns None unless the inversion is unambiguous, so "leave
-    it alone" is the default and #4978's three 0x81 bytes - which cp1252 does
-    not define - stay refused. Repairs are counted in REPAIRS so a run that
-    fixes something says so; silence here would be the wrong kind of quiet.
+    `repair_text` returns None unless the inversion is unambiguous, so "leave it
+    alone" is the default, and repairs are counted in REPAIRS so a run that
+    fixes something says so.
 
     Only ever rewrites characters in 0x80-0x9F and the mojibake lead set, so a
     tag cannot be touched. A body that has markup is repaired one level up, in

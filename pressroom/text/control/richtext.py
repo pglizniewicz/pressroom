@@ -1,33 +1,26 @@
 #!/usr/bin/env python3
 """HTML fragment -> the two representations a release is stored as.
 
-Every scraper here used to end with `soup.get_text(" ", strip=True)`, which
-replaces *every* block boundary - `</p>`, `<li>`, `<br>`, `<h2>` - with a
-single space. A 4000-character press release came out as one unbroken blob:
-no paragraphs, no bullet lists, no "About the company" heading. The newlines
-that did survive were worse than none, because `strip=True` only trims the
-edges of each text node, so what got through was the *source file's* line
-wrapping (`'TerraTec \r\n      PresseInfo vom 07.06.2002'`) rendered verbatim
-by the browser's `white-space: pre-wrap`.
-
-So: one module, one concern - turn a parsed node into
-
     body        plain text with real paragraphs, for FTS and the CLI reader
     body_html   a small, attribute-stripped HTML subset, for the browser
 
+Never `soup.get_text(" ", strip=True)` for a body: it replaces every block
+boundary with one space, so a 4000-character release comes out as an unbroken
+blob, and the newlines that do survive are the source file's line wrapping
+rendered verbatim by `white-space: pre-wrap`.
+
 `to_text()` derives the text **from the cleaned HTML**, never from the source
-node. That is the whole reason `extract()` exists as one call: the indexed
-text and the displayed markup cannot drift apart if one is computed from the
-other.
+node. That is the whole reason `extract()` exists as one call: the indexed text
+and the displayed markup cannot drift apart if one is computed from the other.
 
-Imports bs4, so this module must never be imported by anything on a reader's
-path - `database/control/`, every `entity/`, `release/control/query.py`,
-`taxonomy/` and `decoding.py` stay stdlib-only (CLAUDE.md invariant 4).
+Imports bs4, so nothing on a reader's path may import this - CLAUDE.md
+invariant 4, held by tests/test_import_direction.py.
 
-The tag allowlist below is deliberately mirrored in static/app.js, which
-rebuilds these nodes one by one instead of trusting innerHTML. Same
-arrangement as decoding.C1_RE vs schema.MOJIBAKE_SQL: two languages, one rule.
-Change one and change the other.
+The tag allowlist below is mirrored in static/app.js, which rebuilds these nodes
+one by one instead of trusting innerHTML. Change one and change the other;
+tests/test_mirrored_rules.py fails when they disagree.
+
+→ docs/adr/text-and-markup.md
 """
 
 import re
@@ -161,7 +154,7 @@ _BLOCKS = {
     "hr",
 }
 
-# Same set as a sorted list, for Tag.find() which will not take a set.
+# Tag.find() will not take a set.
 _BLOCK_TAGS = sorted(_BLOCKS | _SOURCE_BLOCKS)
 
 
@@ -407,13 +400,12 @@ def densest(soup, name: str, **attrs):
     straight to extract().
 
     Why "the biggest one" rather than a CSS selector: these are 1998-2005
-    table-layout pages, where the only thing distinguishing the article's
-    table from the navigation's is a `width="535"` that changes between
-    captures of the same site. Measured over every cached capture, `width`
-    selectors missed 1 of 119 terratec_de pages and 36 of 186 terratec portal
-    pages, while "the biggest <table border=0>" and "the biggest <td>" hit
-    100%/99% with coverage inside 0.85-1.25 of the previously stored body.
-    A magic number that is right most of the time is worse than a rule.
+    table-layout pages, where the only thing distinguishing the article's table
+    from the navigation's is a `width="535"` that changes between captures of the
+    same site. Calibrated over every cached capture, a width selector misses
+    pages that "the biggest table" gets right - a magic number that is right most
+    of the time is worse than a rule. `pressroom-calibrate-containers` is how a
+    selector is chosen.
     """
     best = best_len = None
     for tag in soup.find_all(name, **attrs):
@@ -568,18 +560,13 @@ def extract(node) -> tuple[str, str]:
     existing "no body found" branch.
 
     A wrong decode is undone here, on the markup, **before** the text is
-    rendered from it. That ordering is the whole point: `body` is by definition
+    rendered from it. That ordering is the point: `body` is by definition
     `to_text(body_html)`, and repairing the two independently could break that
-    invariant - `decoding.undo_mojibake` accepts a round trip only when every
-    qualifying codepage agrees, and text with tags in it can answer that
-    differently from text without. Repairing once, upstream of the split, cannot
-    disagree with itself.
-
-    Why at the write at all: some of this damage is upstream and survives a
-    correct decode (ir.amd.com serves \xc2\x99 - valid UTF-8 for U+0099 - where
-    it means a trademark sign), so it comes back on every refetch. It used to be
-    undone by a pass someone had to remember to re-run; a refetch that reopened
-    10 amd rows and 24 creative rows is the record of what that cost.
+    invariant, because `decoding.undo_mojibake` accepts a round trip only when
+    every qualifying codepage agrees and text with tags in it can answer
+    differently. Repairing once, upstream of the split, cannot disagree with
+    itself. Why at the write at all: some of this damage is upstream and
+    survives a correct decode, so it comes back on every refetch.
     """
     html = clean(node)
     fixed = decoding.repair_text(html)

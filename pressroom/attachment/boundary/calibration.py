@@ -1,28 +1,22 @@
 """Review the attachment converters against the whole cached corpus.
 
 Same job as `text/boundary/container_calibration.py` does for DOM containers,
-and written for
-the same reason: a selector - or here, a threshold - picked from one document
-is a converter that works on the document you looked at. Read-only: it never
-writes to `releases`, and its only output file is the review page.
+and for the same reason: a threshold picked from one document is a converter
+that works on the document you looked at. Read-only - its only output file is
+the review page.
 
-It answers two different questions, because one of them cannot be answered by
-numbers:
+It answers two questions, because one of them cannot be answered by numbers:
 
   1. **Metrics**, printed. How many documents convert, how much of the text
-     survives, and how often each of the three known defects fires - the
-     thresholds in conversion.py (rotated blocks, page margins, heading
-     factor) came from a single PDF and this is what checks them.
+     survives, and how often each known defect fires.
   2. **Full texts**, written to an HTML page. Four versions of each document
      side by side: what the database holds now, the text-only extraction, the
-     structured conversion rendered, and its `body_html` source. This exists
-     because the metric report once said "100% of words kept" about a
-     conversion that had put the release's headline *after* the footer.
+     structured conversion rendered, and its `body_html` source. The second half
+     is not decoration - the metric report once said "100% of words kept" about
+     a conversion that had put the headline *after* the footer.
 
-Bytes come from `page_cache` only, including mirror domains: the same
-attachment was served from midiman.com, midiman.net and m-audio.com, so 205 of
-the 241 rows with no cached capture of their own can still be read from a
-sibling's bytes.
+Bytes come from `page_cache` only, mirror domains included: most rows with no
+cached capture of their own can still be read from a sibling's bytes.
 
 Usage:
   pressroom-calibrate-attachments                     # metrics + 12-document page
@@ -50,10 +44,8 @@ DUP_RE = re.compile(r"\b(\w+ \w+) \1\b", re.I)
 MERGE_RE = re.compile(r"\d{2,}\.\d{2}\.\w|\d{3,}\.\d{2}\.")
 CASE_RE = re.compile(r"[a-z]{3}[A-Z][a-z]{2}")
 # A word split across a line break and rejoined with the space still in it.
-# `X- and`, `X- or`, `X- to` and `X-, ` are excluded because they are correct
-# English, not damage: "61- and 88-note models", "PCI-, FireWire- and USB-based
-# interfaces". Counting them is how this measure reported 9 defects against a
-# converter that had none left.
+# `X- and`, `X- or`, `X- to` are excluded because they are correct English, not
+# damage: "61- and 88-note models".
 HYPHEN_RE = re.compile(r"\w- (?!and\b|or\b|to\b|through\b)\w")
 
 # The gate the writing pass would use. Retention alone is not enough: the one
@@ -88,12 +80,10 @@ def documents(conn) -> dict[str, tuple[str, list[tuple[int, str, str, str]]]]:
         if "id_/" not in key:
             continue
         name = key.rsplit("/", 1)[1].lower()
-        # Prefer bytes that actually are the attachment. Several keys can share
-        # a filename - the same document under two directory schemes, and the
-        # original server's soft-404 - and taking whichever came first is how
-        # this once reviewed m-audio_ozone_pr.pdf as 380 bytes of
-        # "<!DOCTYPE HTML" and reported 0% retention for it while the real
-        # 166 KB PDF sat in the cache under another path.
+        # Prefer bytes that actually are the attachment: several keys can share
+        # a filename - the same document under two directory schemes, plus the
+        # original server's soft-404 - and taking whichever came first reviewed
+        # an error page and reported 0% retention against the real PDF.
         if conversion.is_attachment(bytes(head)) or name not in cached:
             if name not in cached or conversion.is_attachment(bytes(head)):
                 cached[name] = key
@@ -140,11 +130,10 @@ def furniture(body_html: str) -> int:
     header or footer that survived into the body ("Press Release", the footer
     URL). Counted as the number of surplus copies.
 
-    Deliberately not keyed to the page count: the first version of this divided
-    by pages counted from `/Type /Page` in the raw PDF bytes, which is not the
-    number of pages poppler reports, so the measure printed 0 while the review
-    page plainly showed the repeats. A measure that can be wrong in the
-    reassuring direction is worse than no measure.
+    Deliberately not keyed to the page count: counting pages from the raw PDF
+    bytes does not agree with what poppler reports, and the measure printed 0
+    while the review page plainly showed the repeats. A measure that can be
+    wrong in the reassuring direction is worse than no measure.
     """
     soup = BeautifulSoup(body_html, "html.parser")
     texts = [el.get_text(" ", strip=True) for el in soup.find_all(["p", "h3"])]

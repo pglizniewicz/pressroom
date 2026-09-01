@@ -1,29 +1,19 @@
 #!/usr/bin/env python3
 """What an attachment's bytes mean: .pdf/.doc -> text, or -> our HTML subset.
 
-Owns one concern - reading a press release out of a binary attachment - for
-both callers that need it: the attachment crawl and the calibration pass.
-Everything here shells out to the two
-system binaries this repo has always relied on, `pdftotext` (poppler-utils) and
-`antiword`; nothing here talks to the network or the database.
+Reading a press release out of a binary attachment, for both callers that need
+it - the attachment crawl and the calibration pass. Shells out to `pdftotext`
+and `antiword`; talks to no network and no database.
 
-Two levels of answer, and the difference is what we ask the *tool* for:
+Two levels of answer, and the difference is what the *tool* is asked for:
+`plain_text()` asks for text, which fakes the document's structure with spaces
+and line breaks; `to_richtext()` asks `pdftotext -bbox-layout` for output that
+*carries* it - page/flow/block/line/word with coordinates - so a paragraph is a
+paragraph because poppler measured the gap between lines. Layout metadata, not a
+heuristic over extracted text. The structured route is PDFs only, and
+to_richtext() says why.
 
-- `plain_text()` asks for text. `pdftotext -layout` and `antiword -t` fake the
-  document's structure with spaces and line breaks, so the result is stored
-  with `body_html` NULL and rendered through `white-space: pre-wrap`.
-- `to_richtext()` asks `pdftotext -bbox-layout` for output that *carries* the
-  structure - page/flow/block/line/word with coordinates - and converts it into
-  the same allowlisted subset `richtext.py` emits for every HTML source. A
-  paragraph is a paragraph because poppler measured the gap between lines, a
-  heading is one because the type is taller, a list item is one because the line
-  opens with a marker. Layout metadata, not a heuristic over extracted text.
-
-**PDFs only.** The equivalent route for .doc (`antiword -x db`, DocBook) was
-built and dropped after review: it flattens nested lists, loses paragraph
-breaks and mangles numbering, and all it gained was `<strong>` on the headline.
-See to_richtext's docstring for the documents that decided it. Word files keep
-plain_text().
+→ docs/adr/attachments.md
 """
 
 import re
@@ -39,10 +29,6 @@ PDF_MAGIC = b"%PDF"
 # OLE2 compound document header - the real Word 97-2003 container.
 OLE2_MAGIC = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
 
-# Dispatch is on magic bytes, NOT the extension: CMS-era attachments are
-# routinely mislabeled, and 7 of this corpus's ".pdf" URLs are an HTML error
-# page. Feeding one of those to a parser is how 23 rows once ended up with
-# '%PDF-1.3 %âãÏÓ 6 0 obj...' stored as their body.
 _TIMEOUT = 30
 
 # A list marker at the start of a line. Two families, because they map to two
@@ -90,17 +76,14 @@ SAME_LINE_OVERLAP = 0.6
 # fragment with a space produced `Portable digital pi a nos with built- in a
 # udio inte rf a ces`.
 #
-# Both numbers come from the histogram of every word gap in every cached PDF,
-# not from taste. Real word spaces cluster at 0.20-0.30 of the line height
-# (`aluminum|cone` 0.20, `M-Audio|Unveils` 0.25); the gaps inside a letter-
-# spaced word sit at 0.08-0.10. 0.2 was tried first and was wrong: it swallowed
-# the 0.20 bucket, and corpus-wide word retention fell to a 0.871 median.
+# Read off the histogram of every word gap in every cached PDF, not chosen: real
+# word spaces cluster well above the gaps inside a letter-spaced word, and the
+# obvious rounder value sits inside the real-space bucket.
 #
 # The gap must also be non-negative, and that exclusion is the whole reason
 # tracked ALL-CAPS headlines survive: poppler reports *overlapping* boxes for
-# them - 97 pairs corpus-wide, `MIDIMAN|DISTRIBUTES`, `MAC|OS`, `OS|X` - which
-# a threshold alone would merge into `MACOSXDRIVERS`. What we do want to merge
-# is small and positive: `pi|a`, `info@m|-audio.net`, `Naka|-Ku`.
+# those - `MAC|OS`, `OS|X` - which a threshold alone merges into `MACOSXDRIVERS`.
+# What we do want to merge is small and positive: `pi|a`, `Naka|-Ku`.
 WORD_GAP_RATIO = 0.15
 
 # A vertical gap larger than this multiple of the page's usual leading ends a
@@ -112,12 +95,9 @@ PARAGRAPH_GAP = 1.6
 CONTINUATION_INDENT = 6.0
 
 # A marker line this much further down than the page's usual leading starts a
-# NEW list rather than continuing - or deepening - the open one. Without it,
-# indentation alone decided nesting, and the address footer (whose lines happen
-# to start with a bullet and sit further right than the content list) became a
-# sub-list inside the last spec item: `75Hz low-frequency roll-off switch USA:
-# 45 E. St. Joseph Street...`. Measured on gtmic041102pr.pdf, where list items
-# are 2.4pt apart and the footer is 17-49pt below the item above it.
+# NEW list rather than continuing - or deepening - the open one. Without it
+# indentation alone decided nesting, and an address footer whose lines start
+# with a bullet became a sub-list inside the last spec item.
 LIST_BREAK_GAP = 3.0
 
 
@@ -254,11 +234,9 @@ def rotated_text(content: bytes) -> list[str]:
     """The text of every block _pdf_fragment drops as sideways type.
 
     Exposed so a writing pass can *name* what it left out instead of trusting
-    that it was decoration. It is not: on 33 of the 81 cached PDFs the dropped
-    block is the only character-level difference between the two routes, and it
-    carries a phrase of its own - `MIDIMAN DISTRIBUTES ABLETON SOFTWARE` beside
-    a headline reading `MIDIMAN Assumes Distribution of Ableton`. A vertical
-    marketing banner, not a duplicate.
+    that it was decoration. On most of the cached PDFs it is the only
+    character-level difference between the two routes, and it carries a phrase of
+    its own - a vertical marketing banner, not a duplicate of the headline.
     """
     soup = BeautifulSoup(
         _run(["pdftotext", "-bbox-layout", "-", "-"], content), "html.parser"
@@ -355,17 +333,14 @@ def _visual_lines(lines: list) -> list[tuple[float, float, float, str, float]]:
 
 # A compound word broken at its own hyphen across a line end: the previous line
 # closes with `…-` and the next opens with a letter or digit. Joined without the
-# space, hyphen kept - measured over every cached PDF, all 140 occurrences in 61
-# documents are compounds (`M- Audio’s`, `24- bit/192kHz`, `best- of-class`,
-# `award- winning`), not one is a syllable break where the hyphen would have to
-# go. Fired only at a line join, never over finished text, so a legitimate
-# `X- Y` inside one line is untouched.
+# space and the hyphen kept, because over every cached PDF every occurrence is a
+# compound (`24- bit/192kHz`, `award- winning`) and not one is a syllable break.
+# Fired only at a line join, so a legitimate `X- Y` inside one line is untouched.
 _HYPHEN_END_RE = re.compile(r"\w-$")
 _WORD_START_RE = re.compile(r"^[\w(]")
 
 
 def _append_line(parts: list, text: str) -> None:
-    """Add one line to a paragraph or list item under construction."""
     if parts and _HYPHEN_END_RE.search(parts[-1]) and _WORD_START_RE.match(text):
         parts[-1] += text
     else:
@@ -500,36 +475,21 @@ def to_richtext(content: bytes) -> tuple[str, str, str]:
     """(body, body_html, kind) for a PDF, or ("", "", kind) for anything else.
 
     **PDF only, and .doc is excluded on purpose.** The DocBook route
-    (`antiword -x db`) was built, calibrated over all 67 cached Word documents
-    and then dropped, because reviewing the full texts side by side showed it
-    losing structure the text output keeps:
-
-      - nested lists are flattened - antiword emits one `<itemizedlist>` with
-        "200+ total tape banks, including:" and its sub-points as siblings
-        (GForce_M-Tron Pro_PR6.doc), while `-t` shows both levels by indent;
-      - paragraph breaks are lost, so a release arrives as one block
-        (M-Audio_Vista_PR.doc's neighbours);
-      - list numbering comes out wrong and an item goes missing
-        (8-16-06_avid_supports_ mactel.doc).
-
-    What it gained was `<strong>` for the bold headline, which is decoration.
-    So .doc keeps `plain_text()`, `body_html` NULL, and the pre-wrap renderer -
-    with one known bad row: m-audio_octane_pr.doc, whose text output interleaves
-    two overlapping copies of the release (`$749699.95.use`). One document out
-    of 67 is not a reason to lose two list levels in the other 66.
+    (`antiword -x db`) was built, calibrated over every cached Word document and
+    then dropped: side by side it flattens nested lists, loses paragraph breaks
+    and gets list numbering wrong, and all it gains is `<strong>` on the
+    headline. So .doc keeps `plain_text()`, `body_html` NULL and the pre-wrap
+    renderer, one badly-interleaved document included.
 
     The PDF route finishes through `richtext.extract()`, so the output is the
     same allowlisted subset as every HTML source and `body` stays exactly
-    `to_text(body_html)` - the invariant the whole corpus is checked against.
+    `to_text(body_html)`.
 
     **A PDF that comes back empty is a condition to report, never a fallback to
-    take.** For .doc, plain_text() is the chosen route; for a PDF it would be a
-    silent downgrade - the row would quietly land in the corpus as a pre-wrap
-    blob and nobody would ever learn that the converter failed on it. A caller
-    writing to the database must leave such a row alone and surface it, so the
-    choice between "use the text for this one" and "fix the converter" is made
-    by a person looking at the document. pressroom-calibrate-attachments reports
-    these under "decisions needed".
+    take.** Falling back to its text would land the row in the corpus as a
+    pre-wrap blob and nobody would learn that the converter failed on it, so a
+    caller writing to the database must leave it alone and surface it -
+    pressroom-calibrate-attachments lists these under "decisions needed".
     """
     k = kind_of(content)
     if k != "pdf":
