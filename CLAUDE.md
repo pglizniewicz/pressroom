@@ -255,6 +255,11 @@ knowing which script produced it.
 
 ### The browser's panel
 
+**A view is painted only by the route that is still current** — every loader
+carries its route's `AbortController` signal and rechecks `signal.aborted` after
+the awaits before it touches the DOM, because `state` is global and a late
+response writes the new view's filters into the old view.
+
 **`checks.md` owns the panel and every rule about it** — one labelled line each,
 in the form a browser can contradict, which is a rule that can fail rather than
 one restated here. Two consequences travel with it: the frontend keeps

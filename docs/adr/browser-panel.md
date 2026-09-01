@@ -58,6 +58,23 @@ and SQLite is a better guard of the rule than a comment is.
 False, because only then does `server_close()` join the request threads and
 make "closed by now" an assertion rather than a poll.
 
+**A view is painted only by the route that is still current, and that needed
+both halves of the fix.** Every view comes out of an awaited fetch while `state`
+is a single global that the next `route()` replaces synchronously, so a late
+response does not merely repaint the view you left — it repaints it with the new
+view's filters, heading and panel, and then moves the focus route() had already
+moved. Reported as `#r/4414` → source tag → `#audit` inside ~700 ms, where the
+list's `/api/search` landed on top of the rendered audit. A generation counter
+alone would have ignored that response while still paying for it, which on a
+corpus this size is most of a second the next view spends waiting; and an
+`AbortController` alone does not stop a response that was already buffered when
+the abort landed, since `res.json()` then resolves normally. So: abort on
+entering a route, *and* recheck `signal.aborted` after the awaits, before the
+first DOM write. The signal is read off the module rather than passed in, which
+keeps the three loaders' signatures and puts "doładuj następne" — a load that is
+not a route — behind the same gate for free. `checks.md` records it as
+`[route-supersedes]`.
+
 **The frontend follows `web-static`/`web-conventions` with one deliberate
 deviation: web-static forbids JavaScript and this is a JS-rendered SPA.** By that
 skill's own routing rule the page belongs to `web-components`. Keep the

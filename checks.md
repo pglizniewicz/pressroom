@@ -87,6 +87,18 @@ keep working while the re-scrape runs.
 - [fts-basic] `/#q=Radium&company=maudio` at 1280px: results appear, each with a `mark` element inside its excerpt
 - [fts-hyphen] `/#q=M-Audio` at 1280px: results appear and the status says the query was treated as a phrase — no error, no empty page
 - [paging] `/#order=date` at 1280px: pressing "Doładuj następne" grows the result list from 50 to 100 items
+- [route-supersedes] `#audit` and then, ~120ms later, `#r/4414`, both driven
+  from one `evaluate_script`: three seconds on, the article is still there —
+  `article.detail`, the heading is the release's title, and there is no
+  `table.audit`. The abandoned request shows as `net::ERR_ABORTED` in the
+  network log and the console stays clean, an aborted fetch being no unhandled
+  rejection. The reported order too (`#source=terratec_new_de&order=date` then
+  `#audit`): the audit stays and no `ol.hits` appears. An abandoned list load
+  must not leave `#list` carrying `aria-busy="true"`, and an abandoned
+  "Doładuj następne" must not append to the next view — while unraced paging
+  still grows the list, so `[paging]` above has to keep passing. Which side is
+  slow is a local fact, not a constant: reload with cache ignored first, or the
+  page keeps the previous `app.js`
 - [badge-agrees] `/#flags=mojibake&order=date` at 1280px: every row returned shows a "kodowanie" badge, and the count equals what `encoding.C1_RE`/`MOJIBAKE_RE` finds over the same bodies — the audit SQL and the repair must not disagree. After the 2026-08-21 re-repair this is one row, `midiman_net_pressdb` #4978, whose three 0x81 bytes cp1252 cannot decode
 - [bad-flag] request `/api/search?flags=teasr`: HTTP 400 naming the valid flags (five, including `plain`)
 - [bad-company] request `/api/search?company=nokia`: HTTP 400 naming the valid companies

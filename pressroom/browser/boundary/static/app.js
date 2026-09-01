@@ -45,6 +45,7 @@ let companies = [];    // /api/companies, fetched once
 let sources = [];      // flattened out of companies - same rows, one level down
 let cursor = null;     // opaque `next` from the last page
 let state = {};        // parsed hash
+let inflight = null;   // AbortController of the route being loaded
 
 // ---- hash <-> state ------------------------------------------------------
 
@@ -282,6 +283,7 @@ function filterSummary() {
 }
 
 async function loadList(append) {
+  const signal = inflight.signal;
   const p = new URLSearchParams();
   if (state.q) p.set("q", state.q);
   state.company.forEach((c) => p.append("company", c));
@@ -295,8 +297,9 @@ async function loadList(append) {
 
   list.setAttribute("aria-busy", "true");
   statusEl.textContent = "Szukam…";
-  const res = await fetch("/api/search?" + p.toString());
+  const res = await fetch("/api/search?" + p.toString(), { signal });
   const data = await res.json();
+  if (signal.aborted) return;
   list.removeAttribute("aria-busy");
   if (!res.ok) {
     statusEl.textContent = "Błąd: " + (data.error || res.status);
@@ -333,10 +336,12 @@ function pageName(url) {
 }
 
 async function loadDetail(id) {
+  const signal = inflight.signal;
   more.hidden = true;
   statusEl.textContent = "";
-  const res = await fetch("/api/release/" + id);
+  const res = await fetch("/api/release/" + id, { signal });
   const row = await res.json();
+  if (signal.aborted) return;
   list.textContent = "";
   if (!res.ok) {
     statusEl.textContent = "Błąd: " + (row.error || res.status);
@@ -467,9 +472,11 @@ function gapTable(rows, byCompany) {
 }
 
 async function loadAudit() {
+  const signal = inflight.signal;
   more.hidden = true;
   statusEl.textContent = "Gdzie są dziury — liczby są linkami do tych wierszy";
-  const q = await (await fetch("/api/quality")).json();
+  const q = await (await fetch("/api/quality", { signal })).json();
+  if (signal.aborted) return;
   list.textContent = "";
 
   const cards = el("div", "cards");
@@ -643,20 +650,47 @@ function readControls() {
   };
 }
 
+// Every view is painted out of an awaited fetch, and a hash change can land
+// while one is still in the air. `state` is global and the new route replaces
+// it synchronously, so a late loader does not merely repaint the view you just
+// left - it repaints it with the *new* view's filters, heading and panel
+// (loadList reads state.q and filterSummary() only after the await, gapTable
+// builds its links from state.panel), and then steals the focus route() moved.
+// So each route gets an AbortController: entering one aborts the last, which
+// cancels the abandoned request at the socket instead of merely ignoring it,
+// and every loader rechecks its own signal after the awaits before touching
+// the DOM - a response already buffered when the abort lands still resolves.
+// The signal comes off the module rather than a parameter so that "doładuj
+// następne", which is not a route at all, is cancelled by the same gate.
+function beginRoute() {
+  if (inflight) inflight.abort();
+  inflight = new AbortController();
+  return inflight.signal;
+}
+
+// The one place a failed load is reported, and the one place that knows an
+// abandoned route is not a failure.
+function report(promise, signal) {
+  return promise.catch((e) => {
+    if (!signal.aborted) statusEl.textContent = "Błąd: " + e.message;
+  });
+}
+
 async function route() {
+  const signal = beginRoute();
   state = parseHash();
   cursor = null;
+  // A superseded list load left its own aria-busy set and will never get back
+  // far enough to clear it.
+  list.removeAttribute("aria-busy");
   syncControls();
   renderPanel();
   if (state.view === "audit") setHeading("Audyt jakości");
   else if (state.view === "list") setHeading(listHeading());
-  try {
-    if (state.view === "detail") await loadDetail(state.id);
-    else if (state.view === "audit") await loadAudit();
-    else await loadList(false);
-  } catch (e) {
-    statusEl.textContent = "Błąd: " + e.message;
-  }
+  if (state.view === "detail") await report(loadDetail(state.id), signal);
+  else if (state.view === "audit") await report(loadAudit(), signal);
+  else await report(loadList(false), signal);
+  if (signal.aborted) return;
   // A hash change replaces the whole main region; without moving focus a
   // keyboard or screen-reader user stays parked wherever the last link was.
   heading.focus();
@@ -665,7 +699,7 @@ async function route() {
 $("#filters").addEventListener("submit", (e) => { e.preventDefault(); go(readControls()); });
 $("#flags").addEventListener("change", () => go(readControls()));
 $("#order").addEventListener("change", () => go(readControls()));
-more.addEventListener("click", () => loadList(true));
+more.addEventListener("click", () => report(loadList(true), inflight.signal));
 window.addEventListener("hashchange", route);
 
 (async function start() {
