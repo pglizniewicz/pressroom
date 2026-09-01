@@ -1,13 +1,8 @@
 """`wayback_calls`: one row per HTTP attempt against archive.org.
 
-Never read by a scraper. It exists so that a timeout or a sleep constant is
-tuned from a latency distribution and a 503 cluster rather than from a handful
-of manual curl calls in one session - which is how CDX_TIMEOUT got mistuned
-twice before this table existed.
-
-Best-effort and silent on failure, same as the encoding diagnostics on
-page_cache: a side channel for later analysis must never be able to break an
-actual scrape.
+Never read by a scraper. It exists so a timeout or a sleep constant is tuned
+from a latency distribution and a 503 cluster rather than from a handful of
+manual curl calls - which is how these constants got mistuned before it.
 """
 
 import time

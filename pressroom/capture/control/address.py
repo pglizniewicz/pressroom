@@ -1,21 +1,16 @@
-"""Capture addresses as strings: what one looks like, what it names, and how
-one is built.
+"""Capture addresses as strings: what one looks like, what it names, and how one
+is built.
 
 Pure string arithmetic - no connection, no network, no parser - so the write
 path can validate an address without importing the archive client, and the
-browser can read one without importing requests. That is the whole reason these
-are not in archive.py: everything there needs `requests`, and half this repo
-needs these.
+browser can read one without importing requests.
 """
 
 import re
 
-# The only thing body_origin may hold. Spelled out here because this is where a
-# bad value is caught, and it answers the fear that kept provenance in a
-# separate pass for a week: "passing a platform id by mistake would silently
-# mint dead links". A Q4 numeric id, a Drupal node id or a bare row url now
-# raises at the write site instead. Measured against all 1727 entries that
-# existed when this landed: every one passes.
+# The only thing body_origin may hold, spelled out here because this is where a
+# bad value is caught: a Q4 numeric id, a Drupal node id or a bare row url
+# raises at the write site rather than minting a dead link.
 _CAPTURE_ADDRESS_RE = re.compile(r"^https?://web\.archive\.org/web/\d{14}id_/.+")
 
 

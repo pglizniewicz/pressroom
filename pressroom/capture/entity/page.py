@@ -6,19 +6,14 @@ capture say what the page *claimed* - so a wrong choice is diagnosable later
 without a refetch.
 
 In the database, not on disk: auxiliary data belongs in the database, and this
-is what makes a parser fix free. It is also what four live sources cost before
-they used it - they went straight through `session.get`, and when the
-extraction turned out to be wrong all four had to be crawled again from
-scratch. A scraper that fetches a page any other way is a bug.
+is what makes a parser fix free. A scraper that fetches a page any other way is
+a bug.
 """
 
 import hashlib
 
 SCHEMA_SQL = """
-    -- Column order is the order the file on disk has, which is what a
-    -- positional read would see. Nothing here reads positionally today
-    -- (row_factory is sqlite3.Row and there is no SELECT * in the tree), but
-    -- this declaration is the only description of that file, so it matches it.
+    -- Column order is the order the file on disk has; see release/entity.
     CREATE TABLE IF NOT EXISTS page_cache (
         url                TEXT PRIMARY KEY,
         content            BLOB NOT NULL,

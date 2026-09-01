@@ -1,11 +1,6 @@
 #!/usr/bin/env python3
 """Shared HTTP client policy: how we identify ourselves, how fast we hammer
 other people's servers, and how we avoid asking twice.
-
-Every scraper and archive.py imports these, which is why they live apart from
-any one scraper's logic. Two constants was a small module, but the alternative
-was a `common.py` whose name promised generality while 85% of it was a
-scraper for one specific CMS.
 """
 
 import sqlite3
@@ -34,14 +29,11 @@ def fetch_cached(
 ) -> bytes:
     """Fetch a live page's raw bytes, caching them in page_cache on first hit.
 
-    The live-site counterpart to wayback.fetch_snapshot, and it exists for the
-    same reason: a parser fix must not cost a refetch. That convention was
-    written for archive.org and quietly not applied to the four live sources -
-    intel, amd, creative, creative_gnw - so when the flat-text extraction
-    turned out to be wrong, 3619 rows (61% of the corpus) had to be crawled
-    again from scratch. They are cached now.
+    The live-site counterpart to archive.fetch_snapshot, and it exists for the
+    same reason: a parser fix must not cost a refetch. Most of this corpus was
+    crawled twice because the live sources went straight through `session.get`.
 
-    Deliberately *not* merged with wayback.fetch_snapshot. That one logs every
+    Deliberately *not* merged with archive.fetch_snapshot. That one logs every
     attempt to wayback_calls and probes the capture's `fw_` variant for
     archive.org's own charset guess; parameterising those away would leave a
     function whose signature is longer than either body.
