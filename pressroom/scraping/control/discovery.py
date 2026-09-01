@@ -19,6 +19,9 @@ is the only axis on which the loops genuinely differ:
                   from a live fetch through the caller's fetch_body.
   from_candidates a bare url the crawl found; the archive is asked for its
                   newest working capture and the whole page is parsed.
+  from_teasers    a listing entry that already carries a teaser; the detail
+                  capture may upgrade it to the real article, and the teaser is
+                  what gets stored when it cannot.
 
 `capture()` is the second one's middle, exposed because three loops need it
 without the tail: what to do when archive.org confirms there is no capture is
@@ -43,7 +46,14 @@ wrong again:
    phantom inserts on every rerun - three copies of this loop still did that.
    A write that inserted nothing is `skipped`, which is also what keeps an item
    from vanishing out of the summary altogether.
-3. **A bodyless row is never `full`.** What the two strategies then do differs,
+3. **A confirmed absence is asked about before an already-stored teaser.**
+   `from_teasers` gates on `stored_grade`, so a row it has already filled with a
+   teaser comes back to it every run. If the probe failed, that row is
+   `uncertain` and not `skipped`: filing a retryable failure under "already as
+   good as it gets" hides exactly the rows a rerun exists to pick up. Three of
+   the four copies carried a comment saying so; the fourth had the two checks
+   the other way round.
+4. **A bodyless row is never `full`.** What the two strategies then do differs,
    and the difference is the archive: a live fetch that came back empty leaves
    nothing to return to, so no row is written at all and the item is `dead`,
    while an archived candidate has a real url and a named capture - so the row
@@ -213,5 +223,107 @@ def from_candidates(
                 stats.added()
             else:
                 stats.stub()
+        else:
+            stats.skipped()
+
+
+def from_teasers(
+    conn,
+    session,
+    source: str,
+    entries,
+    *,
+    parse,
+    stats,
+    fetch_detail=None,
+    prefer_parsed: bool = False,
+) -> None:
+    """Upgrade each listing entry with its detail capture, or store the teaser.
+
+    An entry provides `url`, `title`, `date`, `teaser` and `teaser_html`, and
+    may provide `origin_url` - the capture the teaser itself was read out of.
+    Nothing else is required of it, same rule as a phase-2 collector's.
+
+    `prefer_parsed` is the one axis these loops genuinely differ on: with it the
+    detail page's headline and date win where it has them, and the upgrade
+    carries them; without it the listing's values are kept, because on two of
+    these CMSes the listing states them better than the article page does - and
+    the upgrade then writes the body alone.
+
+    `fetch_detail(conn, session, url, parse)` returns `(parsed, confirmed)` and
+    defaults to `archive.fetch_detail_snapshot`; it is a parameter because one
+    source has to try two addresses per release.
+    """
+    fetch_detail = fetch_detail or archive.fetch_detail_snapshot
+
+    for entry in entries:
+        url = entry["url"]
+        existing = storage.stored_grade(conn, url)
+        if existing is not None and existing != "teaser":
+            stats.skipped()
+            continue
+
+        parsed, confirmed = fetch_detail(conn, session, url, parse)
+
+        if parsed.get("body"):
+            title, date = entry.get("title") or "", entry.get("date") or ""
+            if prefer_parsed:
+                title = parsed.get("title") or title
+                date = parsed.get("date") or date
+            if existing == "teaser":
+                storage.upgrade_release(
+                    conn,
+                    url,
+                    title=title if prefer_parsed else None,
+                    date=date if prefer_parsed else None,
+                    body=parsed["body"],
+                    body_html=parsed["body_html"],
+                    detail_id=parsed["detail_id"],
+                    origin_url=parsed.get("origin_url"),
+                    grade="full",
+                )
+                stats.upgraded()
+                continue
+            if storage.store_release(
+                conn,
+                source,
+                url,
+                title=title,
+                date=date,
+                body=parsed["body"],
+                body_html=parsed["body_html"],
+                detail_id=parsed["detail_id"],
+                origin_url=parsed.get("origin_url"),
+            ):
+                stats.added()
+            else:
+                stats.skipped()
+            continue
+
+        # Rule 3: before the teaser question, not after.
+        if not confirmed:
+            stats.uncertain()
+            continue
+
+        if existing == "teaser":
+            stats.skipped()
+            continue
+
+        if not entry.get("teaser"):
+            stats.dead()
+            continue
+
+        if storage.store_release(
+            conn,
+            source,
+            url,
+            title=entry.get("title") or "",
+            date=entry.get("date") or "",
+            body=entry["teaser"],
+            body_html=entry.get("teaser_html") or None,
+            grade="teaser",
+            origin_url=entry.get("origin_url"),
+        ):
+            stats.teaser()
         else:
             stats.skipped()

@@ -68,6 +68,7 @@ from pressroom.release.control.storage import stored_grade
 from pressroom.database.control import connection
 from pressroom.release.control import storage
 from pressroom.scraping.control import catch_up
+from pressroom.scraping.control import discovery
 from pressroom.text.control import richtext
 from pressroom.reporting.entity.outcome import Stats
 from pressroom.capture.control import archive
@@ -284,86 +285,52 @@ def scrape(limit: int | None = None, catch: dict | None = None) -> None:
                 f"http://www.midiman.de/press/{_slugify(title)}-{date or 'undated'}"
             )
 
-    stats = Stats(SOURCE)
-
+    # Two kinds out of one listing: an `inline` release is the listing block
+    # itself - there is no page to link to and never was - while a `linkout` has
+    # a real page whose full text the detail capture may still hold.
+    inline, linkout = [], []
     for (title, date), e in best.items():
-        url = e["url"]
-        existing = stored_grade(conn, url)
+        entry = {
+            "url": e["url"],
+            "title": title,
+            "date": date,
+            "teaser": e["body"],
+            "teaser_html": e.get("body_html"),
+            "detail_id": e["detail_id"],
+        }
+        (inline if e["kind"] == "inline" else linkout).append(entry)
+
+    stats = Stats(SOURCE, total=len(inline) + len(linkout))
+
+    for entry in inline:
+        existing = stored_grade(conn, entry["url"])
         if existing is not None and existing != "teaser":
             stats.skipped()
             continue
-
-        if e["kind"] == "inline":
-            storage.store_release(
-                conn,
-                SOURCE,
-                url,
-                title=title,
-                date=date,
-                body=e["body"],
-                body_html=e.get("body_html"),
-                detail_id=e["detail_id"],
-            )
+        if storage.store_release(
+            conn,
+            SOURCE,
+            entry["url"],
+            title=entry["title"],
+            date=entry["date"],
+            body=entry["teaser"],
+            body_html=entry["teaser_html"],
+            detail_id=entry["detail_id"],
+        ):
             stats.added()
-            continue
-
-        # linkout: try to recover the real page's full text
-        parsed, confirmed = archive.fetch_detail_snapshot(
-            conn, session, url, parse_generic_page
-        )
-
-        if parsed.get("body"):
-            if existing == "teaser":
-                # No title=/date=: the listing block's values are better than
-                # the linked page's, so only the body is upgraded.
-                storage.upgrade_release(
-                    conn,
-                    url,
-                    detail_id=parsed["detail_id"],
-                    body=parsed["body"],
-                    body_html=parsed["body_html"],
-                    grade="full",
-                    commit=False,
-                )
-                stats.upgraded()
-            else:
-                storage.store_release(
-                    conn,
-                    SOURCE,
-                    url,
-                    title=title,
-                    date=date,
-                    body=parsed["body"],
-                    body_html=parsed["body_html"],
-                    detail_id=parsed["detail_id"],
-                    commit=False,
-                )
-                stats.added()
-            conn.commit()
-            continue
-
-        if existing == "teaser":
-            stats.skipped()
-            continue
-
-        if not confirmed:
-            stats.uncertain()
-            continue
-
-        if e["body"]:
-            storage.store_release(
-                conn,
-                SOURCE,
-                url,
-                title=title,
-                date=date,
-                body=e["body"],
-                body_html=e.get("body_html"),
-                grade="teaser",
-            )
-            stats.teaser()
         else:
-            stats.dead()
+            stats.skipped()
+
+    # No prefer_parsed: the listing block states the headline and the date
+    # better than the linked page does, so the upgrade writes the body alone.
+    discovery.from_teasers(
+        conn,
+        session,
+        SOURCE,
+        linkout,
+        parse=parse_generic_page,
+        stats=stats,
+    )
 
     stats.summary(conn)
     # Both shapes: this CMS has article captures of its own *and* releases that

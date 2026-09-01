@@ -320,3 +320,139 @@ class FromCandidatesTest(support.DbCase):
         counts = self.run_urls(fake)
         self.assertEqual(counts["skipped"], 1)
         self.assertEqual(fake.probed, [], "archive.org was asked about a stored row")
+
+
+def teaser_entry(url="http://x/one", **kw):
+    return {
+        "url": url,
+        "title": kw.get("title", "Listing headline"),
+        "date": kw.get("date", "2004-05-06"),
+        "teaser": kw.get("teaser", "The first two sentences only."),
+        "teaser_html": kw.get("teaser_html", "<p>The first two sentences only.</p>"),
+    }
+
+
+class FromTeasersTest(support.DbCase):
+    def run_entries(self, entries, detail=None, confirmed=True, prefer_parsed=False):
+        """`detail` is what the fake detail fetch hands back; None means it
+        recovered nothing, and `confirmed` then says whether that is a verdict
+        or a network failure."""
+        stats = Stats("src")
+        calls = []
+
+        def fetch_detail(conn, session, url, parse):
+            calls.append(url)
+            if detail is None:
+                return {}, confirmed
+            return dict(detail, detail_id=TS, origin_url=SNAP), True
+
+        quiet(
+            discovery.from_teasers,
+            self.conn,
+            None,
+            "src",
+            entries,
+            parse=lambda content: {},
+            stats=stats,
+            fetch_detail=fetch_detail,
+            prefer_parsed=prefer_parsed,
+        )
+        return stats.counts, calls
+
+    def row(self, url="http://x/one"):
+        return tuple(
+            self.conn.execute(
+                "SELECT title, date, body, grade FROM releases WHERE url = ?", (url,)
+            ).fetchone()
+        )
+
+    def origin(self, url="http://x/one"):
+        got = self.conn.execute(
+            "SELECT origin_url FROM body_origin WHERE url = ?", (url,)
+        ).fetchone()
+        return got[0] if got else None
+
+    def test_a_failed_probe_on_a_stored_teaser_is_uncertain_not_skipped(self):
+        """Rule 3, and the one the copies disagreed on: three of the four asked
+        `confirmed` before asking about the teaser and said in a comment why,
+        while `maudio/presse_de.py` had the two the other way round - so a
+        network error there was filed under "already as good as it gets", which
+        is exactly where a rerun stops looking."""
+        self.seed("src", url="http://x/one", body="teaser", grade="teaser")
+        counts, _ = self.run_entries([teaser_entry()], detail=None, confirmed=False)
+        self.assertEqual(counts["uncertain"], 1)
+        self.assertEqual(counts["skipped"], 0)
+        self.assertEqual(self.row()[2], "teaser", "nothing may be written")
+
+    def test_a_confirmed_absence_leaves_a_stored_teaser_alone_and_skips_it(self):
+        self.seed("src", url="http://x/one", body="teaser", grade="teaser")
+        counts, _ = self.run_entries([teaser_entry()], detail=None, confirmed=True)
+        self.assertEqual((counts["skipped"], counts["uncertain"]), (1, 0))
+
+    def test_a_stored_teaser_gains_the_article_and_its_provenance(self):
+        self.seed("src", url="http://x/one", body="teaser", grade="teaser")
+        counts, _ = self.run_entries([teaser_entry()], detail=detail())
+        self.assertEqual(counts["upgraded"], 1)
+        self.assertEqual(self.row(), ("", "", ARTICLE, "full"))
+        self.assertEqual(self.origin(), SNAP)
+
+    def test_without_prefer_parsed_the_upgrade_writes_the_body_alone(self):
+        """Two of these CMSes state the headline and the date better on the
+        listing than on the article page, so the upgrade must not touch them."""
+        self.seed(
+            "src",
+            url="http://x/one",
+            title="Listing headline",
+            date="2004-05-06",
+            body="teaser",
+            grade="teaser",
+        )
+        self.run_entries([teaser_entry()], detail=detail(title="PRINT VERSION"))
+        title, date, body, _ = self.row()
+        self.assertEqual((title, date), ("Listing headline", "2004-05-06"))
+        self.assertEqual(body, ARTICLE)
+
+    def test_with_prefer_parsed_the_upgrade_carries_the_page_s_title_and_date(self):
+        self.seed(
+            "src",
+            url="http://x/one",
+            title="Listing headline",
+            date="2004-05-06",
+            body="teaser",
+            grade="teaser",
+        )
+        self.run_entries(
+            [teaser_entry()],
+            detail=detail(title="The real headline", date="2004-05-07"),
+            prefer_parsed=True,
+        )
+        self.assertEqual(self.row()[:2], ("The real headline", "2004-05-07"))
+
+    def test_an_unseen_entry_with_an_article_is_added_with_its_origin(self):
+        counts, _ = self.run_entries([teaser_entry()], detail=detail())
+        self.assertEqual(counts["added"], 1)
+        self.assertEqual(
+            self.row(), ("Listing headline", "2004-05-06", ARTICLE, "full")
+        )
+        self.assertEqual(self.origin(), SNAP)
+
+    def test_an_unseen_entry_with_no_article_keeps_the_teaser(self):
+        counts, _ = self.run_entries([teaser_entry()], detail=None, confirmed=True)
+        self.assertEqual(counts["teaser"], 1)
+        self.assertEqual(self.row()[3], "teaser")
+        self.assertIsNone(self.origin(), "the teaser did not come from that capture")
+
+    def test_an_unseen_entry_with_neither_is_dead(self):
+        counts, _ = self.run_entries(
+            [teaser_entry(teaser="", teaser_html="")], detail=None, confirmed=True
+        )
+        self.assertEqual(counts["dead"], 1)
+        self.assertEqual(
+            self.conn.execute("SELECT count(*) FROM releases").fetchone()[0], 0
+        )
+
+    def test_a_row_already_as_good_as_it_gets_is_skipped_without_a_fetch(self):
+        self.seed("src", url="http://x/one", body=ARTICLE)
+        counts, calls = self.run_entries([teaser_entry()], detail=detail())
+        self.assertEqual(counts["skipped"], 1)
+        self.assertEqual(calls, [], "the detail page was fetched for nothing")

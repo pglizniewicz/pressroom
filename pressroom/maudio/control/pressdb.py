@@ -246,6 +246,9 @@ def scrape_domain(
                 body=body or e["body"],
                 body_html=(parsed.get("body_html") if body else e["body_html"]) or None,
                 detail_id=parsed.get("detail_id") or e["detail_id"],
+                # Only set when the body came out of the detail capture: with no
+                # body this is the listing's teaser, whose capture is not this.
+                origin_url=parsed.get("origin_url"),
                 commit=False,
             )
             stats.added() if body else stats.teaser()
@@ -256,6 +259,7 @@ def scrape_domain(
                 body=body,
                 body_html=parsed.get("body_html") or None,
                 detail_id=parsed.get("detail_id"),
+                origin_url=parsed.get("origin_url"),
                 commit=False,
             )
             stats.upgraded()

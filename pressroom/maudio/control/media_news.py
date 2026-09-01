@@ -67,12 +67,12 @@ import requests
 from bs4 import BeautifulSoup
 
 from pressroom.release.control.storage import already_stored
-from pressroom.release.control.storage import stored_grade
 from pressroom.text.control.dating import iso_date
 from pressroom.text.control.decoding import decode_html
 from pressroom.database.control import connection
 from pressroom.release.control import storage
 from pressroom.scraping.control import catch_up
+from pressroom.scraping.control import discovery
 from pressroom.text.control import richtext
 from pressroom.reporting.entity.outcome import Stats
 from pressroom.capture.control import archive
@@ -335,78 +335,38 @@ def scrape_domain(
     # ETA span the whole run, not just the listing loop below.
     stats = Stats(source, total=len(work) + len(extra_ids_list))
 
+    def fetch_detail(conn, session, url, parse):
+        """No ID in the listing's href means there is no detail page to try -
+        the url is that href itself, and the teaser is all there ever was. A
+        confirmed absence rather than a failure, so the teaser gets stored."""
+        if not ID_HREF_RE.search(url):
+            return {}, True
+        return archive.fetch_detail_snapshot(conn, session, url, parse)
+
+    entries = []
     for (date, title), e in work:
         m = ID_HREF_RE.search(e["href"])
-        url = detail_url(base, m.group(1)) if m else e["href"]
-
-        existing = stored_grade(conn, url)
-        if existing is not None and existing != "teaser":
-            stats.skipped()
-            continue
-
-        parsed, confirmed = (
-            ({}, True)
-            if not m
-            else archive.fetch_detail_snapshot(conn, session, url, parse_detail)
+        entries.append(
+            {
+                "url": detail_url(base, m.group(1)) if m else e["href"],
+                "title": title,
+                "date": date,
+                "teaser": e["teaser"],
+                "teaser_html": e["teaser_html"],
+            }
         )
 
-        if parsed.get("body"):
-            if existing == "teaser":
-                # No title=/date=: the listing page's values are better than
-                # the detail page's, so only the body is upgraded.
-                storage.upgrade_release(
-                    conn,
-                    url,
-                    detail_id=parsed["detail_id"],
-                    body=parsed["body"],
-                    body_html=parsed["body_html"],
-                    grade="full",
-                    commit=False,
-                )
-                stats.upgraded()
-            else:
-                storage.store_release(
-                    conn,
-                    source,
-                    url,
-                    title=title,
-                    date=date,
-                    body=parsed["body"],
-                    body_html=parsed["body_html"],
-                    detail_id=parsed["detail_id"],
-                    commit=False,
-                )
-                stats.added()
-            conn.commit()
-            continue
-
-        # Before the teaser check, not after: a probe that failed on the
-        # network is not a verdict on this row. Reporting an already-stored
-        # teaser as `skipped` here would file a retryable failure under
-        # "already as good as it gets", hiding exactly the rows a rerun exists
-        # to pick up.
-        if not confirmed:
-            stats.uncertain()
-            continue
-
-        if existing == "teaser":
-            stats.skipped()
-            continue
-
-        if e["teaser"]:
-            storage.store_release(
-                conn,
-                source,
-                url,
-                title=title,
-                date=date,
-                body=e["teaser"],
-                body_html=e["teaser_html"] or None,
-                grade="teaser",
-            )
-            stats.teaser()
-        else:
-            stats.dead()
+    # No prefer_parsed: this CMS's listing states the headline and the date
+    # better than the detail page does, so the upgrade writes the body alone.
+    discovery.from_teasers(
+        conn,
+        session,
+        source,
+        entries,
+        parse=parse_detail,
+        stats=stats,
+        fetch_detail=fetch_detail,
+    )
 
     for hexid in extra_ids_list:
         url = detail_url(base, hexid)
@@ -426,7 +386,7 @@ def scrape_domain(
             continue
 
         date = title_to_date.get(parsed["title"], "")
-        storage.store_release(
+        if storage.store_release(
             conn,
             source,
             url,
@@ -435,8 +395,11 @@ def scrape_domain(
             body=parsed["body"],
             body_html=parsed["body_html"],
             detail_id=parsed["detail_id"],
-        )
-        stats.added()
+            origin_url=parsed["origin_url"],
+        ):
+            stats.added()
+        else:
+            stats.skipped()
 
     stats.summary(conn)
     catch_up.run(

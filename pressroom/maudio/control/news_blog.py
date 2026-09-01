@@ -48,12 +48,11 @@ from urllib.parse import urljoin
 import requests
 from bs4 import BeautifulSoup
 
-from pressroom.release.control.storage import stored_grade
 from pressroom.text.control.dating import iso_date
 from pressroom.text.control.decoding import decode_html
 from pressroom.database.control import connection
-from pressroom.release.control import storage
 from pressroom.scraping.control import catch_up
+from pressroom.scraping.control import discovery
 from pressroom.text.control import richtext
 from pressroom.reporting.entity.outcome import Stats
 from pressroom.capture.control import archive
@@ -174,76 +173,19 @@ def scrape(limit: int | None = None, catch: dict | None = None) -> None:
     if limit:
         entries = entries[:limit]
 
-    stats = Stats(SOURCE)
+    stats = Stats(SOURCE, total=len(entries))
 
-    for e in entries:
-        url = e["url"]
-        existing = stored_grade(conn, url)
-        if existing is not None and existing != "teaser":
-            stats.skipped()
-            continue
-
-        parsed, confirmed = archive.fetch_detail_snapshot(
-            conn, session, url, parse_detail
-        )
-
-        if parsed.get("body"):
-            title = parsed.get("title") or e["title"]
-            date = parsed.get("date") or e["date"]
-            if existing == "teaser":
-                storage.upgrade_release(
-                    conn,
-                    url,
-                    detail_id=parsed["detail_id"],
-                    title=title,
-                    date=date,
-                    body=parsed["body"],
-                    body_html=parsed["body_html"],
-                    grade="full",
-                    commit=False,
-                )
-                stats.upgraded()
-            else:
-                storage.store_release(
-                    conn,
-                    SOURCE,
-                    url,
-                    title=title,
-                    date=date,
-                    body=parsed["body"],
-                    body_html=parsed["body_html"],
-                    detail_id=parsed["detail_id"],
-                    commit=False,
-                )
-                stats.added()
-            conn.commit()
-            continue
-
-        # Ordered before the teaser check on purpose: a failed probe is not a
-        # verdict, so an already-stored teaser must be reported `uncertain`
-        # (a rerun will retry it) rather than `skipped` ("nothing to do").
-        if not confirmed:
-            stats.uncertain()
-            continue
-
-        if existing == "teaser":
-            stats.skipped()
-            continue
-
-        if e["teaser"]:
-            storage.store_release(
-                conn,
-                SOURCE,
-                url,
-                title=e["title"],
-                date=e["date"],
-                body=e["teaser"],
-                body_html=e["teaser_html"] or None,
-                grade="teaser",
-            )
-            stats.teaser()
-        else:
-            stats.dead()
+    # prefer_parsed: this blog's article page states its own headline and date
+    # better than the listing does, and the upgrade carries both.
+    discovery.from_teasers(
+        conn,
+        session,
+        SOURCE,
+        entries,
+        parse=parse_detail,
+        stats=stats,
+        prefer_parsed=True,
+    )
 
     stats.summary(conn)
     catch_up.run(

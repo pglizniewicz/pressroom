@@ -412,6 +412,10 @@ def fetch_detail_snapshot(
     network hiccup (caller must not commit anything this run, so the item
     stays open to a full retry next time instead of getting stuck forever).
 
+    A recovered `parsed` carries `detail_id` and `origin_url` - the capture's
+    timestamp and its full address - so the caller can write the body and its
+    provenance in one transaction.
+
     A probe failure backs off fetch.SLEEP*2 before returning, matching the
     older per-scraper convention this consolidates (several earlier
     fetch_detail() copies had silently dropped this pause). Note that is the
@@ -436,6 +440,11 @@ def fetch_detail_snapshot(
         return {}, False
     if parsed.get("body"):
         parsed["detail_id"] = ts
+        # The address, not just the timestamp: `body_origin` is the only place a
+        # body's capture is written down, and the write site is the only place
+        # allowed to record it - so a caller that never sees `snap_url` cannot
+        # obey that rule, and for three sources none of them did.
+        parsed["origin_url"] = snap_url
         return parsed, True
     return {}, True
 
