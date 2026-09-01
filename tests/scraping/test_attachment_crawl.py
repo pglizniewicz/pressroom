@@ -1,0 +1,74 @@
+"""The attachment passes' write: text and provenance, or neither.
+
+`attachment_crawl.py` was the last place in the tree where a body write and its
+`body_origin` entry were two separately committed statements. In the two offline
+passes that was invisible - `origin_url` comes out of a JOIN on `body_origin`,
+so the second write only ever restated the value the first had just read - which
+is why the shape survived everywhere else being fixed. The network path is where
+it bit: there the address is new, and a crash between the two commits leaves the
+row holding a PDF's text and advertising the capture it had before.
+"""
+
+import re
+
+from pressroom.attachment.control import conversion
+from pressroom.provenance.entity import origin
+from pressroom.scraping.control import attachment_crawl
+from tests import support
+
+URL = "http://www.midiman.com/news/pdf/PR07022002A.pdf"
+CAPTURE = (
+    "https://web.archive.org/web/20021016075137id_/"
+    "http://www.midiman.com/news/pdf/PR07022002A.pdf"
+)
+
+
+class ReextractWriteTest(support.DbCase):
+    """One row in exactly the state the corpus was in before normalize()'s
+    layout fix reached it: the extractor's text with every newline collapsed by
+    the old `re.sub(r"\\s+", " ", text)`. That is what makes strict_same_text
+    pass and the re-extraction actually write."""
+
+    def setUp(self):
+        super().setUp()
+        self.text, _ = conversion.plain_text(support.fixture("attachment_pdf"))
+        self.assertIn("\n", self.text)
+        self.seed(
+            source="midiman_com_pressdb",
+            url=URL,
+            body=re.sub(r"\s+", " ", self.text),
+        )
+
+    def hold(self, key: str) -> None:
+        """The attachment's bytes in page_cache under `key`, and `key` recorded
+        as where this row's body came from - the join both offline passes walk."""
+        self.cache(key, support.fixture("attachment_pdf"))
+        origin.record(self.conn, URL, key)
+
+    def test_the_layout_is_recovered_and_the_entry_still_stands(self):
+        self.hold(CAPTURE)
+        attachment_crawl.reextract_from_cache()
+        self.assertEqual(self.row(URL)["body"], self.text)
+        self.assertEqual(self.origin_of(URL), CAPTURE)
+
+    def test_a_refused_origin_takes_the_new_body_down_with_it(self):
+        """The write and the entry are one transaction.
+
+        With the two commits split, `upgrade_release` had already committed the
+        re-extracted text by the time `origin.record` ran - and `record` does
+        not validate, so nothing raised and the row kept a body whose recorded
+        origin was never a capture address. Routing the entry through
+        `upgrade_release(origin_url=...)` puts `is_capture_address` inside the
+        same `with conn:`, so the refusal now rolls the body back.
+        """
+        stored = self.row(URL)["body"]
+        self.hold("970")
+        with self.assertRaises(ValueError):
+            attachment_crawl.reextract_from_cache()
+        self.assertEqual(self.row(URL)["body"], stored)
+
+    def origin_of(self, url: str):
+        row = self.conn.execute(
+            "SELECT origin_url FROM body_origin WHERE url = ?", (url,)
+        ).fetchone()
+        return row[0] if row else None

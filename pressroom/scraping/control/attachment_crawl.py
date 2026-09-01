@@ -94,12 +94,13 @@ zero Wayback captures anywhere - nothing to backfill.
 Called by the two scrapers that own these tags, never run on its own.
 """
 
+import contextlib
+
 import requests
 
 from pressroom.capture.control import address
 from pressroom.release.control import gate
 from pressroom.database.control import connection
-from pressroom.provenance.entity import origin
 from pressroom.release.control import storage
 from pressroom.reporting.entity.outcome import Stats
 
@@ -205,49 +206,54 @@ def reextract_from_cache(limit: int | None = None, sources: list | None = None) 
     extractor on the same bytes must produce the same characters. Measured over
     all 140 before writing anything: 140/140 identical modulo whitespace.
     """
-    conn = connection.connect()
-    where = ""
-    params = ()
-    if sources:
-        where = "AND r.source IN (%s)" % ",".join("?" * len(sources))
-        params = tuple(sources)
-    rows = conn.execute(CACHED_ATTACHMENT_SQL.format(where=where), params).fetchall()
-    if limit:
-        rows = rows[:limit]
-    print(
-        f"[from-cache] {len(rows)} attachment rows whose bytes are cached", flush=True
-    )
+    with contextlib.closing(connection.connect()) as conn:
+        where = ""
+        params = ()
+        if sources:
+            where = "AND r.source IN (%s)" % ",".join("?" * len(sources))
+            params = tuple(sources)
+        rows = conn.execute(
+            CACHED_ATTACHMENT_SQL.format(where=where), params
+        ).fetchall()
+        if limit:
+            rows = rows[:limit]
+        print(
+            f"[from-cache] {len(rows)} attachment rows whose bytes are cached",
+            flush=True,
+        )
 
-    stats = Stats(total=len(rows))
-    held, gained_layout = [], 0
-    for source, url, old_body, content, origin_url in rows:
-        text, kind = conversion.plain_text(content)
-        if not text:
-            print(f"\n  {kind} extractor produced no text for {url}")
-            stats.dead()
-            continue
-        ok, why = gate.strict_same_text(old_body or "", text)
-        if not ok:
-            held.append((url, why))
-            stats.skipped()
-            continue
-        if text == (old_body or ""):
-            stats.skipped()
-            continue
-        gained_layout += 1 if "\n" in text and "\n" not in (old_body or "") else 0
-        storage.upgrade_release(conn, url, body=text)
-        origin.record(conn, url, origin_url)
-        stats.upgraded()
+        stats = Stats(total=len(rows))
+        held, gained_layout = [], 0
+        for source, url, old_body, content, origin_url in rows:
+            text, kind = conversion.plain_text(content)
+            if not text:
+                print(f"\n  {kind} extractor produced no text for {url}")
+                stats.dead()
+                continue
+            ok, why = gate.strict_same_text(old_body or "", text)
+            if not ok:
+                held.append((url, why))
+                stats.skipped()
+                continue
+            if text == (old_body or ""):
+                stats.skipped()
+                continue
+            gained_layout += 1 if "\n" in text and "\n" not in (old_body or "") else 0
+            # origin_url through the write rather than beside it: `upgrade_release`
+            # records it inside its own `with conn:`, so the text and the entry are
+            # one transaction. Here it restates the value the JOIN above just read
+            # - which is exactly why this pair was the last one still split.
+            storage.upgrade_release(conn, url, body=text, origin_url=origin_url)
+            stats.upgraded()
 
-    stats.summary()
-    print(
-        f"  layout recovered: {gained_layout} rows now have line breaks where they had none"
-    )
-    if held:
-        print(f"WSTRZYMANE przez bramke: {len(held)} - nic nie zapisano")
-        for url, why in held[:10]:
-            print(f"  {why:26} {url}")
-    conn.close()
+        stats.summary()
+        print(
+            f"  layout recovered: {gained_layout} rows now have line breaks where they had none"
+        )
+        if held:
+            print(f"WSTRZYMANE przez bramke: {len(held)} - nic nie zapisano")
+            for url, why in held[:10]:
+                print(f"  {why:26} {url}")
 
 
 # Rows whose own attachment bytes are in page_cache, addressed through the
@@ -277,56 +283,58 @@ def write_richtext(
     this one" and "fix the converter" belongs to a person reading it. Same for a
     row the gate refuses. Both are listed at the end of the run.
     """
-    conn = connection.connect()
-    where = ""
-    params = ()
-    if sources:
-        where = "AND r.source IN (%s)" % ",".join("?" * len(sources))
-        params = tuple(sources)
-    rows = conn.execute(RICHTEXT_SQL.format(where=where), params).fetchall()
-    if limit:
-        rows = rows[:limit]
-    print(
-        f"[richtext] {len(rows)} attachment rows with cached bytes"
-        f"{' (dry run)' if dry_run else ''}",
-        flush=True,
-    )
-
-    stats = Stats(total=len(rows))
-    decisions, gained = [], 0
-    for rid, source, url, old_body, content, origin_url in rows:
-        kind = conversion.kind_of(content)
-        if kind != "pdf":
-            stats.skipped()
-            continue
-        text, _ = conversion.plain_text(content)
-        body, body_html, _ = conversion.to_richtext(content)
-        if not body_html:
-            decisions.append((rid, url, "converter returned nothing"))
-            stats.dead()
-            continue
-        ok, why = gate.same_words(
-            text, body, conversion.rotated_text(content), body_html.count("<li>")
+    with contextlib.closing(connection.connect()) as conn:
+        where = ""
+        params = ()
+        if sources:
+            where = "AND r.source IN (%s)" % ",".join("?" * len(sources))
+            params = tuple(sources)
+        rows = conn.execute(RICHTEXT_SQL.format(where=where), params).fetchall()
+        if limit:
+            rows = rows[:limit]
+        print(
+            f"[richtext] {len(rows)} attachment rows with cached bytes"
+            f"{' (dry run)' if dry_run else ''}",
+            flush=True,
         )
-        if not ok:
-            decisions.append((rid, url, why))
-            stats.skipped()
-            continue
-        if not dry_run:
-            storage.upgrade_release(conn, url, body=body, body_html=body_html)
-            origin.record(conn, url, origin_url)
-        gained += 1
-        stats.upgraded()
 
-    stats.summary()
-    print(f"  {gained} rows now carry real paragraphs instead of preformatted text")
-    if decisions:
-        print(f"\nDO DECYZJI: {len(decisions)} wierszy - nic nie zapisano")
-        for rid, url, why in decisions:
-            print(f"  #{rid:5} {why:34} {url}")
-    else:
-        print("  nothing needed a decision: every PDF converted and passed the gate")
-    conn.close()
+        stats = Stats(total=len(rows))
+        decisions, gained = [], 0
+        for rid, source, url, old_body, content, origin_url in rows:
+            kind = conversion.kind_of(content)
+            if kind != "pdf":
+                stats.skipped()
+                continue
+            text, _ = conversion.plain_text(content)
+            body, body_html, _ = conversion.to_richtext(content)
+            if not body_html:
+                decisions.append((rid, url, "converter returned nothing"))
+                stats.dead()
+                continue
+            ok, why = gate.same_words(
+                text, body, conversion.rotated_text(content), body_html.count("<li>")
+            )
+            if not ok:
+                decisions.append((rid, url, why))
+                stats.skipped()
+                continue
+            if not dry_run:
+                storage.upgrade_release(
+                    conn, url, body=body, body_html=body_html, origin_url=origin_url
+                )
+            gained += 1
+            stats.upgraded()
+
+        stats.summary()
+        print(f"  {gained} rows now carry real paragraphs instead of preformatted text")
+        if decisions:
+            print(f"\nDO DECYZJI: {len(decisions)} wierszy - nic nie zapisano")
+            for rid, url, why in decisions:
+                print(f"  #{rid:5} {why:34} {url}")
+        else:
+            print(
+                "  nothing needed a decision: every PDF converted and passed the gate"
+            )
 
 
 # Rows whose attachment bytes are in page_cache under NO name - not their own
@@ -405,89 +413,93 @@ def catch_up_network_source(
     source_total and print "Total in DB: 0", which reads as the run having found
     an empty source rather than as the label not being one.
     """
-    conn = connection.connect()
-    session = requests.Session()
-
-    rows = (
-        rows if rows is not None else conn.execute(ATTACHMENT_SQL, (source,)).fetchall()
-    )
-    if only_short:
-        full = [r for r in rows if len(r[1] or "") >= RECOVERED_LENGTH]
-        rows = [r for r in rows if len(r[1] or "") < RECOVERED_LENGTH]
-        # Say what was dropped: a bare "12 rows to attempt" after a 90-row run
-        # would otherwise read as most of the work having vanished.
-        print(
-            f"[{source}] --only-short: skipping {len(full)} rows that already "
-            f"hold >{RECOVERED_LENGTH} characters",
-            flush=True,
+    with (
+        contextlib.closing(connection.connect()) as conn,
+        requests.Session() as session,
+    ):
+        rows = (
+            rows
+            if rows is not None
+            else conn.execute(ATTACHMENT_SQL, (source,)).fetchall()
         )
-    if limit:
-        rows = rows[:limit]
-    print(f"[{source}] {len(rows)} attachment-linked rows to attempt", flush=True)
-
-    stats = Stats(source, total=len(rows))
-
-    for url, old_body in rows:
-        text = ""
-        origin_url = None
-        # A network error - or a search capped before trying every capture -
-        # is not evidence that the attachment was never archived, so track it
-        # separately. Otherwise a run with no connectivity, or a URL with more
-        # captures than WALKBACK_ATTEMPTS, would report a confirmed dead end.
-        uncertain = False
-
-        for candidate in domain_variants(url):
-            # Walks newest-to-oldest through every archived capture of
-            # `candidate`, not just the newest: CDX's statuscode:200 filter
-            # only proves archive.org got an HTTP 200, not that it was the
-            # attachment - a real "509 Bandwidth Limit Exceeded" page and a
-            # 2024 capture of the modern site both turned up served as 200 for
-            # a 2003-era attachment path. is_attachment rejects those and the
-            # walk-back tries the next-older capture instead of giving up.
-            content, found_ts, confirmed = archive.fetch_first_matching_snapshot(
-                conn,
-                session,
-                candidate,
-                conversion.is_attachment,
-                max_attempts=WALKBACK_ATTEMPTS,
-                timeout=30,
+        if only_short:
+            full = [r for r in rows if len(r[1] or "") >= RECOVERED_LENGTH]
+            rows = [r for r in rows if len(r[1] or "") < RECOVERED_LENGTH]
+            # Say what was dropped: a bare "12 rows to attempt" after a 90-row run
+            # would otherwise read as most of the work having vanished.
+            print(
+                f"[{source}] --only-short: skipping {len(full)} rows that already "
+                f"hold >{RECOVERED_LENGTH} characters",
+                flush=True,
             )
+        if limit:
+            rows = rows[:limit]
+        print(f"[{source}] {len(rows)} attachment-linked rows to attempt", flush=True)
 
-            if content is None:
-                if not confirmed:
+        stats = Stats(source, total=len(rows))
+
+        for url, old_body in rows:
+            text = ""
+            origin_url = None
+            # A network error - or a search capped before trying every capture -
+            # is not evidence that the attachment was never archived, so track it
+            # separately. Otherwise a run with no connectivity, or a URL with more
+            # captures than WALKBACK_ATTEMPTS, would report a confirmed dead end.
+            uncertain = False
+
+            for candidate in domain_variants(url):
+                # Walks newest-to-oldest through every archived capture of
+                # `candidate`, not just the newest: CDX's statuscode:200 filter
+                # only proves archive.org got an HTTP 200, not that it was the
+                # attachment - a real "509 Bandwidth Limit Exceeded" page and a
+                # 2024 capture of the modern site both turned up served as 200 for
+                # a 2003-era attachment path. is_attachment rejects those and the
+                # walk-back tries the next-older capture instead of giving up.
+                content, found_ts, confirmed = archive.fetch_first_matching_snapshot(
+                    conn,
+                    session,
+                    candidate,
+                    conversion.is_attachment,
+                    max_attempts=WALKBACK_ATTEMPTS,
+                    timeout=30,
+                )
+
+                if content is None:
+                    if not confirmed:
+                        uncertain = True
+                    continue
+
+                origin_url = (
+                    address.snapshot_url(found_ts, candidate) if found_ts else None
+                )
+                text, kind = conversion.plain_text(content)
+                if not text:
+                    # is_attachment already confirmed this is a real pdf/doc, so a
+                    # failure here is the extractor choking on it (encrypted,
+                    # corrupt), not a wrong-typed capture - still a parser gap
+                    # worth another try, not a verified absence.
+                    print(f"\n  {kind} extractor produced no text for {candidate}")
                     uncertain = True
+                else:
+                    break
+
+            if not text:
+                stats.uncertain() if uncertain else stats.dead()
+                continue
+            if len(text) <= len(old_body or ""):
+                stats.skipped()
                 continue
 
-            origin_url = address.snapshot_url(found_ts, candidate) if found_ts else None
-            text, kind = conversion.plain_text(content)
-            if not text:
-                # is_attachment already confirmed this is a real pdf/doc, so a
-                # failure here is the extractor choking on it (encrypted,
-                # corrupt), not a wrong-typed capture - still a parser gap
-                # worth another try, not a verified absence.
-                print(f"\n  {kind} extractor produced no text for {candidate}")
-                uncertain = True
-            else:
-                break
+            # The address this text came out of, recorded now rather than inferred
+            # later, and in the same transaction as the body it describes. For a
+            # row whose own url was never archived this is a sibling domain of the
+            # same scraper - true, and unrepresentable in `releases.url`, which is
+            # exactly why the table exists. None needs no guard: upgrade_release
+            # writes no entry for one.
+            storage.upgrade_release(conn, url, body=text, origin_url=origin_url)
+            stats.upgraded()
 
-        if not text:
-            stats.uncertain() if uncertain else stats.dead()
-            continue
-        if len(text) <= len(old_body or ""):
-            stats.skipped()
-            continue
-
-        storage.upgrade_release(conn, url, body=text)
-        # The address this text came out of, recorded now rather than inferred
-        # later. For a row whose own url was never archived this is a sibling
-        # domain of the same scraper - true, and unrepresentable in
-        # `releases.url`, which is exactly why the table exists.
-        if origin_url:
-            origin.record(conn, url, origin_url)
-        stats.upgraded()
-
-    stats.summary(conn if in_db else None)
-    conn.close()
+        stats.summary(conn if in_db else None)
 
 
 def catch_up_network(

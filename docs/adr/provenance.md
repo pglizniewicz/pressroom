@@ -74,6 +74,19 @@ advertised its old capture — a window the crawl could die inside, leaving
 behind precisely the false statement this section is about. Both calls now pass
 `commit=False` and one `with conn:` closes over the pair.
 
+`attachment_crawl.py` was the last split pair, and it survived the other two
+being fixed because it looked harmless. Its two offline passes read `origin_url`
+out of a JOIN on `body_origin`, so the second commit only ever restated the value
+the first had just read - a window with nothing to lose inside it, and nothing to
+report it. The network path is where the shape was real: there the address comes
+back from the capture walk, often under a mirror domain, and a crash between the
+two commits left the row holding the PDF's text while still advertising whatever
+capture it had before. All three now pass `origin_url=` to `upgrade_release` and
+inherit its transaction, which also puts `is_capture_address()` on a path that
+never had it. `tests/scraping/test_attachment_crawl.py` holds it, and that test
+was checked against the old code first: there nothing raises at all, because
+`origin.record` does not validate - only the write site does.
+
 The table covers every Wayback row, which is what lets `http.wayback_url()` be
 two lines with no idea what a timestamp looks like — no entry, no link, the right
 answer for a live source too. `origin_url` never reaches the JSON:
