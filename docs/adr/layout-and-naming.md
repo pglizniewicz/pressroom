@@ -97,7 +97,7 @@ records `[no-js]` against `web-static`:
 ## The dependency direction
 
 **The dependency direction is a rule, not an accident.** A source component
-imports `scraping`, `release`, `capture`, `text`; none of those imports a source
-component. The one exception is documented and safe:
-`provenance/boundary/verification.py` imports ten source control modules to
-reproduce bodies, and nothing imports it back.
+imports `scraping`, `release`, `capture`, `text`, `database`, `reporting` and
+`q4`; none of those imports a source component. The one exception is documented
+and safe: `provenance/boundary/verification.py` imports source control modules
+to reproduce bodies, and nothing imports it back.

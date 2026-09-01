@@ -149,10 +149,12 @@ metrics **and** a page of full texts — `-containers` for DOM containers,
 `-attachments` for the converters; the second half is not decoration.
 
 **The dependency direction is a rule, not an accident.** A source component
-imports `scraping`, `release`, `capture`, `text`; none of those imports a source
-component. The one exception is documented and safe:
-`provenance/boundary/verification.py` imports ten source control modules to
-reproduce bodies, and nothing imports it back.
+imports `scraping`, `release`, `capture`, `text`, `database`, `reporting` and
+`q4`; none of those imports a source component. The one exception is documented
+and safe: `provenance/boundary/verification.py` imports source control modules
+to reproduce bodies, and nothing imports it back.
+`tests/test_import_direction.py` asserts both halves, and reads that list of
+components back out of this sentence.
 
 → `docs/adr/layout-and-naming.md`
 
@@ -182,7 +184,9 @@ reproduce bodies, and nothing imports it back.
    `taxonomy/` and `text/control/decoding.py`. The two readers are deliberately
    dependency-free; never import `requests` or `bs4` into any of those, and
    never import `capture/control/politeness.py`, `q4` or a source component
-   into either reader.
+   into either reader. `tests/test_import_direction.py` proves that statically,
+   which `pressroom-verify-names` cannot: it imports for real, and `requests` is
+   installed here.
    **A reader opens the database through `connect_ro()`, never `connect()`** —
    the latter runs `init_db()`, i.e. `CREATE TABLE` and the FTS triggers, which
    a browser has no business doing. `?mode=ro` turns an accidental write into an
