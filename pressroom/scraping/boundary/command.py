@@ -1,20 +1,14 @@
 """The command line every scraper has, assembled once.
 
-Sixteen scrapers each carried a hand-written `__main__` block, and eleven of
-them were the same five lines: build a parser with a one-line description, add
-`--limit`, add the catch-up flags, parse, call the crawl. The differences that
-mattered were a handful of per-source options - a year range, a language, a
-discovery channel that can be switched off - and those are declared here as
-values instead of re-implemented as argparse calls.
-
-What a boundary module owes this function: a crawl callable, a description, and
+What a boundary module owes `run()`: a crawl callable, its own `__doc__`, and
 zero or more Options. What it gets back: the catch-up flags for free, and no
-argparse of its own.
+argparse of its own. The per-source differences - a year range, a language, a
+discovery channel that can be switched off - are declared here as values rather
+than re-implemented as argparse calls.
 
 The crawl is always called with `catch=` plus one keyword per declared Option,
-so an Option's `dest` is part of the crawl's signature - which is the intended
-coupling: the flag and the parameter it feeds are named the same thing on
-purpose.
+so an Option's `dest` is part of the crawl's signature. That coupling is the
+point: the flag and the parameter it feeds are named the same thing on purpose.
 """
 
 import argparse
@@ -46,7 +40,7 @@ class Option:
         parser.add_argument(*self.flags, **self.kwargs)
 
 
-#: Cap the work for a test run. The one option eleven of the sixteen share.
+#: Cap the work for a test run. The option nearly every scraper takes.
 LIMIT = Option(
     "--limit",
     type=int,

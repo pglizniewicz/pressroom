@@ -358,7 +358,7 @@ are not.
 
 **`scraping/control/discovery.py` is phase 1 and has three strategies** —
 `from_items`, `from_candidates`, `from_teasers`, plus `capture()` for the three
-tails that are genuinely per-source; **what each one takes is that module's
+tails that are genuinely per-source; **what each one takes is its own
 docstring.** A source component owns everything above the loop — pagination, the
 `no_crawl` guard, `limit`, the dedup that picks the best of several captures —
 and nothing below it.
@@ -377,7 +377,7 @@ phase 2's are:
 
 **`scraping/control/catch_up.py` is phase 2 and its six strategies are not
 interchangeable** — `from_cache`, `from_listings`, `from_live`, `retry_missing`,
-`seed_cache`, `retext`; **what each one needs is that module's docstring.**
+`seed_cache`, `retext`; **what each one needs is its own docstring.**
 `catch_up()` composes them **free first, network last**.
 
 **Three rules hold inside every strategy**, in one copy in the library so a

@@ -233,6 +233,14 @@ def plain_text(content: bytes) -> tuple[str, str]:
     `white-space: pre-wrap`, which is the right renderer for column layout and
     the wrong one for prose. It stays the fallback for whatever to_richtext()
     cannot convert.
+
+    Three flag choices, each of which has a wrong answer that stores damage:
+    `-layout`, because default-mode pdftotext drops real hyphens at a line wrap
+    ("rock-solid" -> "rocksolid"); `-m UTF-8.txt`, because antiword otherwise
+    maps its output through the locale's charset and reintroduces exactly the
+    mojibake decoding.py exists to prevent; and antiword rather than catdoc,
+    because antiword exits non-zero on anything that is not a Word document
+    while catdoc echoes unparseable input straight back as a body.
     """
     k = kind_of(content)
     if k == "pdf":

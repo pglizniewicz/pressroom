@@ -1,57 +1,22 @@
 """Phase 2 of a scraper's run: everything an earlier run could not get.
 
-A scraper's first phase discovers and stores. This is the second: it walks the
-rows that phase left incomplete and finishes them - reparsing bytes page_cache
-already holds (free), re-walking cached listings, re-deriving text from stored
-markup, and only then asking archive.org for what is genuinely missing. A plain
-re-run of a scraper does all of it, which is why none of this is a script anyone
-schedules.
+Phase 1 (discovery.py) discovers and stores; this walks the rows it left
+incomplete and finishes them, cheapest route first - stored markup, then the
+bytes page_cache already holds, then the network. A plain rerun of a scraper
+does all of it, which is why none of this is a script anyone schedules.
 
-**A library, deliberately: no `__main__`, no argparse, no source names.** The
-caller passes its own parser, its own listing collector, its own live fetcher -
-so this module imports no scraper and a scraper can import it at the top of the
-file. The registry it replaces (`source -> parser` for 16 tags) sat in a module
-that imported 13 scrapers, which is why nothing could import it back.
+A library, deliberately: no `__main__`, no argparse, no source names. The caller
+passes its own parser, its own listing collector, its own live fetcher, so this
+module imports no scraper and a scraper can import it at the top of the file.
 
-Six strategies, and they are not interchangeable:
+Three rules hold in every strategy, in one copy here so a scraper cannot get
+them wrong: the cursor is `body_html IS NULL`, and `force=True` widens it and
+says so first; `gate.not_shorter` applies under every other gate, `force`
+included; and the gate is chosen by the address rather than by a flag, through
+`resolution.own_page()`. A network error is never a verdict - nothing is
+written, the row is `uncertain`, and only a confirmed absence is `dead`.
 
-  from_cache      reparse the bytes we already have. No network, ever.
-  from_listings   re-walk cached listing captures and match entries back to
-                  rows by url - for bodies that only ever existed inside a
-                  listing page.
-  from_live       re-fetch from a site that is still up (through fetch_cached,
-                  so a cached page costs nothing).
-  retry_missing   fetch the row's own capture, then ask CDX when that 404s.
-                  The only strategy that can turn "retried forever" into
-                  `dead`.
-  seed_cache      fetch captures and parse nothing - for redesigning a parser
-                  without paying for a crawl per iteration.
-  retext          re-derive `body` from the stored `body_html`. Needs no bytes
-                  at all.
-
-A title is filled only where the row has none (`_fill_title`), which is the one
-thing these strategies write besides the body - and the rule that a new
-extraction rule goes in as a *fallback*, never a replacement, is why.
-
-Three rules hold in every one of them, and each cost data before it was a rule:
-
-1. **The cursor is `body_html IS NULL`** for that source. `force=True` widens it
-   to every row and says so before writing. Without a cursor, a listing pass
-   walked all 159 terratec_new rows instead of the 24 pending ones.
-2. **`gate.not_shorter` always**, including under `force`. That is what
-   stops a listing teaser replacing the full article it truncates, and
-   `safe_to_write` provably cannot: a lost tail is `edges_only`, the same
-   signature as correctly dropped nav.
-3. **The gate is chosen by the address, not by a flag.** Bytes that are a
-   capture of the row's own url go through `safe_to_write`; bytes from some
-   other page (a listing, a print view) go through `strict_same_text`, and if
-   the caller has a url-keyed collector those rows are skipped here and handled
-   by `from_listings` instead. A whole-page parser fed a listing capture returns
-   the longest article on it - somebody else's release, 64 rows of it.
-
-A network error is never a verdict: a failed fetch writes nothing and reports
-`uncertain`, so a rerun retries exactly that row. Only a confirmed absence is
-`dead`.
+→ docs/adr/catch-up.md
 """
 
 import sys
@@ -105,14 +70,11 @@ def _report_held(held: list) -> None:
 def _fill_title(conn, url: str, parsed: dict):
     """A title for a row that has none, or None.
 
-    **Fill-if-empty only, never a replacement.** This is what a deleted repair
-    pass did in one shot (37 of 54 empty titles recovered from cache, 17 rows
-    that carry no headline markup at all being the end state), and the reason it
-    only ever wrote over an empty title is measured: the same rule tried as a
-    replacement filled 8 rows and *changed* 30, twelve of them from a correct
-    title to an empty one. There are also 14 terratec_de rows where the current
-    parser disagrees with the stored title, twice substantively - that wants its
-    own measured pass, not a side effect of a re-extraction.
+    **Fill-if-empty only, never a replacement.** Tried as a replacement, the
+    same rule changed more rows than it filled, and a third of those went from a
+    correct title to an empty one. Where a parser now disagrees with a stored
+    title, that wants its own measured pass rather than a side effect of a
+    re-extraction.
     """
     title = (parsed.get("title") or "").strip()
     if not title:
@@ -195,9 +157,6 @@ def from_cache(
             # template variant it does not cover. Not retryable by refetching.
             stats.dead()
             continue
-        # The gate is chosen by the address, not by a flag: bytes that are a
-        # capture of the row's own url go through safe_to_write, bytes from some
-        # other page through strict_same_text.
         chosen = gate.safe_to_write if own else gate.strict_same_text
         for check in (gate.not_shorter, chosen):
             ok, why = check(stored.get(url, ""), body)
@@ -206,11 +165,9 @@ def from_cache(
                 stats.skipped()
                 break
         else:
-            # Record the address this text was read from, in the same
-            # transaction as the text. Not a clear: the key this strategy reads
-            # *is* the recorded entry, so clearing it deletes a true statement
-            # and takes the row's archive link with it (38 rows lost their link
-            # that way before the count gave it away).
+            # Recorded, not cleared: the key this strategy reads *is* the
+            # entry, so clearing it deletes a true statement and takes the
+            # row's archive link with it.
             _write(
                 conn,
                 url,
@@ -356,7 +313,7 @@ def retry_missing(conn, source: str, parser, session, *, limit=None) -> None:
     request and no CDX round trip. It is not always a capture *of this url*,
     though: a scraper that read a release out of a listing stores the listing's
     timestamp, so the reconstructed address is one that never existed and 404s
-    permanently (76 of 83 failures on one run were exactly that).
+    permanently - which is most of what fails here.
 
     So a failure falls back to archive.fetch_detail_snapshot, which asks CDX
     what captures of this url actually exist. That turns a permanent 404 into
@@ -547,9 +504,7 @@ def catch_up(
     if collect is not None:
         from_listings(conn, source, collect, force=force, limit=limit)
     if twins_too:
-        # Last of the free strategies: a teaser whose twin row in this same
-        # source already holds the real article. No capture involved, which is why it
-        # lives in its own module.
+        # Last of the free strategies, and the only one with no capture in it.
         twin.fill(conn, source)
     if offline:
         return
@@ -559,10 +514,9 @@ def catch_up(
         retry_missing(conn, source, parser, session, limit=limit)
 
 
-# The five flags every scraper gets, in one place for the same reason
-# outcome.py exists: the vocabulary has to be identical everywhere. A scraper
-# adds them with add_flags(p) and turns them into keyword arguments with
-# options(args).
+# The five flags every scraper gets, in one place so the vocabulary is identical
+# everywhere: add_flags(p) declares them, options(args) turns them into keyword
+# arguments.
 def add_flags(parser) -> None:
     parser.add_argument(
         "--force",
@@ -607,8 +561,7 @@ def options(args) -> dict[str, bool]:
         "offline": args.offline,
         "only_retext": args.retext,
         "seed": args.seed_cache,
-        # Read by attachment_crawl.catch_up, not by this module: the attachment
-        # rows are a second contract, and their network half is opt-in.
+        # Read by attachment_crawl.catch_up, not by this module.
         "attachments": getattr(args, "attachments", False),
     }
 
@@ -616,11 +569,10 @@ def options(args) -> dict[str, bool]:
 def confirm_force(conn, source: str, *, yes: bool = False) -> bool:
     """Ask before rewriting rows that already carry markup.
 
-    `--force` used to live on one CLI and now lives on fifteen, and it is the
-    flag whose earlier equivalent overwrote 122 full articles with listing
-    teasers. The gates still hold underneath, but a bulk rewrite is worth
-    stating out loud first. Non-interactive callers pass yes=True; a pipe with
-    no tty answers no rather than blocking a cron.
+    This is the flag whose earlier equivalent overwrote full articles with
+    listing teasers. The gates still hold underneath, but a bulk rewrite is
+    worth stating out loud first. Non-interactive callers pass yes=True; a pipe
+    with no tty answers no rather than blocking a cron.
     """
     total, with_html = conn.execute(
         "SELECT count(*), sum(body_html IS NOT NULL) FROM releases WHERE source = ?",
@@ -652,16 +604,10 @@ def run(conn, source: str, opts: dict | None, **pieces) -> None:
 def no_crawl(opts: dict | None) -> bool:
     """Whether the scraper's own discovery phase should be skipped entirely.
 
-    True for the flags that mean "do not touch the network": --offline (catch up
-    from page_cache only), --retext (needs nothing but the database) and
-    --seed-cache (fetches captures for known rows, discovers nothing). Applied by
-    each scraper to its *candidate list* rather than around its loop - a discovery
-    call that returns nothing leaves the loop body untouched, which is how a
-    fifteen-file change stays a one-line change per file.
-
-    This is what makes `pressroom-<source> --offline` the free re-extraction of
-    one source, which is the workflow that replaced a shared engine's
-    `--from-cache --source X`.
+    True for the flags that mean "do not touch the network": --offline, --retext
+    and --seed-cache. Applied by each scraper to its *candidate list* rather
+    than around its loop - a discovery call that returns nothing leaves the loop
+    body untouched, which is how this stays a one-line change per scraper.
     """
     opts = opts or {}
     return bool(opts.get("offline") or opts.get("only_retext") or opts.get("seed"))

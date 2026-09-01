@@ -10,16 +10,9 @@ same reason — the reason being what happened while phase 1 did not.
 The six strategies a rerun composes, and the three rules that hold inside every
 one of them. Rules 1 and 2 were bought with 122 articles.
 
-**The list of the six lives in `scraping/control/catch_up.py`'s docstring**, next
-to the code it describes — what each one needs and what it does. It used to be
-copied into the prose as well, in two places, and the copies are what argued
-themselves out of existence: renaming the concept from "shapes" to "strategies"
-had to touch all three, which is one edit for the code and two chances to leave a
-document saying something else. `CLAUDE.md` keeps only the names, because the
-rules below refer to them.
-
-**What is here is why the set is split at all**, and what picking the wrong
-member of it cost.
+**What each strategy needs and does is its own docstring**, next to the code.
+What is here is why the set is split at all, and what picking the wrong member
+of it cost.
 
 **Three rules hold inside every strategy, and each cost data before it was a
 rule.** They live in the library, in one copy, so a scraper cannot get them

@@ -1,49 +1,21 @@
-"""What a source's parser hands back, independent of which source it is.
-
-`Detail` is the whole-page parse: nine control modules produce one and
-`scraping/control/catch_up.py` consumes it without knowing which. It replaces
-`-> dict`, which said nothing about a shape ten parsers have to agree on.
-
-**Every key is optional, and that is the contract, not laziness.** pressdb's
-detail pages carry no headline, so its parser returns `body`/`body_html` only;
-media_news has no date there; and every parser returns `{}` for "this capture
-holds no article", which is what keeps a missing container from silently
-becoming an empty body. Callers read it with `.get()` for exactly that reason -
-`provenance/boundary/verification.py` does `parser(content).get("body") or ""`.
-
-`body_html` is `str | None` because a parser that found no container leaves it
-NULL on purpose, and `terratec/control/cms.py` returns that explicitly.
-
-`Entry` is deliberately *not* a TypedDict, and that is a measurement rather
-than a shortcut. Counted over the collectors, a listing entry is per-CMS -
-eleven shapes over seventeen keys, from `citation`/`lang` on the 1996 anchor
-pages to `section` on the magazine - so one TypedDict listing all of them would
-be the grab-bag this tree splits components to avoid, and one listing a subset
-would be a type a checker rejects the first time a parser adds its own key. So
-the alias says the one true thing - a string-keyed mapping per release - and
-where the shape is fixed enough to name, it gets named next to the parser that
-emits it, same rule as that parser's markup notes.
-
-The values are `Any`, not `object`. Both say "not typed per key", but `object`
-says it about *reading* too: it makes `item["url"]` an error at every consumer,
-and this mapping exists to be read. Loose is the measurement; unreadable was an
-accident of spelling it.
-
-What every collector *does* have to provide is what the consumer reads, and
-`catch_up.from_listings` states it: `body`, `body_html`, `origin_url`, `title`,
-all through `.get()`. Nothing else is required of an entry.
-"""
+"""What a source's parser hands back, independent of which source it is."""
 
 from typing import Any, TypedDict
 
-# A listing entry: one release as its own listing page describes it. Loose on
-# purpose - see the module docstring.
+# One release as its own listing page describes it. A dict alias rather than a
+# TypedDict because the keys are per-CMS: a `citation` on the 1996 anchor pages,
+# a `section` on the magazine. What a consumer may rely on is what
+# `catch_up.from_listings` reads - `body`, `body_html`, `origin_url`, `title` -
+# and it reads all of them through `.get()`.
 type Entry = dict[str, Any]
 
 
 class Detail(TypedDict, total=False):
-    """A parsed detail page. See the module docstring for why nothing is
-    required."""
+    """A parsed detail page. Every key is optional, and that is the contract:
+    pressdb's detail pages carry no headline, media_news carries no date, and a
+    parser that found no article at all returns `{}` rather than an empty body.
+    `body_html` is None where a parser found no container. Read with `.get()`.
+    """
 
     title: str
     date: str
