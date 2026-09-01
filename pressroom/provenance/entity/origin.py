@@ -1,22 +1,19 @@
 """`body_origin`: which capture each row's body was actually read out of.
 
 A scraper that reads a release out of a *listing* capture stores that listing's
-timestamp in releases.detail_id, and the timestamp alone cannot say which page
-it belongs to - so the browser used to build web/<ts>/<row url>, a capture that
-never existed. #4414 was the report that turned this up: CDX has no capture of
-that article, ever, while the listing capture holds its full text.
+timestamp in releases.detail_id, and a timestamp alone cannot say which page it
+belongs to - so an address built from the row's own url is one that never
+existed.
 
 Its own table rather than a column on `releases`, because absence has to keep
-meaning "no archive link for this row" - which is the right answer for the live
+meaning "no archive link for this row", which is the right answer for the live
 sources too.
 
-**Two columns and nothing else.** The whole address is what is stored, and the
-page it is a capture of is derived from it by a pure string split (page_of);
-rebuilding the address the other way would need releases.detail_id, which a
-recovery can rewrite underneath. Nothing here scores how well the body matched:
-what a reader wants is whether the body can be *produced* from those bytes,
-which is a different question and has its own script
-(pressroom-verify-body-origin).
+**Two columns and nothing else.** The whole address is stored and the page it
+captures is derived from it by a pure string split (page_of); going the other
+way would need releases.detail_id, which a recovery can rewrite underneath.
+Whether the body can still be *produced* from those bytes is a different
+question, and it has its own pass (pressroom-verify-body-origin).
 """
 
 SCHEMA_SQL = """

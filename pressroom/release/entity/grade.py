@@ -1,15 +1,9 @@
 """How good a row's body is - the closed set, and nothing else.
 
-A StrEnum rather than a plain class so `grade == "teaser"` and
-`store_release(..., grade="teaser")` keep working unchanged: every value that
-reaches SQLite is still the string the column has always held, and no call site
-had to be converted for this to exist.
+A StrEnum, so every value that reaches SQLite is still the string the column has
+always held and `grade == "teaser"` keeps working.
 
-These three spent a long time inside `detail_id`, where a *verdict about the
-body* sat in a field meant for a *reference to where the body came from*, and
-seven places had to re-derive which of the two a given value was - six of them
-by counting digits. Splitting them apart on 2026-08-22 is why this is a set of
-three values and not a shape rule.
+→ docs/adr/grade-and-detail-id.md
 """
 
 from enum import StrEnum

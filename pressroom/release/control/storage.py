@@ -3,17 +3,8 @@
 Every statement over `releases` that changes a row is here, and exactly once.
 Not an ORM: plain sqlite3, plain SQL strings, one function per statement shape.
 
-Commit per row by default. A caller that batches passes commit=False and
-commits after its loop - but the default is per-row because these are hour-long
-crawls against a flaky archive and a rerun must pick up exactly what the last
-one could not get.
-
-The commit goes through `with conn:`, which commits on success and **rolls back
-on an exception**. That is what makes a row and its body_origin entry one
-write. A bare conn.commit() cannot: when the origin write raised, the release
-INSERT was left sitting in an open transaction, and the next commit() from
-anywhere on that connection adopted it - a row stored without the provenance
-the code one line above had just refused to give it.
+Commit per row by default, because these are hour-long crawls against a flaky
+archive; a caller that batches passes commit=False and commits after its loop.
 """
 
 import contextlib
@@ -26,10 +17,13 @@ from pressroom.text.control.decoding import repaired
 
 
 def _transaction(conn, commit: bool):
-    """The transaction boundary for one write, or nothing when the caller owns
-    it. `with conn:` commits on success and rolls back on an exception;
-    commit=False means a batching loop will commit after it, so this function
-    must stay out of the way rather than commit early."""
+    """The transaction boundary for one write, or nothing when the caller owns it.
+
+    `with conn:` rather than a bare conn.commit() because it **rolls back on an
+    exception**, which is what makes a row and its body_origin entry one write:
+    a raising origin write once left the INSERT in an open transaction for the
+    next commit on that connection to adopt.
+    """
     return conn if commit else contextlib.nullcontext()
 
 

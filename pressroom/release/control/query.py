@@ -7,8 +7,7 @@ row, and connect_ro() hands out a connection SQLite itself refuses to write
 through.
 
 snippet()'s ordinal 1 is `body`, positional per the fts5(title, body)
-declaration in entity/schema.py. That ordinal used to appear here *and* in the
-CLI, which is two places for one invariant that fails silently.
+declaration in entity/schema.py.
 """
 
 import sqlite3
@@ -107,9 +106,7 @@ def search_releases(
 
     An empty `q` is not a degenerate search but the browsing case: it skips
     releases_fts entirely and pages through `releases` by (date, id), which is
-    also the only way to reach the 85 rows whose date is ''. A non-empty `q`
-    joins releases_fts exactly as the CLI reader does - snippet()'s ordinal 1 is
-    `body`, positional per the fts5(title, body) declaration.
+    also the only way to reach a row whose date is ''.
 
     Returns {"results": [...], "next": cursor|None, "truncated": bool,
     "query_mode": "raw"|"literal"|None}. `truncated` is True when more pages
@@ -230,23 +227,20 @@ def neighbours(conn: sqlite3.Connection, rid: int) -> dict[str, dict[str, Any] |
 
 def quality_counts(conn: sqlite3.Connection) -> dict[str, int]:
     """Corpus-wide gap counters for the audit view: how much of the corpus is
-    teaser-grade, dateless, suspiciously short or encoding-damaged. Short body
-    matters independently of detail_id because pressdb and media_pr rows carry
+    teaser-grade, dateless, suspiciously short or encoding-damaged. A short body
+    counts independently of detail_id, because pressdb and media_pr rows carry
     the *listing* capture's timestamp even when the body is just its blurb.
 
-    'plain' counts rows whose body was never re-extracted through richtext,
-    so they still render as one preformatted blob - excluding .pdf/.doc
-    attachment rows, which have no HTML behind them and never will.
+    'plain' counts rows whose body was never re-extracted through richtext, so
+    they still render as one preformatted blob - excluding .pdf/.doc rows, which
+    have no HTML behind them and never will.
 
-    'wayback' counts rows with a recorded archive capture (body_origin), and
-    'platform_id' the rows that carry a reference but no capture: mostly the
-    live sources storing their platform's own numeric id, plus 241 attachment
-    rows whose .pdf/.doc bytes were never cached, so nothing can say which
-    capture their text came out of. The key name is older than that second
-    group - the browser labels it "bez capture", which is what it measures. Neither is derived from
-    the *shape* of detail_id any more: counting digits was the same rule
-    re-implemented in seven places, and it silently decided what a new source
-    was allowed to store (soundonsound's docstring says so outright)."""
+    'wayback' counts rows with a recorded capture, 'platform_id' the rows that
+    carry a reference but no capture: the live sources storing their platform's
+    own id, plus the attachment rows whose bytes were never cached. The browser
+    labels the second "bez capture", which is what it measures. Neither is
+    derived from the *shape* of detail_id - that rule was re-implemented in
+    seven places and silently decided what a new source could store."""
     row = conn.execute(f"""
         SELECT count(*)                                        AS total,
                sum(r.grade = 'teaser')                         AS teaser,
@@ -262,8 +256,8 @@ def quality_counts(conn: sqlite3.Connection) -> dict[str, int]:
           FROM releases r
           LEFT JOIN body_origin c ON c.url = r.url
     """).fetchone()
-    # The key names are the column names now. They used to be a ten-name tuple
-    # twenty lines below the ten expressions it labelled, matched by position.
+    # Read by name: the labels are the column names above, not a tuple matched
+    # to them by position.
     return {k: (row[k] or 0) for k in row.keys()}
 
 

@@ -11,15 +11,11 @@ the table has two columns and no score:
   inferred    neither - the page had to be found by looking for the body's text
               among the captures sharing that timestamp.
 
-This script replaces the inference with a proof. A score - the fraction of text
-probes that hit - is neither necessary nor sufficient: a body can probe below
-1.0 and be right, and an attachment row can probe a perfect 1.0 and be wrong,
-its "capture" being the original server's error page.
-
-The proof is reproduction: run the source's own parser over the recorded
-capture and compare the result to what the row stores. Nothing about the pairing
-is assumed - if the body cannot be produced from those bytes, the entry is not
-evidence of anything.
+The proof is reproduction: run the source's own parser over the recorded capture
+and compare the result to what the row stores. Not a score - the fraction of
+text probes that hit is neither necessary nor sufficient, since a body can probe
+low and be right while an attachment row probes perfectly against the original
+server's error page.
 
 What counts as reproduced, and why not stricter:
 

@@ -1,15 +1,8 @@
 #!/usr/bin/env python3
 """Progress markers and end-of-run summaries, shared by every scraper.
 
-Each scraper used to keep its own ints, print its own marker chars, and build
-its own summary f-string. The counters were the same three-to-five outcomes
-everywhere, but the spelling drifted: "never archived successfully" vs
-"confirmed never archived" vs "unrecoverable", 'x' for dead in one file and
-'d' in the rest, 't' for a title-only stub in one file and 's' in another.
-
-So the outcome vocabulary is fixed here instead. Every scraper reports into
-the same seven buckets, which also means the marker stream is readable
-without knowing which scraper produced it:
+The outcome vocabulary is fixed here, and no scraper keeps counters of its own,
+so a marker stream is readable without knowing which scraper produced it:
 
     +  added        a new row was stored
     U  upgraded     an existing teaser/stub row gained real content
@@ -19,9 +12,9 @@ without knowing which scraper produced it:
     ?  uncertain    a network error, not a verdict - will retry next run
     d  dead         confirmed: nothing recoverable from the archive
 
-`uncertain` is deliberately its own bucket rather than folded into `skipped`
-(as most scrapers used to do): those rows are the ones a rerun will pick up,
-which is exactly what someone reading the summary wants to know.
+`uncertain` is its own bucket rather than folded into `skipped`, because those
+are the rows a rerun will pick up - which is what someone reading the summary
+wants to know.
 """
 
 import time
@@ -29,16 +22,14 @@ import time
 from pressroom.text.control import decoding
 from pressroom.release.control import storage
 
-# Not an outcome: wayback.sample_all_captures prints this once per historical
-# capture it fetches, which happens before any row is stored. Deliberately not
-# '+' so the two phases stay tellable apart in one run's output.
+# Not an outcome: printed once per historical capture fetched, which happens
+# before any row is stored. Deliberately not '+', so the two phases stay
+# tellable apart in one run's output.
 CAPTURE = ","
 
 # How often the marker stream is interrupted by a timestamped progress line.
-# These runs last hours - a wall of undated marker characters gives no way to
-# tell "alive but rate-limited" from "hung", and no way to judge the rate or
-# what is left. 15 minutes is often enough to answer that, rare enough not to
-# bury the markers.
+# These runs last hours, and a wall of undated markers gives no way to tell
+# "alive but rate-limited" from "hung".
 HEARTBEAT_SECONDS = 900
 
 # outcome -> (marker char, summary label). Order is the summary's order.

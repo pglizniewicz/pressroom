@@ -1,27 +1,20 @@
 """The `releases` table, its full-text index, and the SQL shapes over both.
 
-Three invariants live here and every one of them fails *silently* when broken;
-see index.py for the third.
-
-1. **fts5(title, body) column order is load-bearing.** The readers call
-   snippet(releases_fts, 1, ...) and that `1` is a positional ordinal. Swap the
-   columns and it starts snippeting titles with no error at all.
-2. **All three triggers must exist**, and updates and deletes must use the
-   external-content 'delete' command form with the OLD values.
-3. A bulk change made outside the triggers leaves the index stale, and the next
-   UPDATE then corrupts it - see index.rebuild_fts.
+Three invariants hold over what is declared here, and each fails *silently* when
+broken: the `fts5(title, body)` column order is a positional ordinal in every
+`snippet()` call; all three triggers must exist and must use the
+external-content 'delete' form with the OLD values; and a bulk change made
+outside the triggers leaves the index stale, which the next UPDATE turns into
+corruption - see index.rebuild_fts.
 
 `releases.url` is the dedup key (UNIQUE) and inserts are INSERT OR IGNORE, so a
-rerun of any crawl is free. Gate any "new" counter on store_release()'s bool
-return - an unconditional increment after it reports phantom inserts on every
-rerun.
+rerun of any crawl is free - which is why a "new" counter is gated on
+store_release()'s bool return rather than incremented after it.
 """
 
 SCHEMA_SQL = """
-    -- Column order is the order the file on disk has, which is what a
-    -- positional read would see. Nothing here reads positionally today
-    -- (row_factory is sqlite3.Row and there is no SELECT * in the tree), but
-    -- this declaration is the only description of that file, so it matches it.
+    -- Column order is the order the file on disk has. Nothing reads
+    -- positionally today, but this declaration is that file's only description.
     CREATE TABLE IF NOT EXISTS releases (
         id        INTEGER PRIMARY KEY AUTOINCREMENT,
         source    TEXT NOT NULL,
@@ -60,17 +53,14 @@ SCHEMA_SQL = """
     );
 """
 
-# All three are required to keep releases_fts in sync. Only releases_ai existed
-# once, so every "UPDATE releases SET body = ..." left the recovered text
-# unsearchable, and every out-of-band DELETE (e.g. from a GUI DB tool) left an
-# orphaned index entry - which also skews bm25() corpus
-# statistics for *every* query, not just the affected rows. FTS5 reports none
-# of this: 'integrity-check' passes, because the index is internally
-# consistent, it simply doesn't know the content table moved underneath it.
+# All three are required to keep releases_fts in sync: with only releases_ai,
+# an UPDATE leaves the recovered text unsearchable and an out-of-band DELETE
+# leaves an orphan that skews bm25() for every query. FTS5 reports none of it -
+# 'integrity-check' passes on an index that is internally consistent and simply
+# does not know the content table moved underneath it.
 #
-# Deletes and updates must use the special 'delete' command with the OLD
-# values; a plain "DELETE FROM releases_fts" is not supported on an
-# external-content table.
+# Deletes and updates must use the 'delete' command with the OLD values; a plain
+# "DELETE FROM releases_fts" is not supported on an external-content table.
 TRIGGERS_SQL = """
     CREATE TRIGGER IF NOT EXISTS releases_ai
     AFTER INSERT ON releases BEGIN

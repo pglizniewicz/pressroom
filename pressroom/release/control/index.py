@@ -19,18 +19,13 @@ def rebuild_fts(conn) -> None:
     the tokens actually indexed, so the next UPDATE corrupts the index rather
     than merely leaving it wrong. FTS5 verifies none of this.
 
-    No caller here on purpose - it is typed by hand after a bulk change, and
-    the sqlite3 CLI is not installed on this machine. The statement lives in one
-    place all the same.
+    No caller on purpose: it is typed by hand after a bulk change. The statement
+    lives in one place all the same.
     """
     conn.execute("INSERT INTO releases_fts(releases_fts) VALUES('rebuild')")
     conn.commit()
 
 
 def install_fts_triggers(conn) -> None:
-    """Create the three triggers that keep releases_fts in sync, if absent.
-
-    Called last by database/control/creation.py, after every table exists: all
-    three reference `releases`.
-    """
+    """Create the three triggers that keep releases_fts in sync, if absent."""
     conn.executescript(schema.TRIGGERS_SQL)
