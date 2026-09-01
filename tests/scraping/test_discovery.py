@@ -17,7 +17,6 @@ from unittest import mock
 
 from pressroom.capture.control import archive
 
-from pressroom.release.control import storage
 from pressroom.reporting.entity.outcome import Stats
 from pressroom.scraping.control import discovery
 from tests import support
@@ -116,26 +115,29 @@ class FromItemsTest(support.DbCase):
 
     def test_a_write_that_inserted_nothing_is_skipped_not_added(self):
         """Invariant 5: store_release is INSERT OR IGNORE, so an unconditional
-        counter reports phantom inserts on every rerun. Three copies of this
-        loop did exactly that. The url is stored under another source here, so
-        `already_stored` does not catch it first and the gate has to be the
-        write's own return value."""
-        self.seed("other", url="http://x/one", body="stored by a sibling tag")
-        counts = self.run_items(
-            [item()], lambda conn, session, url: (ARTICLE, f"<p>{ARTICLE}</p>")
-        )
+        counter reports phantom inserts on every rerun - three copies of this
+        loop did exactly that.
+
+        `already_stored` is url-keyed, so it normally catches this first and the
+        write's return value is the second gate on the same question. Reaching
+        that gate needs the row to appear *after* the pre-check, which is what
+        the fetch does here: it is the shape of two runs of the same source
+        overlapping, and the reason the gate is not redundant.
+        """
+
+        def fetch_and_race(conn, session, url):
+            self.seed("other", url=url, body="stored while we were fetching")
+            return ARTICLE, f"<p>{ARTICLE}</p>"
+
+        counts = self.run_items([item()], fetch_and_race)
         self.assertEqual(counts["added"], 0)
         self.assertEqual(counts["skipped"], 1)
         self.assertEqual(
-            storage.stored_grade(self.conn, "http://x/one"),
-            "full",
-            "the sibling's row must be left exactly as it was",
-        )
-        self.assertEqual(
             self.conn.execute(
-                "SELECT source FROM releases WHERE url = ?", ("http://x/one",)
-            ).fetchone()[0],
-            "other",
+                "SELECT source, body FROM releases WHERE url = ?", ("http://x/one",)
+            ).fetchone()[1],
+            "stored while we were fetching",
+            "the row that won the race must be left exactly as it was",
         )
 
     def test_one_item_s_failure_does_not_stop_the_ones_after_it(self):
