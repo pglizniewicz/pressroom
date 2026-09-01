@@ -205,6 +205,13 @@ def reextract_from_cache(limit: int | None = None, sources: list | None = None) 
     uses: here the *only* admissible change is whitespace, because the same
     extractor on the same bytes must produce the same characters. Measured over
     all 140 before writing anything: 140/140 identical modulo whitespace.
+
+    That is also why this is the one write here that passes no `grade`. The
+    gate admits nothing but a body that already *is* this extraction, character
+    for character - a teaser fails it - and a row whose text does not change is
+    `skipped` before the write. There is no verdict for this pass to change,
+    and claiming one it did not establish is the same lie in the other
+    direction. The two writes that can replace a teaser say `grade="full"`.
     """
     with contextlib.closing(connection.connect()) as conn:
         where = ""
@@ -331,8 +338,19 @@ def write_richtext(
                 stats.skipped()
                 continue
             if not dry_run:
+                # `grade="full"` because this write can be the teaser-to-article
+                # replacement: the cursor is `body_html IS NULL`, which says
+                # nothing about `body`, and the gate above compares the two
+                # conversions of these bytes to each other rather than to what
+                # is stored. A row still holding its listing blurb is replaced
+                # here, and a verdict left behind would offer it up again.
                 storage.upgrade_release(
-                    conn, url, body=body, body_html=body_html, origin_url=origin_url
+                    conn,
+                    url,
+                    body=body,
+                    body_html=body_html,
+                    grade="full",
+                    origin_url=origin_url,
                 )
             gained += 1
             stats.upgraded()
@@ -507,8 +525,13 @@ def catch_up_network_source(
             # row whose own url was never archived this is a sibling domain of the
             # same scraper - true, and unrepresentable in `releases.url`, which is
             # exactly why the table exists. None needs no guard: upgrade_release
-            # writes no entry for one.
-            storage.upgrade_release(conn, url, body=text, origin_url=origin_url)
+            # writes no entry for one. And the verdict beside it: the
+            # `len(text) > len(old_body)` above is the teaser-to-article
+            # replacement itself, so this is where `grade` stops being whatever
+            # the listing scraper guessed.
+            storage.upgrade_release(
+                conn, url, body=text, grade="full", origin_url=origin_url
+            )
             stats.upgraded()
 
         stats.summary(conn if in_db else None)

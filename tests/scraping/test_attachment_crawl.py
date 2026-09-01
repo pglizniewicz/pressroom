@@ -10,9 +10,12 @@ row holding a PDF's text and advertising the capture it had before.
 """
 
 import re
+from unittest import mock
 
 from pressroom.attachment.control import conversion
+from pressroom.capture.control import archive
 from pressroom.provenance.entity import origin
+from pressroom.release.entity.grade import Grade
 from pressroom.scraping.control import attachment_crawl
 from tests import support
 
@@ -114,3 +117,80 @@ class RichtextCursorTest(support.DbCase):
         self.hold(self.PDF, self.PDF_CAPTURE)
         attachment_crawl.write_richtext()
         self.assertIn("<p>", self.row(self.PDF)["body_html"] or "")
+
+
+class VerdictTest(support.DbCase):
+    """Which of the three writes here states `grade`, and which one must not.
+
+    The rule is one line in CLAUDE.md - an upgrade that replaces a teaser body
+    with the real article passes `grade="full"`, or `stored_grade()` hands the
+    row to the next run as still upgradable. What that line does not settle is
+    that only two of this module's three writes are that upgrade, and the
+    difference is in the gates rather than in the passes' names:
+
+      - `write_richtext` compares the two conversions of the same bytes to each
+        other, never to what is stored, and its cursor asks about `body_html`.
+        A row whose `body` is still the listing blurb goes straight through it.
+      - the network crawl writes exactly when the fetched text is longer than
+        the stored one, which is the replacement itself.
+      - `reextract_from_cache` writes only what its gate proved is already
+        stored character for character, so there is no verdict there to change.
+
+    These three sources' rows are all grade `full` today - the scrapers store
+    them that way even when the body is a blurb, which is the documented state
+    `length(body)` exists to see through - so this is what keeps the writes
+    honest for a row that arrives here graded truthfully.
+    """
+
+    PDF = "http://www.midiman.com/news/pdf/PR07022002C.pdf"
+    TS = "20021016075139"
+    CAPTURE = f"https://web.archive.org/web/{TS}id_/{PDF}"
+
+    def setUp(self):
+        super().setUp()
+        self.bytes = support.fixture("attachment_pdf")
+        self.text, _ = conversion.plain_text(self.bytes)
+
+    def teaser(self, body="zajawka z listingu"):
+        self.seed(
+            source="midiman_com_pressdb", url=self.PDF, body=body, grade=Grade.TEASER
+        )
+
+    def hold(self):
+        self.cache(self.CAPTURE, self.bytes)
+        origin.record(self.conn, self.PDF, self.CAPTURE)
+
+    def test_richtext_over_a_teaser_says_the_verdict_changed(self):
+        self.teaser()
+        self.hold()
+        attachment_crawl.write_richtext()
+        row = self.row(self.PDF)
+        self.assertIn("<p>", row["body_html"] or "")
+        self.assertEqual(row["grade"], "full")
+
+    def test_the_crawl_says_it_too(self):
+        """The one write here whose bytes are new, so nothing else can say it."""
+        self.teaser()
+        with mock.patch.object(
+            archive,
+            "fetch_first_matching_snapshot",
+            lambda *a, **kw: (self.bytes, self.TS, True),
+        ):
+            attachment_crawl.catch_up_network_source("midiman_com_pressdb")
+        row = self.row(self.PDF)
+        self.assertEqual(row["body"], self.text)
+        self.assertEqual(row["grade"], "full")
+
+    def test_a_re_extraction_recovers_layout_and_states_no_verdict(self):
+        """The deliberate asymmetry, pinned so it can fail rather than drift.
+
+        `strict_same_text` admits only a body that already is this extraction,
+        so nothing that reaches the write is a teaser and nothing here has
+        established that it stopped being one.
+        """
+        self.teaser(re.sub(r"\s+", " ", self.text))
+        self.hold()
+        attachment_crawl.reextract_from_cache()
+        row = self.row(self.PDF)
+        self.assertEqual(row["body"], self.text)
+        self.assertEqual(row["grade"], "teaser")

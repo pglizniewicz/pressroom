@@ -25,6 +25,23 @@ lie was in the report, never in the corpus. Neither pass has a flag that
 widens the cursor; a converter change is a one-off, and widening the query by
 hand for that one run is the same answer this project gives to a schema change.
 
+**Two of this module's three writes state `grade="full"`, and the third must
+not.** The rule itself is general — an upgrade that replaces a teaser body with
+the real article says so, or `stored_grade()` offers the row up again — but
+which write *is* that upgrade is decided by the gate above it, not by the pass's
+name. `write_richtext` compares the two conversions of one PDF to each other and
+never to what is stored, and its cursor asks only about `body_html`, so a row
+whose `body` is still the listing blurb goes through it; the crawl writes exactly
+when the fetched text is longer than the stored one, which is the replacement
+itself. `reextract_from_cache` writes only what `strict_same_text` proved is
+already stored character for character, and skips a row whose text does not
+change — it has established nothing about the verdict, and stamping one there
+would be the same kind of lie as withholding it in the other two. These
+scrapers grade at insert time, before the attachment has been fetched at all —
+the state `length(body)` exists to see through — so what the two verdicts buy is
+the row that arrives here graded honestly, not a rewrite of the ones already
+stored.
+
 **Dispatch is on magic bytes, not the extension** — CMS-era attachments are
 routinely mislabeled and some of this corpus's `.pdf` URLs are an HTML error
 page. CDX's `statuscode:200` is necessary but not sufficient: it proves

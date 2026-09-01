@@ -253,12 +253,20 @@ def scrape_domain(
             )
             stats.added() if body else stats.teaser()
         elif body and len(body) > stored_len:
+            # `grade="full"` because this branch *is* the teaser-to-article
+            # replacement: the cursor above admitted this row only because its
+            # stored body was still listing-length, and the detail capture just
+            # produced a longer one. `stored_grade()` cannot say so here - this
+            # scraper writes `full` at insert time even over a blurb, which is
+            # why the cursor is `length(body)` - so a row that arrives graded
+            # honestly is the one this verdict keeps honest.
             storage.upgrade_release(
                 conn,
                 url,
                 body=body,
                 body_html=parsed.get("body_html") or None,
                 detail_id=parsed.get("detail_id"),
+                grade="full",
                 origin_url=parsed.get("origin_url"),
                 commit=False,
             )
