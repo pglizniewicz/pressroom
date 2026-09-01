@@ -11,7 +11,13 @@ the digit rule had started constraining what a *new* source was allowed to store
   right only when the loop needs "have I seen this url".
 - **An upgrade that replaces a teaser body with the real article must pass
   `grade="full"`**, or the row keeps a verdict that stopped being true and the
-  next run offers it again as upgradable.
+  next run offers it again as upgradable. This one stood in the rulebook *and*
+  in `upgrade_release`'s own docstring, and four of nine call sites still did
+  not do it — a rule two copies of prose could not hold, because what breaks it
+  is a third place that reads neither. `GradeVerdictTest` in
+  `tests/test_mirrored_rules.py` walks the tree for the shape instead: a call
+  passing `body=` and no `grade=` fails, unless it is one of the two writes
+  named there, each with its reason next to the code.
 - `detail_id` is an **opaque reference** — a Wayback timestamp, or the platform's
   own id on a live source. Nothing parses it; asking is `address.is_timestamp()`'s
   job, and only the archive-facing code asks.

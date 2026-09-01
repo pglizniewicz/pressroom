@@ -428,6 +428,12 @@ def retext(conn, source: str, *, limit=None) -> None:
     `body` is by definition `to_text(body_html)` wherever the markup exists, so
     a fix to the text renderer alone costs nothing to apply. Rows whose text does
     not change are `skipped`, so a rerun right after one prints all dots.
+
+    One of the two writes in this tree that pass no `grade`, and for the plainer
+    of the two reasons: nothing arrives that the row did not already hold. The
+    markup is what its verdict was awarded for, so re-deriving the text from it
+    establishes no new one, and `grade="full"` here would be a claim about a
+    body nobody just recovered.
     """
     sql = (
         "SELECT url, body, body_html FROM releases "

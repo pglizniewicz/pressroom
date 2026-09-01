@@ -1,4 +1,5 @@
-"""The three rules this repo deliberately spells out twice.
+"""The three rules this repo deliberately spells out twice, and a fourth that is
+spelled out twice and then has to be obeyed somewhere else entirely.
 
 Each pair is documented as "change one and change the other", which is a comment
 asking a human to remember something - and one of the three had already drifted
@@ -6,9 +7,14 @@ before anyone noticed: the audit view reported 12 encoding-damaged rows where
 the repair found 35, because the SQL named five C1 codepoints by hand while the
 regex had always matched the whole 0x80-0x9F range.
 
+The fourth is `grade="full"`. Its two copies cannot drift apart - they say the
+same sentence - and that is exactly why neither of them held: what breaks the
+rule is a call site that reads neither.
+
 A comment cannot fail. These can.
 """
 
+import ast
 import json
 import pathlib
 import re
@@ -23,6 +29,39 @@ from tests import support
 # The browser's three files travel with the package as package data, so this is
 # where they are - not a path relative to the checkout.
 APP_JS = pathlib.Path(boundary.__file__).resolve().parent / "static" / "app.js"
+
+PACKAGE = support.HERE.parent / "pressroom"
+
+
+def _callee(func) -> str:
+    return func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", "")
+
+
+def _body_writes(path: pathlib.Path) -> list[tuple[str, int, bool]]:
+    """Every `upgrade_release` call in one file that writes text, as
+    (enclosing function, line, whether it states a grade).
+
+    Source text rather than imports, for the same reason `test_import_direction`
+    parses instead of executing: what is being asserted is what the call site
+    says, and a call site nothing ever runs breaks the rule just as loudly.
+    """
+    out = []
+
+    def walk(node, fn):
+        for child in ast.iter_child_nodes(node):
+            if isinstance(child, ast.Call) and _callee(child.func) == "upgrade_release":
+                keywords = {k.arg for k in child.keywords}
+                if keywords & {"body", "body_html"}:
+                    out.append((fn, child.lineno, "grade" in keywords))
+            walk(
+                child,
+                child.name
+                if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef))
+                else fn,
+            )
+
+    walk(ast.parse(path.read_text()), "<module>")
+    return out
 
 
 class EncodingRuleTest(support.DbCase):
@@ -146,6 +185,69 @@ class AttachmentExtensionTest(unittest.TestCase):
     def test_the_sql_excludes_nothing_else(self):
         excluded = re.findall(r"NOT LIKE '%\.\w+'", schema.FLAG_SQL["plain"])
         self.assertEqual(len(excluded), len(conversion.ATTACHMENT_EXTS))
+
+
+class GradeVerdictTest(unittest.TestCase):
+    """CLAUDE.md's `grade="full"` against every call that could break it.
+
+    The odd one out here: the second copy is not another file to compare
+    against but `upgrade_release`'s own docstring, and neither copy is what
+    drifts. What drifts is a call site that replaces a teaser body with the
+    real article and says nothing about the verdict, leaving the row graded
+    `teaser` - which `stored_grade()` then hands to the next run as still
+    upgradable, for the next run to find nothing to upgrade. Four of nine calls
+    were doing it with the rule sitting in two places saying otherwise.
+
+    A write may be exempt, and two are. But by name and with its reason written
+    next to the code, which is the whole difference between a decision and an
+    oversight.
+    """
+
+    # `<path under pressroom/>:<function>`. Both carry their own paragraph at
+    # the call site: nothing arrives that the row did not already hold in
+    # `retext`, and in `reextract_from_cache` the gate admits nothing but a body
+    # that already *is* this extraction.
+    EXEMPT = {
+        "scraping/control/catch_up.py:retext",
+        "scraping/control/attachment_crawl.py:reextract_from_cache",
+    }
+
+    def _writes(self):
+        return [
+            (path.relative_to(PACKAGE).as_posix(), fn, line, grade)
+            for path in sorted(PACKAGE.rglob("*.py"))
+            for fn, line, grade in _body_writes(path)
+        ]
+
+    def test_every_write_of_a_body_states_the_verdict_or_is_named_above(self):
+        self.assertEqual(
+            [
+                f"{where}:{fn}, line {line}"
+                for where, fn, line, grade in self._writes()
+                if not grade and f"{where}:{fn}" not in self.EXEMPT
+            ],
+            [],
+        )
+
+    def test_the_sweep_reaches_the_calls_it_is_meant_to_guard(self):
+        """The precondition, as in `test_import_direction`: a walk that quietly
+        matched nothing would pass the assertion above having checked nothing.
+        Both exempt files must show up in it, or the names above are guarding a
+        function that has moved."""
+        writes = self._writes()
+        self.assertTrue(writes)
+        self.assertLessEqual(
+            {name.split(":")[0] for name in self.EXEMPT},
+            {where for where, _fn, _line, _grade in writes},
+        )
+
+    def test_no_exemption_outlives_the_write_it_excuses(self):
+        """An exemption nothing uses is a hole with a name on it - and the name
+        makes it look considered."""
+        gradeless = {
+            f"{where}:{fn}" for where, fn, _line, grade in self._writes() if not grade
+        }
+        self.assertEqual(self.EXEMPT - gradeless, set())
 
 
 class FixtureManifestTest(unittest.TestCase):
