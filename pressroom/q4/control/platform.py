@@ -6,17 +6,14 @@ those two components are barely more than a url and a call to scrape() here.
 The listing container and the title link are the only things that differ, so
 they are parameters rather than two copies of this file.
 
-Nothing else in this repo uses this: every other source is a one-of-a-kind
-dead site with its own bespoke parser. (It used to be called common.py, which
-was misleading - only its HTTP constants were common, and those are the
-politeness concern now.)
+Nothing else in this repo uses this: every other source is a one-of-a-kind dead
+site with its own bespoke parser.
 
 Encoding: these are the only *live* sites here, and that is exactly where
-`r.text` is tempting and wrong. Q4's pages are UTF-8 but the response header
-does not always say so, and requests then falls back to ISO-8859-1, which
-stored 103 trademark signs in `amd` as raw C1 control characters. Every parse
-below goes through decode_html(r.content) - and since the repair moved into the
-write path, a refetch can no longer reintroduce that damage.
+`r.text` is tempting and wrong. Q4's pages are UTF-8 but the response header does
+not always say so, and requests then falls back to ISO-8859-1, which stored a
+page's worth of trademark signs as raw C1 control characters. Every parse below
+goes through decode_html(r.content).
 """
 
 import re
@@ -39,9 +36,7 @@ from pressroom.scraping.entity.parse import Entry
 def get_total_pages(session: requests.Session, list_url: str) -> int:
     r = session.get(list_url, headers=HEADERS, timeout=15)
     r.raise_for_status()
-    # decode_html(r.content), never r.text - see the module docstring: r.text's
-    # ISO-8859-1 fallback stored 103 trademark signs (cp1252 0x99) as raw C1
-    # control characters in `amd`.
+    # decode_html(r.content), never r.text - see the module docstring.
     soup = BeautifulSoup(decode_html(r.content), "html.parser")
     last = 1
     for a in soup.select("ul.pagination li a"):
@@ -158,7 +153,6 @@ def scrape(
         print()
 
     stats.summary(conn)
-    # Phase 2 for the tag this run owns. fetch_body goes through fetch_cached,
-    # so a page already in page_cache costs no request.
+    # Phase 2 for the tag this run owns.
     catch_up.run(conn, source, catch, fetch_body=fetch_body, session=session)
     conn.close()

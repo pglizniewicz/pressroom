@@ -5,30 +5,20 @@ database and touches no network. It checks that the *code* still resolves, which
 is the failure mode a repo of ~110 modules importing each other by name has and
 which grep does not catch.
 
-These are not what `tests/` covers and are not made redundant by it: the suite
-exercises behaviour, and these two ask whether the tree's own names still
-resolve - which a test only notices for the code paths it happens to run. Its
+The suite exercises behaviour; these two ask whether the tree's own names still
+resolve, which a test notices only for the code paths it happens to run. Their
 own blind spot, that both are static, is `tests/test_offline_is_offline.py`.
-
-Each caught a real break during the 2026-08-26 restructuring:
 
   imports   every module imports. The half a linter cannot do at all: it runs
             the import, so `from x import y` with no `y` in `x` fails here and
-            nowhere else. Executes module level only - a stale alias inside a
-            function body passes this and raises at call time.
-  shadowed  a function that assigns to a name which is also an imported module.
-            The rename that turned `bodygate.safe_to_write` into
-            `gate.safe_to_write` also hit a line assigning to a local `gate`,
-            which shadows the module for the whole function - so the name *is*
-            bound, just too late.
+            nowhere else. Module level only - a stale alias inside a function
+            body passes this and raises at call time.
+  shadowed  a function that assigns to a name which is also an imported module,
+            so the name *is* bound, just too late.
 
-There was a third, `unbound`: `foo.bar` whose `foo` is bound nowhere in scope.
-ruff's F821 replaced it, being strictly stronger - it flags the same lines and
-also the bare `foo(...)` form, which this one structurally could not see because
-it only inspected `ast.Attribute` nodes. That gap was not hypothetical; it is
-why this pass printed OK over three live NameErrors in
-`capture/control/archive.py`. Do not add bare-name detection back here: that is
-pyflakes, and `docs/adr/working-here.md` records the split.
+Undefined names are ruff's F821, which is strictly stronger than the check this
+used to carry. Do not add bare-name detection back here - `docs/adr/working-here.md`
+records the split.
 
 Run it after any change that renames or moves a module-level name.
 """

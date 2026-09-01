@@ -1,37 +1,28 @@
 #!/usr/bin/env python3
 """Which company each `source` tag belongs to.
 
-`releases.source` is per-domain, not per-brand, on purpose: the same release
-genuinely exists on several mirrors under unrelated URL schemes, and there is no
-reliable cross-domain dedup key, so `midiman_net_pressdb` and
-`midiman_com_pressdb` are separate sources by design. That makes 25 tags - a
-useful axis when you are debugging a scraper, and the wrong one when you are
-looking for what a company announced. This module owns that second axis, and
-nothing else: no SQL, no HTTP, stdlib only.
+A source tag is per-domain, not per-brand, so it is the right axis for debugging
+a scraper and the wrong one for reading the corpus. This module owns the second
+axis and nothing else: no SQL, no HTTP, stdlib only.
 
-The mapping is an explicit table rather than a prefix rule ("everything
-starting with terratec_"). A prefix rule looks cheaper right up to the next
-scraper, where it silently files a new source under the wrong company - or
-under none - and nothing fails. A table is reviewable, and `company_of()`
-reports what it does not recognise instead of guessing.
+An explicit table rather than a prefix rule, which looks cheaper right up to the
+next scraper, where it silently files a new source under the wrong company and
+nothing fails. `company_of()` reports what it does not recognise.
 
-Two groupings that are decisions, not data:
+Three groupings that are decisions, not data:
 
-- **Midiman and M-Audio are one company.** Midiman renamed itself M-Audio
-  around 2002 and kept publishing to the same hosts: midiman.com serves press
-  releases signed "M-Audio", m-audio.com serves ones signed Midiman. Splitting
-  by domain would not split by brand, only by CMS generation.
-- **`creative_gnw` belongs to Creative.** It is Creative's own newsroom feed
-  hosted on GlobeNewswire - a wire service, not a company of its own.
-- **Sound on Sound is a publisher, and gets its own entry anyway.** It is the
-  first row in this axis that is not a hardware maker, and the only one whose
-  articles are *about* many manufacturers rather than issued by one. Filing it
-  under any existing firm would be a lie, and leaving it out of the table is
-  not an option: an unmapped source falls through to UNKNOWN, and `"inne"` is
-  not a key of COMPANIES, so serve._sources() answers HTTP 400 the moment
-  anyone clicks it in the panel. The axis is labelled "firmy" in the browser,
-  which is now slightly loose - a magazine among manufacturers - and that is
-  the cheaper inaccuracy.
+- **Midiman and M-Audio are one company.** The rename kept publishing to the
+  same hosts, so splitting by domain would split by CMS generation, not brand.
+- **`creative_gnw` belongs to Creative.** Its own newsroom feed on a wire
+  service, not a company of its own.
+- **Sound on Sound is a publisher, and gets its own entry anyway.** Its articles
+  are *about* many manufacturers rather than issued by one, so filing it under an
+  existing firm would be a lie - and leaving it out is not an option, because
+  UNKNOWN is not a key of COMPANIES and the panel's link would answer HTTP 400.
+  The axis is labelled "firmy", which is that much looser, and that is the
+  cheaper inaccuracy.
+
+→ docs/adr/sources-and-tags.md
 """
 
 from typing import Any
@@ -101,10 +92,9 @@ def company_of(source: str) -> str:
 def sources_for(slugs) -> list[str]:
     """Every source tag belonging to any of `slugs`, in table order.
 
-    This is the whole company->query translation: a company filter is just the
-    source filter db.search_releases() already implements, so no new SQL exists
-    for it. Unknown slugs contribute nothing; callers validate first (the browser
-    answers 400) rather than silently searching the entire corpus.
+    A company filter is just the source filter `search_releases()` already
+    implements, so no new SQL exists for it. Unknown slugs contribute nothing:
+    callers validate first rather than silently searching the whole corpus.
     """
     out = []
     for slug in slugs or ():
