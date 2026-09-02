@@ -222,6 +222,9 @@ transaction and both take `commit=False`.
 `(parsed, confirmed)`; `confirmed=False` means archive.org failed, so the caller
 writes *nothing* and leaves the item open to a full retry. Only a confirmed
 absence may be recorded, and it is `uncertain` (`?`), never `dead`.
+**`confirmed=True` now means every capture was tried** — no attempt cap, no
+fetch error, no CDX listing truncated at `CDX_ROW_LIMIT` — and not merely that
+the newest one came back empty.
 
 **Report progress through `outcome.Stats`** — no per-script counters or marker
 chars. The seven outcomes are fixed so a marker stream is readable without
@@ -332,6 +335,22 @@ are not.
 - **Query `wayback_calls` before tuning a timeout or a sleep constant.**
 - **A live source's `Crawl-delay` is honoured**, through
   `fetch_cached(sleep=...)`.
+- **A per-item capture is chosen by `archive.fetch_best_matching_snapshot()`,
+  never `get_latest_working_snapshot()`** — the newest HTTP-200 capture of a
+  dead article url is the rebuilt site's shell page, which parses to nothing.
+  Three samples, scored by the **caller's** `score(content) -> int` (0 rejects):
+  the earliest capture that scores, one `LATER_PROBE_YEARS` on, and the last one
+  that scores. **A tie goes to the earlier**, so the earliest copy is the
+  default. `score` is the caller's because byte length is the measure backwards
+  — the shell page is the bigger file — and it must be the measure the write's
+  own gate uses, or the gate vetoes what the walk just picked.
+  `get_latest_working_snapshot()` is left for a pagination probe and nothing else.
+  **`content is None` with a timestamp still in hand means captures exist and
+  none scored** — a `stub`, not a `dead`; only a `timestamp` of None says the
+  archive never saw the url.
+- **When a probe beats the earliest copy, the run says so after the summary** —
+  `reporting/entity/selection.py`, drained by `Stats.summary()`. Not an outcome
+  and not a marker; the seven are still fixed. Silence means the default held.
 
 → `docs/adr/captures.md`
 
@@ -431,8 +450,9 @@ exists to keep you away from:
   NULL**.
 - **Dispatch is on magic bytes, not the extension**, and **CDX's
   `statuscode:200` is necessary but not sufficient** —
-  `archive.fetch_first_matching_snapshot` walks captures until `is_attachment()`
-  confirms one.
+  `archive.fetch_best_matching_snapshot` walks captures exhaustively, scoring
+  each by how much text it yields, so a non-match is a verdict and a thinner
+  early revision loses to the fuller later one.
 - **The attachment network crawl is opt-in** (`--attachments`), the one honest
   exception to "a plain rerun gets everything".
 

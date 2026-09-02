@@ -110,8 +110,9 @@ than by any test going red:
 
 **The strategies are named for where the release's text comes from**, which is
 the only axis the copies differed on that was not a bug: `from_items` (a listing
-item, body from a live fetch), `from_candidates` (a bare url, the archive's
-newest working capture) and `from_teasers` (a listing entry that carries a
+item, body from a live fetch), `from_candidates` (a bare url, the earliest
+capture of it that parses to anything, checked against two more — see
+[captures.md](captures.md)) and `from_teasers` (a listing entry that carries a
 teaser, which the detail capture may upgrade). **`capture()` is exposed
 separately because the split is at a seam, not at a line count**: the
 probe/fetch/report half is identical in five modules, and what happens when
@@ -130,3 +131,12 @@ grade, body length, markup length, `detail_id` **and** `origin_url` — and the
 one row whose probe failed mid-rehearsal was reported `uncertain`, written
 nowhere, and picked up by the next run and nothing else. That is the whole
 contract of a resumable crawl, observed rather than asserted.
+
+Two of those fields have since stopped being part of the claim, and the
+rehearsal is still worth running for the rest. The identity of `detail_id` and
+`origin_url` was a statement about the *newest working capture* rule, which no
+longer selects anything ([captures.md](captures.md)); re-run today, a row whose
+earliest good capture is not its newest legitimately comes back naming a
+different one. That is the change working, not the rehearsal failing. What the
+rehearsal still proves is what it was for: nothing is written twice, and a row
+whose fetch failed is left for the next run and touched nowhere else.

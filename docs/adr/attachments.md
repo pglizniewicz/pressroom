@@ -47,9 +47,13 @@ routinely mislabeled and some of this corpus's `.pdf` URLs are an HTML error
 page. CDX's `statuscode:200` is necessary but not sufficient: it proves
 archive.org got an answer, not that the answer was the attachment (see the
 soft-404 rule in [numbers.md](numbers.md)). Hence
-`archive.fetch_first_matching_snapshot`, which walks captures newest-to-oldest
-until `is_attachment()` confirms one rather than stopping at the newest;
-`domain_variants()` tries the mirror siblings before giving up.
+`archive.fetch_best_matching_snapshot`, which walks every capture rather than
+stopping at the newest, scoring each one by how much text the file yields —
+`attachment_crawl.attachment_score`, with `is_attachment()` as its floor. That
+is the same measure the write below it decides on, so the walk cannot pick a
+copy its own gate then refuses; a bare bool would tie every capture and hand an
+early, thinner revision the win. `domain_variants()` tries the mirror siblings
+before giving up.
 
 **The attachment network crawl is opt-in** (`--attachments`) and is the one
 honest exception to "a plain rerun gets everything": nothing records "CDX has no

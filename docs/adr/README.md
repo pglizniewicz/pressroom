@@ -36,7 +36,7 @@ applies to these files too.
 | [layout-and-naming.md](layout-and-naming.md) | why the tree is shaped this way, the retired `backfill_`/`repair_` prefixes, the two BCE deviations, the dependency direction |
 | [grade-and-detail-id.md](grade-and-detail-id.md) | why a verdict and a reference are two columns |
 | [sources-and-tags.md](sources-and-tags.md) | a tag is a CMS generation, not a domain; intended duplication; `MIRROR_DOMAINS`; the two axes |
-| [captures.md](captures.md) | why every fetched byte is in the database, and how archive.org is asked |
+| [captures.md](captures.md) | why every fetched byte is in the database, how archive.org is asked, and which capture of a url is the right one |
 | [encoding.md](encoding.md) | `r.text` never, the two correct decodes, the repair in the write path |
 | [text-and-markup.md](text-and-markup.md) | `body` + `body_html`, the richtext decisions, how a title is found |
 | [provenance.md](provenance.md) | `body_origin`, the three URL shapes, what the two removed columns cost |

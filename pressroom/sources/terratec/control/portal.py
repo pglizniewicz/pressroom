@@ -27,6 +27,7 @@ from pressroom.scraping.control import catch_up
 from pressroom.scraping.control import discovery
 from pressroom.text.control import richtext
 from pressroom.reporting.entity.outcome import Stats
+from pressroom.capture.control import address
 from pressroom.capture.control import archive
 from pressroom.scraping.entity.parse import Detail, Entry
 
@@ -319,6 +320,17 @@ def print_only_sids(prefix: str, have: set) -> list[int]:
     return sorted(sids - have)
 
 
+def _article_score(content: bytes) -> int:
+    """A capture is usable here as soon as it carries a headline - the same test
+    this loop applied to the parse before the walk did it. Longer body wins
+    between two that do, which is what lets the print view beat a truncated
+    article page rather than merely tying with it."""
+    parsed = parse_snapshot(content)
+    if not parsed.get("title"):
+        return 0
+    return len(parsed.get("body") or "") or 1
+
+
 def recover_article(
     conn, session, prefix: str, sid
 ) -> tuple[tuple[str, Detail, str] | None, bool]:
@@ -335,22 +347,17 @@ def recover_article(
         f"{prefix}modules.php?op=modload&name=News&file=article&sid={sid}",
         f"{prefix}print.php?sid={sid}",
     ):
-        try:
-            found = archive.get_latest_working_snapshot(url)
-        except Exception:
-            uncertain = True
+        content, timestamp, confirmed = archive.fetch_best_matching_snapshot(
+            conn, session, url, _article_score, timeout=20
+        )
+        if content is None:
+            uncertain = uncertain or not confirmed
             continue
-        if not found:
-            continue
-        snapshot_url, timestamp = found
-        try:
-            content = archive.fetch_snapshot(conn, session, snapshot_url, timeout=20)
-            parsed = parse_snapshot(content)
-        except Exception:
-            uncertain = True
-            continue
-        if parsed.get("title"):
-            return (timestamp, parsed, snapshot_url), True
+        return (
+            timestamp,
+            parse_snapshot(content),
+            address.snapshot_url(timestamp, url),
+        ), True
     return None, not uncertain
 
 

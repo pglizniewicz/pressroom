@@ -8,8 +8,9 @@ Everything that asks archive.org *what exists* goes through the public CDX API
 HTTP 200 is necessary but not sufficient: it proves archive.org got an answer,
 not that the answer was the file asked for. A capture can be the origin server's
 own soft-404 served as 200, or a modern site answering 200 years later for a
-long-dead path. get_latest_working_snapshot cannot tell, and
-fetch_first_matching_snapshot can, given a caller-supplied validity check.
+long-dead path. get_latest_working_snapshot cannot tell, which is why it is only
+good for a pagination probe; fetch_best_matching_snapshot can, given a
+caller-supplied `score`, and it is what every per-item fetch goes through.
 
 Every HTTP attempt here - a CDX query or a content fetch - is logged to
 `wayback_calls`, so a question like "is CDX_TIMEOUT well tuned?" is answered
@@ -30,6 +31,7 @@ from pressroom.capture.entity import page
 from pressroom.capture.control import address
 from pressroom.capture.control.politeness import HEADERS, SLEEP as CONTENT_SLEEP
 from pressroom.reporting.entity import outcome
+from pressroom.reporting.entity import selection
 
 CDX_URL = "https://web.archive.org/cdx/search/cdx"
 
@@ -67,6 +69,19 @@ _cooldown_until = 0.0
 # with no value separating "doomed" from "slow but fine".
 CDX_TIMEOUT = 30
 CDX_BULK_TIMEOUT = 60
+
+# How many rows CDX is asked for when listing one url's captures. A walk over a
+# list this long has not seen everything, so it may not call an absence
+# confirmed - fetch_best_matching_snapshot checks for it.
+CDX_ROW_LIMIT = 1000
+
+# How far past the earliest usable capture to look for a second opinion, in
+# whole years. A press release is not edited after publication, so the earliest
+# capture is normally the article itself; what it can be instead is a crawl that
+# arrived before the page had settled. A year is far enough that it has, and
+# near enough that most of these sites had not yet been rebuilt - which is the
+# failure this whole walk exists for.
+LATER_PROBE_YEARS = 1
 
 
 # Lazy, module-owned connection used only to log wayback_calls rows. Not
@@ -216,9 +231,13 @@ def list_snapshots_or_exit(prefix_url: str, **kwargs) -> list[dict[str, str]]:
 
 
 def list_all_captures(exact_url: str, retries: int = 3) -> list[str]:
-    """Every HTTP-200 capture timestamp of one exact url, uncollapsed - for a
-    page whose content changes over time, where a single "latest" would miss
-    older revisions.
+    """Every HTTP-200 capture timestamp of one exact url, uncollapsed, oldest
+    first - for a page whose content changes over time, where a single "latest"
+    would miss older revisions.
+
+    Truncated at CDX_ROW_LIMIT rows, which a caller that means to be exhaustive
+    has to notice: a full list is indistinguishable from a cut-off one except by
+    its length.
     """
     rows = _cdx(
         retries=retries,
@@ -227,7 +246,7 @@ def list_all_captures(exact_url: str, retries: int = 3) -> list[str]:
         url=exact_url,
         filter="statuscode:200",
         fl="timestamp",
-        limit=1000,
+        limit=CDX_ROW_LIMIT,
     )
     return sorted({row["timestamp"] for row in rows})
 
@@ -369,96 +388,223 @@ def fetch_detail_snapshot(
     carries `detail_id` and `origin_url`, so the caller can write the body and
     its provenance in one transaction.
 
+    Capture selection is fetch_best_matching_snapshot's, scored by how much body
+    the page yields - the same measure `gate.not_shorter` compares on, so a
+    capture this walk picks cannot then be vetoed downstream for being shorter
+    than one it passed over. `({}, True)` now means every capture was tried and
+    none carried an article, which is the verdict a caller records as `dead`;
+    it used to mean only that the newest one did not.
+
     A probe failure backs off twice the *content* interval - not this module's
     CDX one, because the extra patience is aimed at the endpoint doing the
     rate-limiting.
     """
-    try:
-        found = get_latest_working_snapshot(url)
-    except Exception as e:
-        print(f"\n  ERROR probing snapshots for {url}: {e}")
-        time.sleep(CONTENT_SLEEP * 2)
-        return {}, False
-    if not found:
-        return {}, True
-    snap_url, ts = found
+
+    def score(raw: bytes) -> int:
+        return len(parse_fn(raw).get("body") or "")
+
+    content, ts, confirmed = fetch_best_matching_snapshot(
+        conn, session, url, score, timeout=timeout
+    )
+    if content is None:
+        return {}, confirmed
+    # The winner is parsed twice, once to score it and once for real. parse_fn
+    # is pure and one more bs4 pass costs nothing beside a network fetch, so
+    # this is deliberate rather than an oversight - caching the parse by content
+    # hash would be more machinery than the saving.
+    parsed = parse_fn(content)
+    parsed["detail_id"] = ts
+    # The address, not just the timestamp: a caller that never sees the
+    # snapshot url cannot record where the body came from.
+    parsed["origin_url"] = address.snapshot_url(ts, url)
+    return parsed, True
+
+
+def _rate(
+    conn, session, url: str, ts: str, score, timeout: int
+) -> tuple[bytes | None, int]:
+    """(content, points) for one capture; content is None when it could not be
+    fetched at all. `points` of 0 with bytes in hand means they came back and are
+    not what the caller is looking for, which is a different answer from not
+    having them - so it is `content`, never the score, that says which."""
+    snap_url = address.snapshot_url(ts, url)
     try:
         content = fetch_snapshot(conn, session, snap_url, timeout=timeout)
-        parsed = parse_fn(content)
     except Exception as e:
         print(f"\n  ERROR fetching {snap_url}: {e}")
-        return {}, False
-    if parsed.get("body"):
-        parsed["detail_id"] = ts
-        # The address, not just the timestamp: a caller that never sees
-        # `snap_url` cannot record where the body came from.
-        parsed["origin_url"] = snap_url
-        return parsed, True
-    return {}, True
+        return None, 0
+    return content, score(content)
 
 
-def fetch_first_matching_snapshot(
+def _first_usable(
+    conn, session, url: str, timestamps, score, timeout: int
+) -> tuple[str | None, bytes | None, int, bool, list[str]]:
+    """The first capture in the given order that scores above zero.
+
+    -> (timestamp, content, points, had_error, tried). `timestamp` is None when
+    the whole list was walked and nothing scored; `tried` says what happened to
+    each one, for the caller to print if that mattered.
+    """
+    had_error = False
+    tried = []
+    for ts in timestamps:
+        content, points = _rate(conn, session, url, ts, score, timeout)
+        if content is None:
+            had_error = True
+            tried.append(f"{ts}:error")
+            continue
+        if points > 0:
+            return ts, content, points, had_error, tried
+        tried.append(f"{ts}:no-match")
+    return None, None, 0, had_error, tried
+
+
+def _year_after(timestamps, earliest: str) -> str | None:
+    """The first capture at least LATER_PROBE_YEARS past `earliest`, or None.
+
+    On the four-digit year prefix, not on a date arithmetic: pure string work,
+    no `datetime`, no timezone and no leap question - the same instinct
+    `capture/control/address.py` states about addresses. It also cannot pick a
+    capture from the winner's own year, which is where a second opinion buys
+    least.
+    """
+    after = int(earliest[:4]) + LATER_PROBE_YEARS
+    return next((t for t in timestamps if int(t[:4]) >= after), None)
+
+
+def fetch_best_matching_snapshot(
     conn: sqlite3.Connection,
     session: requests.Session,
     url: str,
-    is_valid,
-    max_attempts: int = 6,
+    score,
+    *,
     timeout: int = 20,
 ):
-    """Try archived captures of `url` newest-first, returning the first whose
-    bytes satisfy `is_valid(content)`.
-
-    Exists because a `statuscode:200` capture is not necessarily a capture of
-    the file asked for - see this module's docstring - and
-    get_latest_working_snapshot stops at the newest one regardless.
+    """The capture of `url` this caller rates highest, out of three samples.
 
     Returns (content, timestamp, confirmed), the same contract as
-    fetch_detail_snapshot. `confirmed` is True only when the non-match can be
-    trusted: every capture was tried and none validated, with no network error
-    along the way. A search capped by `max_attempts` or interrupted by a failure
-    returns confirmed=False, because an untried older capture might have been the
-    real file. What was tried is always printed, so a capped search cannot be
-    mistaken for an exhaustive one.
+    fetch_detail_snapshot.
 
-    `is_valid` is caller-supplied, so this module stays ignorant of what any
-    particular caller is looking for.
+    `statuscode:200` is necessary but not sufficient - see this module's
+    docstring - so the answer cannot be "the newest capture that answered". The
+    three samples are the earliest capture that scores at all, the first one
+    LATER_PROBE_YEARS past it, and the newest one that scores. Highest score
+    wins and **a tie goes to the earlier**, so the earliest copy is the default
+    and only a real advantage moves it: a press release is not edited after
+    publication, so the earliest capture is normally the article itself and the
+    least contaminated by a later redesign. The two probes are for when it is
+    not - a crawl that arrived before the page had settled, and a correction
+    published onto a site that then died before the year was out.
+
+    `score(content) -> int` is caller-supplied, so this module stays ignorant of
+    what any particular caller is looking for; 0 rejects. It has to be a number
+    rather than a predicate because two accepted captures still have to be
+    compared, and the comparison cannot live here: the modern site's shell page
+    is the *bigger* file, so byte length is the measure backwards.
+
+    `confirmed` says whether a non-match is a verdict. It is True only when
+    every capture was tried, with no network error and no truncated listing;
+    otherwise an untried capture might have been the real page.
+
+    **`content is None` with a `timestamp` in hand is its own answer**: captures
+    of this url exist, and not one of them scored. The timestamp is the earliest
+    of them, and the caller needs the difference - `from_candidates` stores that
+    as a `stub`, the row phase 2 comes back to, where a url the archive never
+    saw at all (`timestamp` None too) is `dead` and no row.
     """
     try:
         timestamps = list_all_captures(url)
     except Exception as e:
         print(f"\n  ERROR listing captures for {url}: {e}")
+        time.sleep(CONTENT_SLEEP * 2)
         return None, None, False
 
     if not timestamps:
         return None, None, True  # never had any HTTP-200 capture at all
 
-    newest_first = list(reversed(timestamps))
-    exhaustive = len(newest_first) <= max_attempts
-    candidates = newest_first[:max_attempts]
+    truncated = len(timestamps) >= CDX_ROW_LIMIT
 
-    had_error = False
-    tried = []
-    for ts in candidates:
-        snap_url = address.snapshot_url(ts, url)
-        try:
-            content = fetch_snapshot(conn, session, snap_url, timeout=timeout)
-        except Exception as e:
-            print(f"\n  ERROR fetching {snap_url}: {e}")
-            had_error = True
-            tried.append(f"{ts}:error")
-            continue
-        if is_valid(content):
-            return content, ts, True
-        tried.append(f"{ts}:no-match")
+    first_ts, first, first_points, had_error, tried = _first_usable(
+        conn, session, url, timestamps, score, timeout
+    )
+    if first_ts is None:
+        print(f"\n  no matching capture for {url} - tried {', '.join(tried)}")
+        return None, timestamps[0], not had_error and not truncated
 
-    scope = "all" if exhaustive else f"newest {max_attempts} of {len(timestamps)}"
-    print(f"\n  no matching capture for {url} - tried {scope}: {', '.join(tried)}")
-    return None, None, exhaustive and not had_error
+    best_ts, best, points, why = first_ts, first, first_points, None
+
+    # Probe 2: one capture a year or more on. It is a named address, so failing
+    # to fetch it is reportable - "we could not check" is not "we checked".
+    later = _year_after(timestamps, first_ts)
+    if later:
+        content, later_points = _rate(conn, session, url, later, score, timeout)
+        if content is None:
+            selection.note(
+                url,
+                taken=first_ts,
+                taken_score=first_points,
+                passed=later,
+                passed_score=None,
+                why=selection.PROBE_UNREACHABLE,
+            )
+        elif later_points > points:
+            best_ts, best, points, why = (
+                later,
+                content,
+                later_points,
+                selection.LATER_IS_BETTER,
+            )
+
+    # Probe 3: the newest capture that scores at all. Only the tail past the
+    # earliest usable one is walked, and the year probe is left out of it: its
+    # verdict is already in hand, so re-walking it would either re-score bytes
+    # already weighed or report the same unreachable capture twice. Between
+    # them the three probes fetch each capture at most once, even when nothing
+    # on the page ever validates.
+    tail = [t for t in reversed(timestamps) if t > first_ts and t != later]
+    last_ts, last, last_points, last_error, _ = _first_usable(
+        conn, session, url, tail, score, timeout
+    )
+    if last_ts is not None and last_points > points:
+        best_ts, best, points, why = (
+            last_ts,
+            last,
+            last_points,
+            selection.NEWEST_IS_BETTER,
+        )
+    elif last_ts is None and last_error and tail:
+        selection.note(
+            url,
+            taken=first_ts,
+            taken_score=first_points,
+            passed=tail[0],
+            passed_score=None,
+            why=selection.PROBE_UNREACHABLE,
+        )
+
+    # One record per url, and it compares what was taken against the default
+    # answer - not one per probe that won, which would report the same decision
+    # twice when both probes beat the earliest in turn.
+    if why is not None:
+        selection.note(
+            url,
+            taken=best_ts,
+            taken_score=points,
+            passed=first_ts,
+            passed_score=first_points,
+            why=why,
+        )
+    return best, best_ts, True
 
 
 def get_latest_working_snapshot(original_url: str):
     """(snapshot_url, timestamp) for the newest capture of `original_url` that
     returned HTTP 200, through the `id_` raw-content modifier, or None.
+
+    **Never for a detail page.** It cannot tell a capture of the article from a
+    modern site answering 200 for a long-dead path years later, and for a listing
+    whose content grows the answer is `sample_all_captures`. What is left for it
+    is a pagination probe, where any working capture of the page will do.
 
     `limit=-1` asks CDX for the last matching row, and it applies the filter
     before the limit - so a url whose newest captures are 404s, which is the

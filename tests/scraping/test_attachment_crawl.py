@@ -170,7 +170,7 @@ class VerdictTest(support.DbCase):
         self.teaser()
         with mock.patch.object(
             archive,
-            "fetch_first_matching_snapshot",
+            "fetch_best_matching_snapshot",
             lambda *a, **kw: (self.bytes, self.TS, True),
         ):
             attachment_crawl.catch_up_network_source("midiman_com_pressdb")

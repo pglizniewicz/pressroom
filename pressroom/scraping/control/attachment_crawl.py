@@ -17,7 +17,7 @@ default; the network crawl is opt-in (`--attachments`), the one honest
 exception to "a plain rerun gets everything" - nothing records "CDX has no
 capture of this url, ever", so a full pass re-buys every confirmed absence.
 
-Fetching goes through archive.fetch_first_matching_snapshot, never
+Fetching goes through archive.fetch_best_matching_snapshot, never
 get_latest_working_snapshot: `statuscode:200` proves archive.org answered, not
 that the answer was the attachment, and both known shapes of that gap - an
 origin server's own soft-404, a modern redesign answering 200 for a long-gone
@@ -67,10 +67,22 @@ ATTACHMENT_SQL = """
 # pass re-probes every one of them over the network.
 RECOVERED_LENGTH = 900
 
-# How many historical captures fetch_first_matching_snapshot walks back through
-# per domain candidate before giving up. Caps what a url that was never archived
-# as a real file costs, without turning one dead url into dozens of requests.
-WALKBACK_ATTEMPTS = 6
+
+def attachment_score(content: bytes) -> int:
+    """How much text this capture's file yields, or 0 when it is not an
+    attachment at all.
+
+    The same measure the write below decides on (`len(text) <= len(old_body)` is
+    a `skipped`), so the walk cannot pick a copy its own gate will then refuse.
+    A bare `is_attachment` bool would not do: with a binary score every capture
+    ties, the earliest always wins, and the two probes buy nothing - which is
+    how an earlier, thinner revision of a PDF would start beating the fuller
+    later one this crawl exists to find.
+    """
+    if not conversion.is_attachment(content):
+        return 0
+    text, _kind = conversion.plain_text(content)
+    return len(text)
 
 
 def domain_variants(url: str) -> list[str]:
@@ -370,20 +382,20 @@ def catch_up_network_source(
         for url, old_body in rows:
             text = ""
             origin_url = None
-            # A network error - or a search capped before trying every capture -
-            # is not evidence that the attachment was never archived, so it is
-            # tracked separately rather than reported as a dead end.
+            # A network error - or a listing CDX truncated before every capture
+            # was tried - is not evidence that the attachment was never
+            # archived, so it is tracked separately rather than reported as a
+            # dead end.
             uncertain = False
 
             for candidate in domain_variants(url):
-                # Walks newest-to-oldest until is_attachment confirms a
-                # capture - see this module's docstring.
-                content, found_ts, confirmed = archive.fetch_first_matching_snapshot(
+                # Scores every capture the same way the write below does - see
+                # attachment_score and this module's docstring.
+                content, found_ts, confirmed = archive.fetch_best_matching_snapshot(
                     conn,
                     session,
                     candidate,
-                    conversion.is_attachment,
-                    max_attempts=WALKBACK_ATTEMPTS,
+                    attachment_score,
                     timeout=30,
                 )
 

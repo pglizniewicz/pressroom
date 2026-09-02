@@ -21,6 +21,7 @@ import time
 
 from pressroom.text.control import decoding
 from pressroom.release.control import storage
+from pressroom.reporting.entity import selection
 
 # Not an outcome: printed once per historical capture fetched, which happens
 # before any row is stored. Deliberately not '+', so the two phases stay
@@ -156,3 +157,9 @@ class Stats:
             fixed = ", ".join(f"{n}x {m}" for m, n in decoding.REPAIRS.most_common())
             print(f"{prefix}naprawione kodowanie: {fixed}")
             decoding.REPAIRS.clear()
+        # Which rows were not recovered from the earliest capture of their url,
+        # and what beat it. Same shape and same reason as the block above: the
+        # walk is the only place that knows, and a separate pass would be a rule
+        # someone has to remember. Silence means the default answer held.
+        for line in selection.drain(prefix):
+            print(line)

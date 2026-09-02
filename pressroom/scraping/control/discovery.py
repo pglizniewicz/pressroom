@@ -22,15 +22,10 @@ told apart from a release which genuinely had none.
 → docs/adr/catch-up.md
 """
 
-import time
 from typing import NamedTuple
 
+from pressroom.capture.control import address
 from pressroom.capture.control import archive
-
-# The *content* interval, not archive.py's CDX one - the same alias and the same
-# reason as `archive.CONTENT_SLEEP`: the extra patience after a failed probe is
-# aimed at the endpoint doing the rate-limiting.
-from pressroom.capture.control.politeness import SLEEP as CONTENT_SLEEP
 from pressroom.release.control import storage
 from pressroom.scraping.entity.parse import Detail
 
@@ -92,40 +87,49 @@ class Capture(NamedTuple):
     origin_url: str | None
 
 
+def _detail_score(parsed) -> int:
+    """A capture with an article beats one with only a headline, which beats one
+    with neither.
+
+    The middle rung is not a rounding. `from_candidates` stores a title-only
+    capture as a `stub` - the row phase 2 comes back to - so a scorer that
+    rejected it outright would turn every one of those into `dead` and lose the
+    row. `archive.fetch_detail_snapshot` keeps the body-only rule instead,
+    because it returns `{}` for a bodyless parse by contract and walking further
+    for a headline would buy it nothing.
+    """
+    return len(parsed.get("body") or "") or bool(parsed.get("title"))
+
+
 def capture(conn, session, url: str, parse, *, stats, timeout: int = 20):
-    """The newest working capture of `url`, fetched and parsed.
+    """The best capture of `url` this parser can use, fetched and parsed.
 
     Returns None when the network failed - `stats.uncertain()` has already been
     reported and nothing may be written for this item in this run: a network
     error is not a verdict. A `Capture` whose `timestamp` is None is the opposite: archive.org
-    answered, and the answer is that there is no capture. That is a verdict, and
-    what a source does with it differs (`dead`, a title-only stub, or a body
-    read off a listing capture instead), so this returns it rather than counting
-    it.
+    answered, and the answer is that there is no usable capture. That is a
+    verdict, and what a source does with it differs (`dead`, a title-only stub,
+    or a body read off a listing capture instead), so this returns it rather
+    than counting it.
 
     The split is `archive.fetch_detail_snapshot`'s `(parsed, confirmed)` pair
     with the capture's address kept: five loops rebuilt this by hand precisely
     because they needed `snapshot_url` and `timestamp` afterwards.
     """
-    try:
-        found = archive.get_latest_working_snapshot(url)
-    except Exception as e:
-        print(f"\n  ERROR probing snapshots for {url}: {e}")
-        time.sleep(CONTENT_SLEEP * 2)
+    content, timestamp, confirmed = archive.fetch_best_matching_snapshot(
+        conn, session, url, lambda c: _detail_score(parse(c)), timeout=timeout
+    )
+    if content is None and not confirmed:
         stats.uncertain()
         return None
-    if not found:
+    if timestamp is None:
         return Capture({}, None, None)
-
-    snapshot_url, timestamp = found
-    try:
-        content = archive.fetch_snapshot(conn, session, snapshot_url, timeout=timeout)
-        parsed = parse(content)
-    except Exception as e:
-        print(f"\n  ERROR fetching {snapshot_url}: {e}")
-        stats.uncertain()
-        return None
-    return Capture(parsed, timestamp, snapshot_url)
+    # Captures exist and none of them carried anything a parser could use. Still
+    # a `Capture` with an address on it, because the caller's answer to that is
+    # a `stub` - the row that lets phase 2 come back - and not the `dead` a url
+    # the archive never saw gets.
+    parsed = parse(content) if content is not None else {}
+    return Capture(parsed, timestamp, address.snapshot_url(timestamp, url))
 
 
 def from_candidates(

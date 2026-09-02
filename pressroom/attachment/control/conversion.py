@@ -145,9 +145,9 @@ def kind_of(content: bytes) -> str:
 def is_attachment(content: bytes) -> bool:
     """True if these bytes are a type plain_text() can pull real text from.
 
-    Drives fetch_first_matching_snapshot's walk-back: a capture that is HTML (a
-    soft-404) fails this, so the walk-back tries an older capture instead of
-    settling for a wrong-typed page. Checked on the raw bytes rather than by
+    The floor under attachment_crawl.attachment_score: a capture that is HTML
+    (a soft-404) scores nothing, so the walk keeps going instead of settling for
+    a wrong-typed page. Checked on the raw bytes rather than by
     calling plain_text and looking at `kind` - that would run
     pdftotext/antiword once to classify and again to extract.
     """

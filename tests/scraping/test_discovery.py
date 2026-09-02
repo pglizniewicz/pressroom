@@ -161,10 +161,16 @@ class FromItemsTest(support.DbCase):
 
 
 class FakeArchive:
-    """Stands in for the two archive.py calls `capture()` makes.
+    """Stands in for the two archive.py calls the capture walk makes.
 
     Patched onto the module rather than reached through a session, because the
-    point of these tests is the loop: no network, no page_cache, no CDX.
+    point of these tests is the loop: no network, no page_cache, no CDX. The
+    walk itself is left real - `capture()` is now one call into it, and stubbing
+    that call out would test nothing but the mock.
+
+    One capture in the list, so there is no year-later probe and no tail to walk
+    back over: what the walk chooses out of several is
+    `tests/capture/test_archive.py`'s subject, not this file's.
     """
 
     def __init__(
@@ -176,11 +182,11 @@ class FakeArchive:
         self.fetch_error = fetch_error
         self.probed = []
 
-    def get_latest_working_snapshot(self, url):
+    def list_all_captures(self, url, retries=3):
         self.probed.append(url)
         if self.probe_error:
             raise self.probe_error
-        return self.snapshot
+        return [TS] if self.snapshot else []
 
     def fetch_snapshot(self, conn, session, url, timeout=20):
         if self.fetch_error:
@@ -188,11 +194,11 @@ class FakeArchive:
         return b"<html>whatever the parser is fed</html>"
 
     def install(self, case):
-        for name in ("get_latest_working_snapshot", "fetch_snapshot"):
+        for name in ("list_all_captures", "fetch_snapshot"):
             patcher = mock.patch.object(archive, name, getattr(self, name))
             patcher.start()
             case.addCleanup(patcher.stop)
-        # capture() waits CONTENT_SLEEP*2 after a failed probe; a test does not.
+        # The walk waits CONTENT_SLEEP*2 after a failed listing; a test does not.
         patcher = mock.patch("time.sleep")
         patcher.start()
         case.addCleanup(patcher.stop)
@@ -295,7 +301,12 @@ class FromCandidatesTest(support.DbCase):
         """Stored, unlike in from_items, because the url is real and its capture
         is named - the row is what lets phase 2 come back for the text. But not
         `full`, and no origin: body_origin records the capture a body came from
-        and there is no body."""
+        and there is no body.
+
+        This is also what `_detail_score`'s middle rung is for. The walk only
+        returns a capture that scores above zero, so a scorer counting body
+        length alone would reject this one, `capture()` would report a confirmed
+        absence, and every title-only row would become `dead` instead."""
         fake = FakeArchive(snapshot=(SNAP, TS), parsed=detail(body="")).install(self)
         counts = self.run_urls(fake)
         self.assertEqual((counts["stub"], counts["added"]), (1, 0))
@@ -313,6 +324,16 @@ class FromCandidatesTest(support.DbCase):
         self.assertEqual(
             self.conn.execute("SELECT count(*) FROM releases").fetchone()[0], 0
         )
+
+    def test_a_capture_that_parses_to_nothing_is_still_a_stub_not_a_dead_end(self):
+        """The archive has this url; not one of its captures carries anything a
+        parser can use. That is not the same as never having been archived, and
+        the difference is a row: `dead` would drop a release the listing knew
+        the title of."""
+        fake = FakeArchive(snapshot=(SNAP, TS), parsed={}).install(self)
+        counts = self.run_urls(fake, titles={"http://x/one": "From the listing"})
+        self.assertEqual((counts["stub"], counts["dead"]), (1, 0))
+        self.assertEqual(self.row()[0], "From the listing")
 
     def test_a_candidate_already_stored_is_skipped_without_a_probe(self):
         fake = FakeArchive(snapshot=(SNAP, TS), parsed=detail()).install(self)
