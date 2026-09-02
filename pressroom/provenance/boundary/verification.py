@@ -64,7 +64,6 @@ CACHED_PARSERS = {
     "midiman_net": golive.parse_snapshot,
     "maudio_com": golive.parse_snapshot,
     "maudio_com_news": news_blog.parse_detail,
-    "midiman_de": presse_de.parse_generic_page,
 }
 
 
@@ -87,10 +86,13 @@ def candidate_bodies(
         mine = [e["body"] for e in entries if e.get("url") == url]
         return mine or [e["body"] for e in entries]
     if source == "midiman_de":
-        return [
+        entries = presse_de.parse_page(content, page_url, ts)
+        mine = [
             e["body"]
-            for e in presse_de.parse_page(content, "http://www.midiman.de/", ts)
+            for e in entries
+            if presse_de.release_url(e, e["title"], e["date"]) == url
         ]
+        return mine or [e["body"] for e in entries]
     if source.endswith("_pressdb"):
         entries = pressdb.extract_entries(content, page_url, ts)
         mine = [e.get("body") or "" for e in entries if e.get("url") == url]

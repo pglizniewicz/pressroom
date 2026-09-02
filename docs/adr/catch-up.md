@@ -122,8 +122,10 @@ with the source and the half above it does not.
 
 **Only one flag survived**, `prefer_parsed`, and it is the one real question:
 whether the detail page states the headline and date better than the listing
-does. On the m-audio blog it does; on `media_news` and `presse_de` the listing
-wins and the upgrade writes the body alone.
+does. On the m-audio blog it does; on `media_news` the listing wins and the
+upgrade writes the body alone. `presse_de` used to be the third answer to that
+question and is now none of them: the one page it ever fetched as a detail turned
+out to be a third listing, so the source passes a collector and no parser at all.
 
 **What proved it: the corpus, on a copy.** Deleting five rows per source and
 re-running the scraper brings them back identical to the byte — title, date,

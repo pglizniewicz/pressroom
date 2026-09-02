@@ -170,23 +170,23 @@
     "timestamp": "20041205213624",
     "url": ""
   },
-  "midiman_de__detail": {
-    "base_url": "http://www.midiman.de/messe03.htm",
-    "capture": "https://web.archive.org/web/20050213191228id_/http://www.midiman.de/messe03.htm",
-    "file": "midiman_de__detail",
-    "kind": "detail",
-    "source": "midiman_de",
-    "timestamp": "20050213191228",
-    "url": "http://www.midiman.de/messe03.htm"
-  },
   "midiman_de__listing": {
     "base_url": "http://www.midiman.de/oldpress.htm",
-    "capture": "https://web.archive.org/web/19991002083542id_/http://www.midiman.de/oldpress.htm",
+    "capture": "https://web.archive.org/web/20000312093638id_/http://www.midiman.de/oldpress.htm",
     "file": "midiman_de__listing",
     "kind": "listing",
     "source": "midiman_de",
-    "timestamp": "19991002083542",
-    "url": "http://www.midiman.de/press/biport-2x4-s-midi-interface-f-r-pc-und-mac-1999-01-15"
+    "timestamp": "20000312093638",
+    "url": ""
+  },
+  "midiman_de__listing_1": {
+    "base_url": "http://www.midiman.de/messe03.htm",
+    "capture": "https://web.archive.org/web/20050213191228id_/http://www.midiman.de/messe03.htm",
+    "file": "midiman_de__listing_1",
+    "kind": "listing",
+    "source": "midiman_de",
+    "timestamp": "20050213191228",
+    "url": ""
   },
   "midiman_net__detail": {
     "base_url": "http://www.midiman.net/m-audio/html/press/prmaudme.htm",

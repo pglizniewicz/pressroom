@@ -31,11 +31,6 @@ from tests import support
 # and a token that appears nowhere would make the comparison vacuous.
 PROBES = ("MobilePre", "Octane", "ArKaos", "Radium", "GeForce", "press")
 
-# The one row that provably cannot reproduce: its stored body is several
-# releases concatenated by an old extraction, so rewriting it would delete text
-# belonging to other rows.
-KNOWN_IRREPRODUCIBLE = {6211}
-
 
 @support.needs_corpus
 class CorpusCase(unittest.TestCase):
@@ -230,8 +225,6 @@ class ProvenanceTest(CorpusCase):
             for rid, src, url, ts, body, body_html, capture in rng.sample(
                 group, min(3, len(group))
             ):
-                if rid in KNOWN_IRREPRODUCIBLE:
-                    continue
                 got = self.conn.execute(
                     "SELECT content FROM page_cache WHERE url = ?", (capture,)
                 ).fetchone()

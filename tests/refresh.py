@@ -39,6 +39,7 @@ from pressroom.sources.maudio.control import (
     media_news,
     media_pr,  # noqa: E402
     news_blog,
+    presse_de,
     pressdb,
 )
 from pressroom.provenance.entity import origin  # noqa: E402
@@ -56,6 +57,14 @@ MIN_BODY = 800
 # terratec_early's English page carries 5, and both are still the whole of what
 # that channel is.
 MIN_ENTRIES = 8
+
+# The sources where one page proves nothing about another, so they get one
+# fixture per page: terratec_early's German and English pages use different date
+# markers and different anchor schemes, and midiman_de's Musikmesse roundup
+# delimits its blocks with a comment vocabulary the two listings it hangs off do
+# not use, dates its releases off the page rather than the block, and is the one
+# page in that source whose releases have an anchor of their own.
+TWO_LISTINGS = ("terratec_early", "midiman_de")
 
 
 def extra_listings() -> dict:
@@ -78,20 +87,27 @@ def extra_listings() -> dict:
 
 
 def listing_patterns() -> dict:
-    """source -> a LIKE pattern matching a capture of that source's listing.
+    """source -> LIKE patterns matching a capture of that source's listings.
 
     The four multi-domain scrapers each keep a `DOMAINS` dict mapping their tags
     to the listing url they crawl, which is exactly the question here, so the
     patterns come from there. A pattern rather than an address because the
     capture key carries a timestamp the scraper never knows.
+
+    A list rather than one pattern because of midiman.de: it is three static
+    pages named in the scraper, and which of them a capture is decides the block
+    delimiters, the anchor scheme and where a release's date comes from. Its
+    candidates have to come from PAGES rather than from `body_origin`, which
+    only knows the pages some row was already read out of.
     """
     out = {
-        src: f"%id_/{url}%"
+        src: [f"%id_/{url}%"]
         for mod in (media_pr, pressdb, media_news)
         for src, url in mod.DOMAINS.items()
     }
-    out["maudio_com_news"] = f"%id_/{news_blog.LISTING_PAGES[1]}%"
-    out["soundonsound"] = "https://www.soundonsound.com/search?%"
+    out["maudio_com_news"] = [f"%id_/{news_blog.LISTING_PAGES[1]}%"]
+    out["soundonsound"] = ["https://www.soundonsound.com/search?%"]
+    out["midiman_de"] = [f"%id_/{url}%" for url in presse_de.PAGES]
     return out
 
 
@@ -220,15 +236,13 @@ def refresh_captures() -> None:
                 "live": _live_candidates,
             }[kind]
             rows = picker(conn, source)
-            want = 1
+            want = 2 if kind == "listing" and source in TWO_LISTINGS else 1
             if kind == "listing" and (source in extra or source in patterns):
-                # Two for terratec_early: the German page and the English one
-                # use different date markers and different anchor schemes, so
-                # one of them proves nothing about the other.
-                rows = _cached(conn, extra.get(source)) or _cached_like(
-                    conn, patterns.get(source, "\x00")
-                )
-                want = 2 if source == "terratec_early" else 1
+                rows = _cached(conn, extra.get(source)) or [
+                    row
+                    for pattern in patterns.get(source, ())
+                    for row in _cached_like(conn, pattern)
+                ]
             if not rows:
                 print(f"  -- {source} {kind}: nothing cached, skipped")
                 continue
@@ -302,10 +316,23 @@ def _usable(conn, source, kind, rows, want) -> list:
         got = len(got) if kind == "listing" else len((got or {}).get("body") or "")
         (rich if got >= floor else thin).append((size, capture, url, got))
     rich.sort()
-    out = [(c, s, u) for s, c, u, _n in rich[:want]]
+    out = []
+    for size, capture, url, _n in rich:
+        if len(out) == want:
+            break
+        # One per page when more than one is wanted: two captures of the same
+        # listing are the same page a month apart, and the reason a source is in
+        # TWO_LISTINGS is always that its second page is a different shape.
+        if want > 1 and any(_page(capture) == _page(c) for c, _s, _u in out):
+            continue
+        out.append((capture, size, url))
     for _s, capture, url, _n in sorted(thin, key=lambda t: -t[3])[: want - len(out)]:
         out.append((capture, _s, url))
     return out
+
+
+def _page(capture: str) -> str:
+    return origin.page_of(capture) or capture
 
 
 def _write(conn, name, capture, files: dict) -> str:
