@@ -34,9 +34,9 @@ skill's standard checks (console, accessibility snapshot, 375/1280 resize,
 
 - [firms-default] `/` at 1280px: the panel heading reads "6 firm" and lists, after "wszystkie", alphabetically: AMD, Creative, Intel, Midiman / M-Audio, Sound on Sound, TerraTec (the API sorts by size; the panel re-sorts by name)
 - [sources-grouped] `/#view=sources` at 1280px: after "wszystkie" the tags are grouped under six company labels in alphabetical order (AMD, Creative, Intel, Midiman / M-Audio, Sound on Sound, TerraTec), and each group is a nested `ul` carrying that company's `aria-label`. No `h3`/`h4` is added to the panel — the grouping is a list, not an outline
-- [sources-chrono] `/#view=sources` at 1280px: within a group the tags run oldest-first by their `first` date — TerraTec reads `terratec_early` 1996–1997, `terratec_de`/`terratec` 1998–2003, `terratec_pressde` 2001–2007, `terratec_new_*` 2007–2011. `midiman_net`, whose one row has no date, sorts last inside Midiman / M-Audio rather than first
+- [sources-chrono] `/#view=sources` at 1280px: within a group the tags run oldest-first by their `first` date — TerraTec reads `terratec_early` 1996–1997, `terratec` 1998–2003, `terratec_pressde` 2001–2007, `terratec_pressen` 2003–2007, `terratec_new_*` 2007–2011. `midiman_net`, whose one row has no date, sorts last inside Midiman / M-Audio rather than first
 - [firms-switch] `/` at 1280px: the panel switch has "firmy" with `aria-current="true"` and "źródła" without
-- [sources-switch] `/#view=sources` at 1280px: the panel heading reads "25 źródeł (tagi per domenę)"; "źródła" carries `aria-current="true"`
+- [sources-switch] `/#view=sources` at 1280px: the panel heading reads "24 źródeł (tagi per domenę)"; "źródła" carries `aria-current="true"`
 - [source-years] `/#view=sources` at 1280px: every source with a dated row shows its year range on its own line under the tag — `amd` "2007–2026", `midiman_com` just "1999" (one year). `wszystkie` shows none, and neither does `midiman_net`, whose single row has no date. The full ISO span stays in the `title`
 - [group-label-rank] `/#view=sources` at 1280px: a company label outranks the tags under it — 12px uppercase, `font-weight: 700`, full `--fg` (not `--muted`, which the year lines already use), and a `--group-bg` band behind it. It must not be smaller-and-paler than the 13.6px tag names, which reads as a caption on the item above instead of a heading over the ones below
 - [group-band] `/#view=sources` in both themes: the band colour is `--group-bg` and is **not** `--surface`, which is the item hover colour — a label painted with it would read as a hovered row. Label-on-band contrast stays above AA (measured 14.6:1 light, 12.7:1 dark)
@@ -52,7 +52,7 @@ skill's standard checks (console, accessibility snapshot, 375/1280 resize,
 - [intersection] `/#company=amd&source=intel` at 1280px: zero results (the filter is impossible, not ignored)
 - [detail-company] `/#r/5021` at 1280px: the article shows "Midiman / M-Audio" linking to `#company=maudio…` and the tag `midiman_com_pressdb` linking to `#source=midiman_com_pressdb…`
 - [audit-firms] `/#audit` at 1280px: the default table has 6 data rows and the caption "Braki per firma…"
-- [audit-sources] `/#audit&view=sources` at 1280px: the table has 25 data rows and the caption "Braki per źródło…"
+- [audit-sources] `/#audit&view=sources` at 1280px: the table has 24 data rows and the caption "Braki per źródło…"
 - [audit-drill] `/#audit`: the TerraTec "teasery" cell links to a list whose status contains both "firmy: TerraTec" and "filtry: teasery"
 
 ## Release body

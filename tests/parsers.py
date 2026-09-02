@@ -30,7 +30,7 @@ from pressroom.sources.maudio.control import (
 from pressroom.provenance.boundary.verification import CACHED_PARSERS
 from pressroom.q4.control import platform
 from pressroom.sources.soundonsound.control import magazine
-from pressroom.sources.terratec.control import cms, early, portal, presse
+from pressroom.sources.terratec.control import cms, early, portal, pressemit
 
 MEDIA_PR = ("midiman_com_media_pr", "midiman_net_media_pr", "maudio_com_media_pr")
 MEDIA_NEWS = (
@@ -61,8 +61,7 @@ LISTING.update({tag: cms.extract_entries for tag in CMS})
 LISTING["midiman_de"] = presse_de.parse_page
 LISTING["maudio_com_news"] = lambda c, base, ts: news_blog.parse_listing_page(c, base)
 LISTING["soundonsound"] = lambda c, base, ts: magazine.parse_listing(c)
-LISTING["terratec_de"] = lambda c, base, ts: presse.extract_links(c, base)
-LISTING["terratec"] = lambda c, base, ts: presse.extract_links(c, base)
+LISTING["terratec"] = lambda c, base, ts: pressemit.extract_links(c, base)
 # The yearly category listings - the channel portal.py calls "irreplaceable
 # archaeology" and the one that raised NameError on every run for a day, because
 # the regex it referenced was left behind in a deleted file. Nothing else in

@@ -49,7 +49,7 @@ from pressroom.sources.maudio.control import (
     presse_de,
     pressdb,
 )
-from pressroom.sources.terratec.control import cms, portal, presse, pressemit
+from pressroom.sources.terratec.control import cms, portal, pressemit
 
 # source -> parser, for the sources whose reproduction is a plain whole-page
 # parse. The re-extraction library takes its parser from the caller, so this is
@@ -59,7 +59,6 @@ from pressroom.sources.terratec.control import cms, portal, presse, pressemit
 # whose reproduction needs more than one call.
 CACHED_PARSERS = {
     "terratec": pressemit.parse_snapshot,
-    "terratec_de": presse.parse_de_snapshot,
     "midiman_com": golive.parse_snapshot,
     "midiman_net": golive.parse_snapshot,
     "maudio_com": golive.parse_snapshot,

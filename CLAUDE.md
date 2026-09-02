@@ -20,7 +20,7 @@ pressroom-serve                                      # http://127.0.0.1:8765
 .venv/bin/python -m unittest discover -s tests       # the suite
 ```
 
-- **Every command is a console script declared in `pyproject.toml`** — 16
+- **Every command is a console script declared in `pyproject.toml`** — 15
   scrapers, 2 readers, 3 `verify` passes, 2 `calibrate` passes — so nothing is
   invoked as `python -m pressroom.<bc>.boundary.<x>`: the layer path is where
   the code lives and has no business in a command line.
@@ -246,7 +246,23 @@ knowing which script produced it.
 
 ### Sources, tags and the two axes
 
-- **A source tag identifies a scraper — a CMS generation — not a domain.**
+- **A source tag identifies a scraper — a CMS generation — not a domain, and
+  not a language.** One generation over two languages is **one tag**
+  (`pressemit`); the language is a property of a row, legible in its url, and
+  the reader loses the ability to filter by it — say so rather than keeping a
+  tag for it. Tags per *mirror* are the opposite case and stay split; the line
+  between them is `twin.py`'s, below.
+- **One crawler owns one pool of urls, and a tag has exactly one writer.** A
+  generation on several hosts can still stamp several tags (`golive`,
+  `media_pr` — mirrors, not languages); two commands writing one tag is the
+  smell, because the dedup then runs in whichever of them remembers to, in one
+  direction. **Several discovery channels inside one crawler are the normal
+  case** — an index page's links and a CDX listing of the article folder — and
+  they are merged into one pool *before* the loop, never fed to it twice.
+- **A dedup key that was unique per tag is not unique once tags merge.** A
+  filename, a CMS `sid`: unique on one host, repeated on its sibling. Whatever
+  the key is, it gains the site as its first half (`pressemit.site_of`), or the
+  crawl silently reports the second host's copies already-stored.
 - **A file read off a sibling domain is not a cross-source claim**, and the
   permission is not free either: the host is one of that scraper's own start
   urls, or it is `MIRROR_DOMAINS` and the claim is backed **per row**, after
@@ -254,6 +270,12 @@ knowing which script produced it.
 - **`twin.py` must never pair across tags** — duplication across tags is
   intended. Inside one tag `twin.fill` needs source + collapsed title + an exact,
   non-empty date, touches **no network**, and **never deletes or merges**.
+  **That refusal is what decides whether two tags may merge at all**: across
+  mirrors the same release carries the same title and date, so merging would
+  collide real duplicates; across languages the title differs because the
+  language does, so there is nothing to collide. Measure before merging — the
+  question is how many (collapsed title, exact date) groups span the two, and
+  whether any member is under `SHORT`.
 - **`taxonomy/entity/company.py` is an explicit table, never a prefix rule, and
   every source needs an entry.** An unmapped source falls into `inne`, whose slug
   is not a `COMPANIES` key, so `http._sources()` answers **HTTP 400** the moment
@@ -397,7 +419,10 @@ phase 2's are:
    every rerun, and a write that inserted nothing is `skipped`.
 3. **a confirmed absence is asked about before an already-stored teaser**, and
    **a bodyless row is never `full`** — `dead` with no row from a live fetch,
-   a `stub` carrying no origin from an archived candidate.
+   a `stub` carrying no origin from an archived candidate. **A url the archive
+   never saw is `dead` unless a listing named it**, and then it is a `stub` of
+   that title and date (`from_candidates(stub_if_absent=True)`): the metadata is
+   what earns the row, so a url only a folder listing produced keeps nothing.
 
 **`scraping/control/catch_up.py` is phase 2 and its six strategies are not
 interchangeable** — `from_cache`, `from_listings`, `from_live`, `retry_missing`,

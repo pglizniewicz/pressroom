@@ -28,7 +28,7 @@ resolves to a real file.
 | `q4` | the Q4 Inc. IR-platform parser, shared by exactly two firms. Not under `sources/`: the direction rule puts it on the library side, where a source may reach it |
 | `intel`, `amd` | a list url and, for AMD, two selectors. Boundary only: the parsing is `q4`'s |
 | `creative` | its own press room (`press`) and the GlobeNewswire wire (`globenewswire`) |
-| `terratec` | five site generations: `early` (1996 anchors), `pressemit`, `presse`, `portal` (PHP-Nuke, two languages), `cms` (2007-2013) |
+| `terratec` | four site generations: `early` (1996 anchors), `pressemit` (the hand-built template, .net and .de), `portal` (PHP-Nuke, two languages), `cms` (2007-2013) |
 | `maudio` | five CMS generations over four domains: `golive` (2001 static), `pressdb`, `media_pr`, `media_news`, plus `presse_de` (midiman.de) and `news_blog` (the m-audio.com blog) |
 | `soundonsound` | `magazine`: the one publisher here |
 

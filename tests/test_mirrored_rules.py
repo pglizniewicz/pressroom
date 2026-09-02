@@ -269,7 +269,7 @@ class FixtureManifestTest(unittest.TestCase):
         self.assertEqual({p.stem for p in support.GOLDEN.glob("*.json")}, set(manifest))
 
     def test_every_source_tag_has_a_fixture(self):
-        """25 tags, and a tag with no fixture is a parser nothing pins."""
+        """24 tags, and a tag with no fixture is a parser nothing pins."""
         from pressroom.taxonomy.entity import company
 
         covered = {spec["source"] for spec in support.manifest().values()}

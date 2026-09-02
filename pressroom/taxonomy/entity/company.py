@@ -38,7 +38,6 @@ COMPANIES: dict[str, tuple[str, list[str]]] = {
         "TerraTec",
         [
             "terratec",
-            "terratec_de",
             "terratec_early",
             "terratec_new_de",
             "terratec_new_en",

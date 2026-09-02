@@ -6,7 +6,7 @@ and a renamed boundary leaves the entry point pointing at a module that is gone
 `uv pip install -e`, if anyone happens to run that command.
 
 The counts are asserted too. They are the one thing in this repo that CLAUDE.md
-states as a number and nothing enforces: "22 of them", "16 scrapers".
+states as a number and nothing enforces: "22 of them", "15 scrapers".
 """
 
 import tomllib
@@ -65,9 +65,9 @@ class EntryPointTest(unittest.TestCase):
                 families["sources"].append(name)
         self.assertEqual(
             {k: len(v) for k, v in families.items()},
-            {"readers": 2, "verify": 3, "calibrate": 2, "sources": 16},
+            {"readers": 2, "verify": 3, "calibrate": 2, "sources": 15},
         )
-        self.assertEqual(len(self.scripts), 23)
+        self.assertEqual(len(self.scripts), 22)
 
     def test_every_source_boundary_has_a_command(self):
         """The other direction: a boundary module with a main() and no entry

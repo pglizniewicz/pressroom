@@ -112,11 +112,11 @@ class OfflineTest(support.DbCase):
                 except SystemExit as e:
                     self.fail(f"{name} {argv} exited {e.code}: add it to POSITIONALS")
 
-    def test_all_sixteen_scrapers_are_covered(self):
+    def test_all_fifteen_scrapers_are_covered(self):
         """A scraper added without an --offline path would silently drop out of
         the loops above by not being in pyproject; this is the count that
         notices."""
-        self.assertEqual(len(scrapers()), 16)
+        self.assertEqual(len(scrapers()), 15)
 
 
 class NoCrawlBranchTest(support.DbCase):

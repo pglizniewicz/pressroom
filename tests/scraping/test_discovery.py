@@ -6,7 +6,7 @@ got it wrong while its siblings carried a comment saying why it must not be.
 So this is the file that has to prove the library still holds them.
 
 It is also the first test this layer has ever had.
-`tests/test_offline_is_offline.py` runs all sixteen scrapers, but
+`tests/test_offline_is_offline.py` runs all fifteen scrapers, but
 `catch_up.no_crawl()` empties the candidate list, so the loop body never
 executed under test until now.
 """
@@ -262,7 +262,14 @@ class CaptureTest(support.DbCase):
 
 
 class FromCandidatesTest(support.DbCase):
-    def run_urls(self, fake, urls=("http://x/one",), titles=None):
+    def run_urls(
+        self,
+        fake,
+        urls=("http://x/one",),
+        titles=None,
+        dates=None,
+        stub_if_absent=False,
+    ):
         stats = Stats("src")
         quiet(
             discovery.from_candidates,
@@ -273,6 +280,8 @@ class FromCandidatesTest(support.DbCase):
             parse=lambda content: fake.parsed,
             stats=stats,
             titles=titles,
+            dates=dates,
+            stub_if_absent=stub_if_absent,
         )
         return stats.counts
 
@@ -341,6 +350,67 @@ class FromCandidatesTest(support.DbCase):
         counts = self.run_urls(fake)
         self.assertEqual(counts["skipped"], 1)
         self.assertEqual(fake.probed, [], "archive.org was asked about a stored row")
+
+    def date(self, url="http://x/one"):
+        got = self.conn.execute(
+            "SELECT date FROM releases WHERE url = ?", (url,)
+        ).fetchone()
+        return got[0] if got else None
+
+    def test_the_listing_s_date_is_the_fallback_when_the_markup_has_none(self):
+        """The pair of the title fallback above, and needed by the same sources:
+        these listings state the date in their own column, and half the
+        templates behind them put none on the article page at all."""
+        fake = FakeArchive(snapshot=(SNAP, TS), parsed=detail(date="")).install(self)
+        self.run_urls(fake, dates={"http://x/one": "1999-12-31"})
+        self.assertEqual(self.date(), "1999-12-31")
+
+    def test_a_parsed_date_still_beats_the_listing_s(self):
+        fake = FakeArchive(snapshot=(SNAP, TS), parsed=detail()).install(self)
+        self.run_urls(fake, dates={"http://x/one": "1999-12-31"})
+        self.assertEqual(self.date(), "2004-05-06")
+
+    def test_a_url_only_a_listing_named_survives_an_absence_as_a_stub(self):
+        """The archive never saw this url - which for a url read off a folder
+        listing would be a contradiction, and for one read off an index page is
+        the ordinary case: the release existed, its page was never captured.
+        The listing's title and date are real, so the row is worth keeping."""
+        fake = FakeArchive(snapshot=None).install(self)
+        counts = self.run_urls(
+            fake,
+            titles={"http://x/one": "Named by the listing"},
+            dates={"http://x/one": "1999-12-31"},
+            stub_if_absent=True,
+        )
+        self.assertEqual((counts["stub"], counts["dead"]), (1, 0))
+        title, body, grade, detail_id = self.row()
+        self.assertEqual((title, body, grade), ("Named by the listing", "", "stub"))
+        self.assertIsNone(detail_id, "a stub with no capture cannot name one")
+        self.assertIsNone(self.origin(), "no body, so no origin")
+
+    def test_metadata_is_what_earns_that_row_not_the_flag(self):
+        """Both channels of a merged pool go through one call, so the flag is on
+        for candidates that carry no metadata too. Nothing to keep means the
+        default verdict stands."""
+        counts = self.run_urls(
+            FakeArchive(snapshot=None).install(self), stub_if_absent=True
+        )
+        self.assertEqual((counts["dead"], counts["stub"]), (1, 0))
+        self.assertEqual(
+            self.conn.execute("SELECT count(*) FROM releases").fetchone()[0], 0
+        )
+
+    def test_without_the_flag_a_listing_s_metadata_does_not_make_a_row(self):
+        """Off by default: three sources pass `titles` without meaning this, and
+        an absence there is still a `dead`."""
+        counts = self.run_urls(
+            FakeArchive(snapshot=None).install(self),
+            titles={"http://x/one": "Named by the listing"},
+        )
+        self.assertEqual((counts["dead"], counts["stub"]), (1, 0))
+        self.assertEqual(
+            self.conn.execute("SELECT count(*) FROM releases").fetchone()[0], 0
+        )
 
 
 def teaser_entry(url="http://x/one", **kw):

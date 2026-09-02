@@ -10,7 +10,7 @@ these as instructions; here they keep the reason attached.
   re-derive by hand after every refactor. Two tiers:
 
   - **hermetic**, on archived captures committed under `tests/fixtures/`
-    (gzipped, covering all 25 source tags and all three parse routes). Runs on a
+    (gzipped, covering all 24 source tags and all three parse routes). Runs on a
     fresh checkout with no `pressroom.db` and no network.
   - **corpus** (`tests/corpus/`), skipped unless a database is present. It
     asserts the headline each `pressroom-verify-*` pass reports in prose, as an
@@ -94,7 +94,7 @@ these as instructions; here they keep the reason attached.
   that is re-implementing pyflakes.
 
   Its own blind spot — it is static, and a scraper's phase 1 has to be *run* — is
-  `tests/test_offline_is_offline.py`, which invokes all 16 scrapers under
+  `tests/test_offline_is_offline.py`, which invokes all 15 scrapers under
   `--offline`, `--retext` and `--seed-cache` with `requests` and
   `socket.connect` monkeypatched to raise a **BaseException**. Not an Exception:
   several call sites wrap their fetch in `except Exception` and degrade

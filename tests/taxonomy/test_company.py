@@ -1,4 +1,4 @@
-"""The second axis over the 25 source tags.
+"""The second axis over the 24 source tags.
 
 An explicit table rather than a prefix rule, and the tests are about the two
 ways that table can be wrong in a way nothing else notices: a tag filed twice,

@@ -269,6 +269,15 @@
     "timestamp": "20030405102153",
     "url": "http://www.terratec.net:80/press/pressemit/cameoconnect.htm"
   },
+  "terratec__detail_1": {
+    "base_url": "http://www.terratec.de/presse/pressemit/imdr.htm",
+    "capture": "https://web.archive.org/web/20030103162112id_/http://www.terratec.de/presse/pressemit/imdr.htm",
+    "file": "terratec__detail_1",
+    "kind": "detail",
+    "source": "terratec",
+    "timestamp": "20030103162112",
+    "url": "http://www.terratec.de/presse/pressemit/imdr.htm"
+  },
   "terratec__listing": {
     "base_url": "http://www.terratec.net/press/pressreleases.htm",
     "capture": "https://web.archive.org/web/20030405064946id_/http://www.terratec.net/press/pressreleases.htm",
@@ -278,21 +287,12 @@
     "timestamp": "20030405064946",
     "url": ""
   },
-  "terratec_de__detail": {
-    "base_url": "http://www.terratec.de/presse/pressemit/imdr.htm",
-    "capture": "https://web.archive.org/web/20030103162112id_/http://www.terratec.de/presse/pressemit/imdr.htm",
-    "file": "terratec_de__detail",
-    "kind": "detail",
-    "source": "terratec_de",
-    "timestamp": "20030103162112",
-    "url": "http://www.terratec.de/presse/pressemit/imdr.htm"
-  },
-  "terratec_de__listing": {
+  "terratec__listing_1": {
     "base_url": "http://www.terratec.de/presse/pressemit.htm",
     "capture": "https://web.archive.org/web/20030227043415id_/http://www.terratec.de/presse/pressemit.htm",
-    "file": "terratec_de__listing",
+    "file": "terratec__listing_1",
     "kind": "listing",
-    "source": "terratec_de",
+    "source": "terratec",
     "timestamp": "20030227043415",
     "url": ""
   },

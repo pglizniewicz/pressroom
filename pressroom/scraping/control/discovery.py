@@ -133,13 +133,22 @@ def capture(conn, session, url: str, parse, *, stats, timeout: int = 20):
 
 
 def from_candidates(
-    conn, session, source: str, urls, *, parse, stats, titles=None
+    conn,
+    session,
+    source: str,
+    urls,
+    *,
+    parse,
+    stats,
+    titles=None,
+    dates=None,
+    stub_if_absent: bool = False,
 ) -> None:
     """Store each candidate url whose own capture the archive still has.
 
-    `parse(content)` is the source's whole-page parser. `titles` is an optional
-    {url: title} read off a listing - the headline to fall back on when the
-    capture's own markup carries none.
+    `parse(content)` is the source's whole-page parser. `titles` and `dates` are
+    optional {url: value} read off a listing - what to fall back on when the
+    capture's own markup carries neither.
 
     An empty body is stored, unlike in `from_items`, and the difference is not
     an oversight: the url is real and its capture is named, so the row is what
@@ -147,6 +156,13 @@ def from_candidates(
     grade says whether there is an article, so a bodyless row is a `stub` and
     carries no origin, because `body_origin` records the capture a body came
     from and there is no body.
+
+    `stub_if_absent` is about the other absence, the one where the archive never
+    saw the url at all. A url a *listing* named is a release whose title and
+    date are real even with no capture behind them, so with this on it becomes a
+    `stub` carrying just those; a url nothing but a folder listing named has
+    nothing to keep, so it stays `dead`. Off by default because the metadata is
+    what earns the row, and three sources pass `titles` without meaning this.
     """
     for url in urls:
         if storage.already_stored(conn, url):
@@ -156,18 +172,33 @@ def from_candidates(
         found = capture(conn, session, url, parse, stats=stats)
         if found is None:
             continue
+        listed_title = (titles or {}).get(url, "")
+        listed_date = (dates or {}).get(url, "")
         if found.timestamp is None:
-            stats.dead()
+            if not (stub_if_absent and (listed_title or listed_date)):
+                stats.dead()
+                continue
+            if storage.store_release(
+                conn,
+                source,
+                url,
+                title=listed_title,
+                date=listed_date,
+                grade="stub",
+            ):
+                stats.stub()
+            else:
+                stats.skipped()
             continue
 
         body = found.parsed.get("body") or ""
-        title = found.parsed.get("title") or (titles or {}).get(url, "")
+        title = found.parsed.get("title") or listed_title
         if storage.store_release(
             conn,
             source,
             url,
             title=title,
-            date=found.parsed.get("date") or "",
+            date=found.parsed.get("date") or listed_date,
             body=body,
             body_html=found.parsed.get("body_html") or None,
             detail_id=found.timestamp,

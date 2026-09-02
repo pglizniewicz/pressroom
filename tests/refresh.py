@@ -44,7 +44,7 @@ from pressroom.sources.maudio.control import (
 )
 from pressroom.provenance.entity import origin  # noqa: E402
 from pressroom.taxonomy.entity import company  # noqa: E402
-from pressroom.sources.terratec.control import early, portal, presse  # noqa: E402
+from pressroom.sources.terratec.control import early, portal, pressemit  # noqa: E402
 from tests import parsers, support  # noqa: E402
 
 MIN_BODY = 800
@@ -67,6 +67,27 @@ MIN_ENTRIES = 8
 TWO_LISTINGS = ("terratec_early", "midiman_de")
 
 
+def _terratec_site(kind, capture, url):
+    """Which of pressemit's two hosts a candidate capture belongs to.
+
+    `pressemit` is one tag over two hosts, and the two hosts are two dateline
+    templates, so it needs one fixture per host of *both* kinds - and a count
+    cannot say which capture is which. A detail candidate carries the article's
+    own url; a listing candidate carries only its capture address, and
+    INDEX_PAGES is what says which host that page is.
+    """
+    if kind == "listing":
+        return {c: s for _base, s, c in pressemit.INDEX_PAGES}.get(capture)
+    return pressemit.site_of(url or "")
+
+
+# source -> (kind, capture, url) -> bucket. One fixture per bucket, in the
+# order the scraper declares its sites, which is what makes the picks
+# reproducible: TWO_LISTINGS' count works because those candidates are already
+# an explicit per-page list, and a detail candidate list is a corpus query.
+PER_BUCKET = {"terratec": (_terratec_site, lambda: list(pressemit.SITES))}
+
+
 def extra_listings() -> dict:
     """source -> the listing captures its own scraper names.
 
@@ -81,8 +102,11 @@ def extra_listings() -> dict:
     out["terratec_early"] = [p["wayback_url"] for p in early.PAGES]
     for _base, src, capture in portal.CATEGORY_PAGES:
         out.setdefault(src, []).append(capture)
-    for _base, src, capture in presse.INDEX_PAGES:
-        out.setdefault(src, []).append(capture)
+    # INDEX_PAGES' middle element is a *site* now, not a tag: pressemit is one
+    # tag over two hosts, so all five captures belong to one source and
+    # PER_BUCKET is what splits them back apart.
+    for _base, _site, capture in pressemit.INDEX_PAGES:
+        out.setdefault(pressemit.SOURCE, []).append(capture)
     return out
 
 
@@ -246,7 +270,20 @@ def refresh_captures() -> None:
             if not rows:
                 print(f"  -- {source} {kind}: nothing cached, skipped")
                 continue
-            picked = _usable(conn, source, kind, rows, want)
+            if source in PER_BUCKET:
+                bucket, order = PER_BUCKET[source]
+                groups = {}
+                for row in rows:
+                    groups.setdefault(bucket(kind, row[0], row[2]), []).append(row)
+                keys = order()
+                picked = [
+                    got
+                    for key in keys
+                    if key in groups
+                    for got in _usable(conn, source, kind, groups[key], 1)
+                ]
+            else:
+                picked = _usable(conn, source, kind, rows, want)
             if not picked:
                 print(f"  -- {source} {kind}: no capture parses to anything, skipped")
                 continue

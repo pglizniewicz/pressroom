@@ -3,7 +3,7 @@
 This is the automated form of the measurement this repo has been doing by hand
 after every refactor - "507 parses across 17 source tags are byte-identical to
 what the pre-refactor tree produced from the same cached bytes". 43 fixtures
-here cover all 25 source tags and all three routes, and they run on a fresh
+here cover all 24 source tags and all three routes, and they run on a fresh
 checkout with no 500 MB database.
 
 When a parser change is intentional: `python tests/refresh.py --golden`, then

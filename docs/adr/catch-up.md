@@ -120,6 +120,17 @@ archive.org confirms there is *no* capture genuinely differs — `dead`, a
 title-only stub, or falling through to a listing copy — so that decision stays
 with the source and the half above it does not.
 
+**One of those three answers has since moved into the library, as
+`from_candidates(stub_if_absent=…)`.** It had to, because one crawler can hold
+candidates from two channels at once: a url a *listing* named is a release whose
+title and date are real even when its page was never captured, while a url only
+a folder listing produced has nothing to keep — and CDX having just listed it
+makes an absence there near-impossible anyway. So the flag does not decide it;
+the metadata does, and the flag is what keeps three sources that pass `titles`
+without meaning any of this on the old verdict. `dates` arrived beside `titles`
+in the same change, for the listings that state a date the article page does
+not.
+
 **Only one flag survived**, `prefer_parsed`, and it is the one real question:
 whether the detail page states the headline and date better than the listing
 does. On the m-audio blog it does; on `media_news` the listing wins and the

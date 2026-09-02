@@ -29,8 +29,8 @@ dependencies = [
 # extra to verify itself.
 globenewswire = ["curl_cffi"]
 
-# One entry point per thing anyone runs: sixteen scrapers, two readers, three
-# read-only checks, two calibration passes - 23, which tests/test_entry_points.py
+# One entry point per thing anyone runs: fifteen scrapers, two readers, three
+# read-only checks, two calibration passes - 22, which tests/test_entry_points.py
 # asserts, because this sentence said 22 for as long as there were three
 # `verify` commands. Declared rather than left as
 # `python -m pressroom.sources.terratec.boundary.portal`, because the layer path is an
@@ -58,7 +58,6 @@ pressroom-creative-gnw        = "pressroom.sources.creative.boundary.globenewswi
 pressroom-soundonsound        = "pressroom.sources.soundonsound.boundary.magazine:main"
 pressroom-terratec-early      = "pressroom.sources.terratec.boundary.early:main"
 pressroom-terratec            = "pressroom.sources.terratec.boundary.pressemit:main"
-pressroom-terratec-de         = "pressroom.sources.terratec.boundary.presse:main"
 pressroom-terratec-portal     = "pressroom.sources.terratec.boundary.portal:main"
 pressroom-terratec-cms        = "pressroom.sources.terratec.boundary.cms:main"
 pressroom-maudio-golive       = "pressroom.sources.maudio.boundary.golive:main"

@@ -56,6 +56,11 @@ RETIRED = {
     # module is *not* called, because the tag is a CMS generation not a domain.
     "terratec.py": "the name terratec/control/pressemit.py deliberately does not have",
     "midiman.py": "the name maudio/control/golive.py deliberately does not have",
+    # Folded into the module whose parser it already imported: one CMS
+    # generation on two hosts is one crawler. docs/adr/catch-up.md names it as
+    # one of the two loops that graded a bodyless row honestly before the
+    # library did, which is the record the merge does not get to erase.
+    "presse.py": "the terratec .de loop now merged into terratec/control/pressemit.py",
     # The retired backfill_/repair_/migrate_ family. These two are the evidence
     # for the rule in docs/adr/layout-and-naming.md - one for the docstring that
     # outlived its own moment, one for the finished fix that got deleted.

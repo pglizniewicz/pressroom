@@ -57,7 +57,7 @@ portal captures) in favour of `richtext.densest(soup, "td")`, which hit 100%.
 Three shapes came out of it: *the page is the release* (`golive.py` — careful,
 the one parser whose **title** comes from text surgery, so its flat `get_text`
 stays, for detection only), *the biggest layout table/cell* (`pressemit.py`,
-`presse.py`, `portal.py` — no classes or ids worth keying on), and *an HTML
+`portal.py` — no classes or ids worth keying on), and *an HTML
 fragment already sliced* (`presse_de.py`'s `blocks()`).
 
 **A regex that identifies the headline decides which pages exist at all.**

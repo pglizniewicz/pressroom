@@ -15,7 +15,7 @@ Read-only. Prints, writes nothing.
 
 Usage:
   pressroom-calibrate-containers                    # every source with a cache
-  pressroom-calibrate-containers --source terratec_de
+  pressroom-calibrate-containers --source terratec_pressde
   pressroom-calibrate-containers --source terratec --show 2
 """
 
