@@ -2,7 +2,7 @@
 
 What a boundary module owes `run()`: a crawl callable, its own `__doc__`, and
 zero or more Options. What it gets back: the catch-up flags for free, and no
-argparse of its own. The per-source differences - a year range, a language, a
+argparse of its own. The per-scraper differences - a year range, a language, a
 discovery channel that can be switched off - are declared here as values rather
 than re-implemented as argparse calls.
 
@@ -17,7 +17,7 @@ from pressroom.scraping.control import catch_up
 
 
 class Option:
-    """One per-source command-line option, as a value rather than a call.
+    """One per-scraper command-line option, as a value rather than a call.
 
     Everything argparse accepts is passed straight through, so a source that
     needs something unusual declares it here rather than reaching for its own

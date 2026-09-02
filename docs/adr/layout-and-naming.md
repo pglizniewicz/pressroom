@@ -1,15 +1,59 @@
 # Layout and naming
 
 Why the tree is shaped the way it is. `CLAUDE.md` carries the convention itself
-— the three layers, how a source component splits — and [../layout.md](../layout.md)
+— the three layers, how a scraper splits — and [../layout.md](../layout.md)
 carries the map of what each component owns. What follows is the reasoning,
 including the two places this repo knowingly departs from the BCE pattern.
+
+## Three sizes, and the word that named all of them
+
+`source` named three different things here, and they are three different sizes.
+A **source component** is the BCE unit, one directory per firm under `sources/`.
+A **scraper** is what one command runs, one per CMS generation, so a component
+holds several. A **source** is the tag a row carries, one per mirror, so a
+scraper stamps several. Nothing was wrong with the code — the prose said
+"source" for all three, and the sentence that did the damage was `CLAUDE.md`'s
+own layout rule, "a source component splits the same way every time: the crawl,
+the parser and the listing collector go in `control/<generation>.py`". That
+describes a scraper, at the one size the word did not have.
+
+**A scraper is a crawler, a fetcher, an optional converter and a parser**, and
+the four names were read out of what the tree already said rather than picked
+freely. `crawler`, `converter` and `parser` each already meant exactly that
+here — "one crawler owns one pool of urls" was already the rule. The stage that
+brings the bytes back is a **fetcher**, not a "scraper": `scraper` already means
+the whole, in every rule and every source docstring that mentions it, and
+`fetch_` is already the verb the code uses for the stage — `fetch_snapshot`,
+`fetch_cached`, `fetch_body`, and `discovery.py`'s own "the caller passes its
+own fetcher or parser". That was the only collision in the four, and naming it
+`fetcher` is what let the whole keep the name it had.
+
+Only two of the four are per-scraper: the crawler and the parser. The fetcher is
+`capture/control/` and the converter `attachment/control/conversion.py`, and
+neither varies by source — `sources/amd` and `sources/intel` have no `control/`
+layer at all, both halves coming from `q4`, and `terratec/control/early.py`
+opens by saying it is not a crawler like the others.
+
+Three things kept their names, each of which could have gone the other way:
+
+- **`releases.source` and `--source`.** The tag is per mirror and one scraper
+  may own several, so the column does not hold a scraper's name — renaming it to
+  match this vocabulary would have made a false claim in every place it appears,
+  and the true one is already in `CLAUDE.md`: a source tag identifies a scraper.
+- **`pressroom/sources/`.** "A source component" is a fact about a path, read
+  back out of the tree by `tests/test_import_direction.py`, and the directory
+  groups scrapers by whose press room they recover — which is what a source is.
+- **`scraper`, not `harvester`.** `harvester` is the web-archiving word for the
+  whole and is free in this tree, so it was the alternative worth measuring; it
+  lost because `scraper` already carries the meaning in the rulebook, in the
+  ADRs and in every source docstring, and because the one thing that made the
+  word ambiguous was the fetch stage, which now has its own name.
 
 ## One place a command line is assembled
 
 **`boundary/command.py` is the one place a command line is assembled.** Sixteen
 scrapers each carried a hand-written `__main__`, and eleven were the same five
-lines. A boundary now declares its per-source options as values:
+lines. A boundary now declares its per-scraper options as values:
 
 ```python
 def main():
@@ -113,7 +157,7 @@ Three decisions inside that one, each of which could have gone the other way:
   delegate to, and the direction paragraph below already puts it on the library
   side of the rule. Moving it under `sources/` would have made "nothing outside
   `sources/` imports anything inside it" false the day it landed, for a module
-  that is a dependency of two sources rather than a source.
+  that is a dependency of two source components rather than being one.
 
 What the move cost was one thing worth naming, because it would have passed
 silently. `tests/test_import_direction.py` derived a module's component and

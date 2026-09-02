@@ -349,7 +349,7 @@ def sample_all_captures(
     returned as one flat list.
 
     Owns the listing -> fetch -> parse loop and nothing above it: the dedup that
-    picks the best of several captures is per-source, so the caller does it.
+    picks the best of several captures is per-scraper, so the caller does it.
     """
     try:
         timestamps = list_all_captures(url)

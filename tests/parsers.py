@@ -1,4 +1,4 @@
-"""How to reproduce one source's parse from bytes - the table the golden tests
+"""How to reproduce one scraper's parse from bytes - the table the golden tests
 walk.
 
 Three shapes, matching the three the corpus actually has:
@@ -8,7 +8,7 @@ Three shapes, matching the three the corpus actually has:
             file pins the whole list, which is also what pins each collector's
             `origin_url` stamping - the thing the collectors used to throw away.
   live      (conn, url) -> (body, body_html), through fetch_cached. The five
-            live sources have no snapshot parser at all: their extraction is
+            live scrapers have no snapshot parser at all: their extraction is
             inside fetch_body, and calling it with the bytes already in
             page_cache exercises the cache path as well as the parser.
 

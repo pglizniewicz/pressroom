@@ -81,7 +81,7 @@ def scrape(
     stats = Stats(SOURCE)
 
     # A computed range rather than a discovery result, so there was nothing for
-    # the usual `[] if no_crawl` idiom to empty and this source kept fetching
+    # the usual `[] if no_crawl` idiom to empty and this scraper kept fetching
     # every year's listing under `--offline`.
     years = [] if catch_up.no_crawl(catch) else range(from_year, current_year + 1)
 

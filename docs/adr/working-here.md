@@ -99,10 +99,10 @@ these as instructions; here they keep the reason attached.
   `socket.connect` monkeypatched to raise a **BaseException**. Not an Exception:
   several call sites wrap their fetch in `except Exception` and degrade
   gracefully, which silently swallowed the first version of that probe and
-  reported a network-crawling source clean. It found five sources where
+  reported a network-crawling scraper clean. It found five scrapers where
   `--offline` was not offline. The rule those fixes encode: **the guard goes on
   the candidate list, not on the fetch** — an empty candidate list leaves the
-  loop body untouched, which is what keeps it a one-line change per source.
+  loop body untouched, which is what keeps it a one-line change per scraper.
 
   Its other blind spot is prose: it resolves Python names, and a docstring that
   names a deleted file resolves nothing. That is

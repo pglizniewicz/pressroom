@@ -9,7 +9,7 @@ pre-UTF-8 or half-converted; `requests` guesses Latin-1 and bs4 falls back to
 chardet, which on this corpus has picked windows-1250 and even windows-1258
 (Vietnamese). Both mangle `™` (`0x99`), `„` (`0x84`) and smart quotes.
 `archive.fetch_snapshot()` returns bytes so the decision is always explicit. Two
-correct choices, per source:
+correct choices, per scraper:
 
 - `decoding.decode_html(content)` for pages that **claim UTF-8** — UTF-8 with a
   per-byte cp1252 fallback, because a page can be UTF-8 with a few Word-pasted

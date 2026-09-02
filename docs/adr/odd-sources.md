@@ -16,7 +16,7 @@ everything `fetch_cached` uses, so `politeness.py` needed no change.
 
 Two things to keep true: the import stays **inside**
 `globenewswire.make_session()`, so a missing `curl_cffi` breaks exactly one
-source with a plain ImportError instead of every module in the tree; and the
+scraper with a plain ImportError instead of every module in the tree; and the
 impersonation profile is a moving target — when this starts timing out again,
 bump `curl_cffi` and try a newer profile before suspecting the parser.
 
@@ -46,5 +46,5 @@ which only **20 contain `article[about]`**, the rest promo blocks.
 `detail_id` is Drupal's node id, deliberately not a timestamp: faking one would
 have put a dead archive.org link on every row. Belt *and* braces now — the link
 comes from `body_origin` and a live source has no entry — but it was this
-docstring that showed the digit rule had become a constraint on what a source may
+docstring that showed the digit rule had become a constraint on what a scraper may
 store, which is half the reason `grade` got its own column.

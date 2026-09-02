@@ -3,7 +3,7 @@
 **`releases.grade` records how good a row is; `detail_id` records where its text
 came from. They were one field and that was a mistake** — seven places
 re-derived which kind of value a `detail_id` held, six by counting digits, and
-the digit rule had started constraining what a *new* source was allowed to store.
+the digit rule had started constraining what a *new* scraper was allowed to store.
 
 - `grade` is `full` | `teaser` | `stub`, a verdict about the body. Use
   `stored_grade()`, not `already_stored()`, whenever a row might deserve an

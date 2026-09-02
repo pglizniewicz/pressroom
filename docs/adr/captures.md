@@ -6,7 +6,7 @@ Why every fetched byte lives in the database, and how archive.org is asked.
 bytes live in the DB (not on disk — auxiliary data belongs in the database), so
 reparsing is free and refetching is a mistake. The table was called
 `wayback_cache` when only `archive.fetch_snapshot()` used it; the four live
-sources went straight through `session.get`, and when the flat-text extraction
+scrapers went straight through `session.get`, and when the flat-text extraction
 turned out to be wrong they all had to be crawled again from scratch.
 `politeness.fetch_cached()` closed that hole. **A new scraper that fetches a page
 any other way is a bug.**
@@ -21,7 +21,7 @@ tuning a timeout or sleep constant in `archive.py` from a handful of manual
 twice on thin evidence before this existed.
 
 **Re-extracting the whole corpus is free.** Everything fetched is in
-`page_cache`, so `pressroom-<source> --offline --force` re-runs `clean()` over
+`page_cache`, so `pressroom-<scraper> --offline --force` re-runs `clean()` over
 rows that already have `body_html` without a single request.
 
 ## Which capture of a url is the right one

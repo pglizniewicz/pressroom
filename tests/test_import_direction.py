@@ -554,7 +554,7 @@ class LazyImportTest(unittest.TestCase):
                     "curl_cffi",
                     libraries,
                     f"{_rel(module)} imports curl_cffi at module level; it is "
-                    f"an extra, so a missing install must break one source "
+                    f"an extra, so a missing install must break one scraper "
                     f"rather than every module in the tree",
                 )
 

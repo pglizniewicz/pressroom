@@ -42,7 +42,7 @@ def make_session():
     lexiforest/curl-impersonate fork), and its Session is API-compatible with
     requests.Session for everything fetch_cached and this module use. Imported
     here rather than at module level so a missing curl_cffi breaks exactly this
-    one source with a plain ImportError, instead of every module in the tree.
+    one scraper with a plain ImportError, instead of every module in the tree.
 
     The impersonation profile is a moving target: when this starts timing out
     again, bump curl_cffi and try a newer profile before blaming the parser.

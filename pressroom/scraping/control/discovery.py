@@ -9,7 +9,7 @@ The strategies are named for where the release's text comes from, because that
 is the only axis on which the loops genuinely differ. What stays in the source
 component is everything above the loop - pagination, the `catch_up.no_crawl()`
 guard, `limit`, the dedup that picks the best of several captures - and every
-tail that is really per-source.
+tail that is really per-scraper.
 
 Three rules hold in every strategy, in one copy here so a scraper cannot get
 them wrong again: a network error is not a verdict, so the item is left alone

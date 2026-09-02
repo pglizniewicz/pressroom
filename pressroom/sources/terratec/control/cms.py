@@ -109,7 +109,7 @@ def parse_month_year(title: str):
 
 def parse_detail(content: bytes) -> Detail:
     """One article page -> {title, date, body, body_html}, for
-    the parser this source hands to catch_up.
+    the parser this scraper hands to catch_up.
 
     extract_entries already handles an individual article page (one <h2>, no
     div.block wrapper) as well as a listing; this just unwraps the single

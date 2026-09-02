@@ -13,7 +13,7 @@ it matters which of the four a sentence belongs in:
 |---|---|
 | `CLAUDE.md` | the **rule**, in the imperative, plus one clause of why and a pointer to here. It is loaded into every session, so anything that must be obeyed without being looked up lives there and nowhere else |
 | `docs/adr/*.md` | the **reasoning and the evidence** — what was tried, what it cost, which measurement settled it. Read the file for an area *before* changing anything in that area |
-| a module docstring | what one **source's markup** actually does. Per-source archaeology travels with its parser, never into these files |
+| a module docstring | what markup one **scraper** actually meets. Per-scraper archaeology travels with its parser, never into these files |
 | [`../layout.md`](../layout.md) | the **map** — which file inside a component owns which job. A lookup, not a rule and not a reason; `tests/test_layout_map.py` holds it to the tree |
 
 **A rule with no record here is fine; a record with no rule is a warning.** If a

@@ -47,7 +47,7 @@ def console_scripts() -> dict:
     return tomllib.loads(PYPROJECT.read_text())["project"]["scripts"]
 
 
-# The per-source arguments a command cannot run without. One entry, and both of
+# The per-scraper arguments a command cannot run without. One entry, and both of
 # its values are exercised: terratec-cms takes the language as a *positional*
 # because the two sites are separate source tags whose text genuinely differs,
 # so there is no sensible default to pick.

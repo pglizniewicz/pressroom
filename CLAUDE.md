@@ -2,7 +2,7 @@
 
 Recovers historical company press releases — mostly from **dead sites, via the
 Wayback Machine** — into one SQLite database (`pressroom.db`) with a full-text
-index. One command per source plus two readers: `pressroom-search` (CLI) and
+index. One command per scraper plus two readers: `pressroom-search` (CLI) and
 `pressroom-serve` (a local read-only HTTP browser on 127.0.0.1, stdlib +
 vanilla JS). A scraper is the only thing anyone runs, and a rerun picks up
 whatever the last one could not get. No build step, no auth, no dependencies
@@ -24,7 +24,7 @@ pressroom-serve                                      # http://127.0.0.1:8765
   scrapers, 2 readers, 3 `verify` passes, 2 `calibrate` passes — so nothing is
   invoked as `python -m pressroom.<bc>.boundary.<x>`: the layer path is where
   the code lives and has no business in a command line.
-  `pressroom-<firm>[-<generation>]` for a source, `pressroom-search` /
+  `pressroom-<firm>[-<generation>]` for a scraper, `pressroom-search` /
   `pressroom-serve` for the readers, `pressroom-verify-*` and
   `pressroom-calibrate-*` for the read-only passes. **After a rename or a new
   boundary, re-run `uv pip install -e ".[globenewswire]"`** or the script will
@@ -44,7 +44,7 @@ pressroom-serve                                      # http://127.0.0.1:8765
   browser's three static files as package data. `curl_cffi` is an **extra**,
   not a base dependency. **The import stays inside
   `globenewswire.make_session()`**, so a missing `curl_cffi` breaks exactly
-  one source instead of every module in the tree — `docs/adr/odd-sources.md`.
+  one scraper instead of every module in the tree — `docs/adr/odd-sources.md`.
 - `pdftotext` (poppler-utils) and `antiword` are shelled out to for attachments.
 - **The `sqlite3` CLI is not installed on this machine.** Inspect the DB with
   `.venv/bin/python -c "import sqlite3; ..."`.
@@ -64,10 +64,10 @@ rule states *what*, and only the record states what already went wrong when
 someone did otherwise.
 
 Three neighbours, each owning something neither of the above does: **a module
-docstring** owns what one source's markup actually does — per-source archaeology
-travels with its parser; **`docs/layout.md`** owns the map, which file inside a
-component owns which job; and **`checks.md`** owns the rendered page, one
-labelled line per observation a browser can contradict.
+docstring** owns what markup one scraper actually meets — per-scraper
+archaeology travels with its parser; **`docs/layout.md`** owns the map, which
+file inside a component owns which job; and **`checks.md`** owns the rendered
+page, one labelled line per observation a browser can contradict.
 
 And **a measurement goes in a test or a verify pass, never into prose.** If you
 catch yourself writing a row count into any of these files, that is the signal;
@@ -101,21 +101,33 @@ per firm under `sources/` — `intel`, `amd`, `creative`, `terratec`, `maudio`,
 `docs/layout.md`**: a lookup rather than a rule, which is why it is not here, and
 `tests/test_layout_map.py` keeps it honest against the tree.
 
-**A source component splits the same way every time**: the crawl, the parser
-and the listing collector go in `control/<generation>.py`, and the command line
-in `boundary/<generation>.py`. The module name is the **CMS generation**, not
+**Three words, three sizes, and they are not synonyms.** A **source component**
+is the BCE unit: one directory per firm under `sources/`, holding one scraper
+per generation. A **scraper** is what a command runs — a **crawler** that turns
+start urls into a pool of article urls, a **fetcher** that brings each one's
+bytes back into `page_cache`, an optional **converter** for what is not HTML,
+and a **parser** that lifts the release out of it. A **source** is the tag a row
+carries, one per mirror, so one scraper may stamp several. Only the crawler and
+the parser are per-scraper: the fetcher is `capture/control/`, the converter
+`attachment/control/conversion.py`, and a scraper needing neither writes
+neither.
+**Prose that says "source" for the middle size is the smell.**
+
+**A scraper splits the same way every time**: the crawl, the parser and the
+listing collector go in `control/<generation>.py`, and the command line in
+`boundary/<generation>.py`. The module name is the **CMS generation**, not
 the domain, because that is what a source tag identifies — which is why
 `sources/terratec/control/pressemit.py` is not called `terratec.py` and
 `sources/maudio/control/golive.py` is not called `midiman.py`.
 
 **The markup archaeology travels with the parser.** Every control module's
-docstring records what its source's markup actually does, including the quirks
-that cost time; the boundary keeps the one-line summary `--help` shows and the
-usage examples. Keep writing those down in the control module — neither this file
-nor `docs/adr/` is where a per-source quirk goes.
+docstring records what its generation's markup actually does, including the
+quirks that cost time; the boundary keeps the one-line summary `--help` shows
+and the usage examples. Keep writing those down in the control module — neither
+this file nor `docs/adr/` is where a per-scraper quirk goes.
 
 **`boundary/command.py` is the one place a command line is assembled.** A
-boundary declares its per-source options as values and gets the catch-up flags
+boundary declares its per-scraper options as values and gets the catch-up flags
 for free:
 
 ```python
@@ -127,7 +139,7 @@ An `Option`'s `dest` is the keyword the crawl receives — the flag and the
 parameter it feeds are named the same thing on purpose. `run()` takes the
 docstring **whole**, never `splitlines()[0]`.
 
-**A source's command is the only thing anyone runs.** It owns that source's
+**A scraper's command is the only thing anyone runs.** It owns that scraper's
 whole job — discovery *and* the catch-up over everything an earlier run could
 not get — and a rerun is expected to pick up exactly what the last one missed.
 `--offline` makes a run free and touches nothing on the network (proved, not
@@ -304,7 +316,7 @@ are not.
 ### Encoding
 
 - **Never use `r.text`, and never let BeautifulSoup sniff.** Two correct choices,
-  per source: `decoding.decode_html(content)` for pages that **claim UTF-8**, and
+  per scraper: `decoding.decode_html(content)` for pages that **claim UTF-8**, and
   `BeautifulSoup(content, from_encoding="cp1252")` for sources known to be
   **wholly pre-UTF-8** (2001-era GoLive, midiman.de) — **never `decode_html`
   there**.
@@ -391,7 +403,7 @@ are not.
   which is why `twin.fill` calls it.
 - **`from_listings` only ever UPDATEs**: a parse matching no stored URL is
   dropped, never inserted, because a row's URL is not always a page that existed.
-  A source whose releases only ever existed inside a listing **passes a collector
+  A scraper whose releases only ever existed inside a listing **passes a collector
   and no `retry_missing`** — its per-row fetches are guaranteed 404s.
 - **`origin_url` never reaches the JSON**, and **`capture_page` is set only when
   the capture is of a different page**.
@@ -404,8 +416,8 @@ are not.
 
 **`scraping/control/discovery.py` is phase 1 and has three strategies** —
 `from_items`, `from_candidates`, `from_teasers`, plus `capture()` for the three
-tails that are genuinely per-source; **what each one takes is its own
-docstring.** A source component owns everything above the loop — pagination, the
+tails that are genuinely per-scraper; **what each one takes is its own
+docstring.** A scraper owns everything above the loop — pagination, the
 `no_crawl` guard, `limit`, the dedup that picks the best of several captures —
 and nothing below it.
 

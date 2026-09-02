@@ -34,7 +34,7 @@ inferred rows fall below 1.0 and are right, and four attachment rows scored a
 perfect 1.0 and were wrong.
 
 **`pressroom-verify-body-origin` answers the real question by reproduction** —
-the source's own parser over the recorded capture, against what the row stores.
+the scraper's own parser over the recorded capture, against what the row stores.
 Read-only; run it after any pass that touches bodies or origins. One row is known
 never to reproduce: its stored body is several releases concatenated by an old
 extraction, so rewriting it would delete text belonging to other rows
