@@ -29,7 +29,7 @@ own fetcher or parser". That was the only collision in the four, and naming it
 `fetcher` is what let the whole keep the name it had.
 
 Only two of the four are per-scraper: the crawler and the parser. The fetcher is
-`fetcher/control/` and the converter `attachment/control/conversion.py`, and
+`fetcher/control/` and the converter `converter/control/conversion.py`, and
 neither varies by source — `sources/amd` and `sources/intel` have no `control/`
 layer at all, both halves coming from `q4`, and `terratec/control/early.py`
 opens by saying it is not a crawler like the others.
@@ -119,7 +119,7 @@ reader.** They write nothing, ever:
 - **`pressroom-calibrate-*`** is a review pass over the whole cache, printing
   metrics *and* writing a page of full texts:
   `pressroom-calibrate-containers` for DOM containers,
-  `pressroom-calibrate-attachments` for the attachment converters. The second
+  `pressroom-calibrate-converters` for the attachment converters. The second
   half is not decoration — a column of metrics once said "100% of words kept"
   about a conversion that had put the release's headline after the footer.
 

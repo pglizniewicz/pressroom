@@ -140,7 +140,7 @@ FLAG_SQL = {
     # is that its numbers are not a lie.
     #
     # Third instance of the mirror-rule pattern (see MOJIBAKE_SQL): this is
-    # attachment/control/conversion.py's ATTACHMENT_EXTS written in SQL,
+    # converter/control/conversion.py's ATTACHMENT_EXTS written in SQL,
     # because this module may not import a parser. Change one and change the
     # other.
     "plain": (

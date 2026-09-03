@@ -47,8 +47,8 @@ permission is `MIRROR_DOMAINS` — an attachment-level claim that the three host
 served the same release *files*, backed per row rather than on faith: identical
 path, host swapped, extracted text character-identical to what the row held.
 Rows that looked like that class and were not held the origin server's `509
-Bandwidth Limit Exceeded` page, so `attachment_captures` checks magic bytes
-before recording a candidate.
+Bandwidth Limit Exceeded` page, so `attachment_crawl.attachment_score` checks
+magic bytes (`conversion.is_attachment`) before recording a candidate.
 
 **Duplication across tags is intended.** The same release lives on several
 mirrors under unrelated URL schemes and their bodies are separate extractions,

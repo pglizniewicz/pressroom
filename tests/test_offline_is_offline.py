@@ -39,7 +39,7 @@ NOT_A_SCRAPER = {
     "pressroom-verify-body-origin",
     "pressroom-verify-encoding",
     "pressroom-calibrate-containers",
-    "pressroom-calibrate-attachments",
+    "pressroom-calibrate-converters",
 }
 
 

@@ -8,7 +8,7 @@ error.
 
 import unittest
 
-from pressroom.attachment.control import conversion
+from pressroom.converter.control import conversion
 from tests import support
 
 PDF = b"%PDF-1.3\n%\xe2\xe3\xcf\xd3\n6 0 obj\n"

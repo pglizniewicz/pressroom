@@ -62,7 +62,7 @@ MARGIN_TOP = 90.0
 MARGIN_BOTTOM = 60.0
 
 # How much taller than the page's median line a line must be to read as a
-# heading. Calibrate with pressroom-calibrate-attachments rather than by taste.
+# heading. Calibrate with pressroom-calibrate-converters rather than by taste.
 HEADING_FACTOR = 1.6
 HEADING_MAX_CHARS = 200
 
@@ -489,7 +489,7 @@ def to_richtext(content: bytes) -> tuple[str, str, str]:
     take.** Falling back to its text would land the row in the corpus as a
     pre-wrap blob and nobody would learn that the converter failed on it, so a
     caller writing to the database must leave it alone and surface it -
-    pressroom-calibrate-attachments lists these under "decisions needed".
+    pressroom-calibrate-converters lists these under "decisions needed".
     """
     k = kind_of(content)
     if k != "pdf":

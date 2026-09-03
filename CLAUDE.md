@@ -95,7 +95,7 @@ Adding shared logic means a **new component named for its concern**, never a
 grab-bag (`common.py` was split for exactly this reason, and `db.py` after it).
 
 The components: `database`, `release`, `fetcher`, `provenance`, `text`,
-`attachment`, `scraping`, `reporting`, `taxonomy`, `browser` and `q4`, plus one
+`converter`, `scraping`, `reporting`, `taxonomy`, `browser` and `q4`, plus one
 per firm under `sources/` — `intel`, `amd`, `creative`, `terratec`, `maudio`,
 `soundonsound`. **Which file inside a component owns which job is
 `docs/layout.md`**: a lookup rather than a rule, which is why it is not here, and
@@ -113,7 +113,7 @@ a listing. A **source** is the tag a row carries, one per mirror, so one scraper
 may stamp several. Only the crawler and the parser are per-scraper, and a
 parser takes bytes and never fetches them: the fetcher is `fetcher/control/`,
 called from `scraping/` and from a crawler reading its listings, never from a
-parser; the converter is `attachment/control/conversion.py`; a scraper needing
+parser; the converter is `converter/control/conversion.py`; a scraper needing
 neither writes neither. A **collector** is not a fifth role: it is the listing
 parser run by phase 2 over the captures the crawler knows (`cached_entries`),
 and only a scraper whose releases exist inside a listing has one.
@@ -169,7 +169,7 @@ recorded origin really produces the body it claims), `-encoding` (nothing
 repairable is stored, and the two detectors still agree), `-names` (the tree's own
 names still resolve). `pressroom-calibrate-*` reviews the whole cache and prints
 metrics **and** a page of full texts — `-containers` for DOM containers,
-`-attachments` for the converters; the second half is not decoration.
+`-converters` for the converters; the second half is not decoration.
 
 **The dependency direction is a rule, not an accident.** A source component
 imports `scraping`, `release`, `fetcher`, `text`, `database`, `reporting` and
@@ -284,7 +284,7 @@ knowing which script produced it.
 - **A file read off a sibling domain is not a cross-source claim**, and the
   permission is not free either: the host is one of that scraper's own start
   urls, or it is `MIRROR_DOMAINS` and the claim is backed **per row**, after
-  `attachment_captures` has checked magic bytes.
+  `conversion.is_attachment` has checked magic bytes.
 - **`twin.py` must never pair across tags** — duplication across tags is
   intended. Inside one tag `twin.fill` needs source + collapsed title + an exact,
   non-empty date, touches **no network**, and **never deletes or merges**.

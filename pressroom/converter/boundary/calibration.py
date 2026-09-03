@@ -19,10 +19,10 @@ Bytes come from `page_cache` only, mirror domains included: most rows with no
 cached capture of their own can still be read from a sibling's bytes.
 
 Usage:
-  pressroom-calibrate-attachments                     # metrics + 12-document page
-  pressroom-calibrate-attachments --preview all       # every document on the page
-  pressroom-calibrate-attachments --preview 0         # metrics only
-  pressroom-calibrate-attachments --out ~/review.html
+  pressroom-calibrate-converters                     # metrics + 12-document page
+  pressroom-calibrate-converters --preview all       # every document on the page
+  pressroom-calibrate-converters --preview 0         # metrics only
+  pressroom-calibrate-converters --out ~/review.html
 """
 
 import argparse
@@ -35,7 +35,7 @@ import warnings
 
 from bs4 import BeautifulSoup, XMLParsedAsHTMLWarning
 
-from pressroom.attachment.control import conversion
+from pressroom.converter.control import conversion
 from pressroom.database.control import connection
 
 # Interleaving signals: the text route merges overlapping copies of a document

@@ -22,7 +22,7 @@ written, the row is `uncertain`, and only a confirmed absence is `dead`.
 import sys
 
 from pressroom.fetcher.control import address
-from pressroom.attachment.control import conversion
+from pressroom.converter.control import conversion
 from pressroom.release.control import gate
 from pressroom.provenance.control import resolution
 from pressroom.release.control import storage

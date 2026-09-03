@@ -32,7 +32,7 @@ import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
-from pressroom.attachment.control import conversion  # noqa: E402
+from pressroom.converter.control import conversion  # noqa: E402
 from pressroom.sources.maudio.control import (
     media_news,
     media_pr,  # noqa: E402

@@ -38,7 +38,7 @@ import argparse
 import collections
 
 
-from pressroom.attachment.control import conversion
+from pressroom.converter.control import conversion
 from pressroom.database.control import connection
 from pressroom.provenance.entity import origin
 from pressroom.sources.maudio.control import (

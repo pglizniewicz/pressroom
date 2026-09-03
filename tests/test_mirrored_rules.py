@@ -20,7 +20,7 @@ import pathlib
 import re
 import unittest
 
-from pressroom.attachment.control import conversion
+from pressroom.converter.control import conversion
 from pressroom.browser import boundary
 from pressroom.release.entity import schema
 from pressroom.text.control import decoding, richtext

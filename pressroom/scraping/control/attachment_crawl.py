@@ -40,7 +40,7 @@ from pressroom.reporting.entity.outcome import Stats
 
 # What an attachment's bytes mean is conversion.py's concern; this file owns the
 # crawl.
-from pressroom.attachment.control import conversion
+from pressroom.converter.control import conversion
 from pressroom.fetcher.control import archive
 
 SOURCES = [
@@ -322,7 +322,7 @@ def missing_bytes_rows(conn) -> list[tuple[str, str]]:
 
     Done in Python, not SQL: SQLite has no basename(), the rtrim/replace trick
     that emulates one is unreadable, and this comparison has to match the one
-    attachment/boundary/calibration.py and the richtext pass use.
+    converter/boundary/calibration.py and the richtext pass use.
     """
     cached = set()
     for (key,) in conn.execute(

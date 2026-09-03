@@ -17,7 +17,7 @@ import random
 import sqlite3
 import unittest
 
-from pressroom.attachment.control import conversion
+from pressroom.converter.control import conversion
 from pressroom.fetcher.control import address
 from pressroom.provenance.boundary import verification
 from pressroom.provenance.entity import origin

@@ -12,7 +12,7 @@ row holding a PDF's text and advertising the capture it had before.
 import re
 from unittest import mock
 
-from pressroom.attachment.control import conversion
+from pressroom.converter.control import conversion
 from pressroom.fetcher.control import archive
 from pressroom.provenance.entity import origin
 from pressroom.release.entity.grade import Grade

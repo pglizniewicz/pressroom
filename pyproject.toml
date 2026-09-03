@@ -48,7 +48,7 @@ pressroom-verify-encoding     = "pressroom.text.boundary.encoding_check:main"
 
 # Read-only review passes over the whole cache
 pressroom-calibrate-containers  = "pressroom.text.boundary.container_calibration:main"
-pressroom-calibrate-attachments = "pressroom.attachment.boundary.calibration:main"
+pressroom-calibrate-converters = "pressroom.converter.boundary.calibration:main"
 
 # Sources, by firm
 pressroom-intel               = "pressroom.sources.intel.boundary.press:main"
