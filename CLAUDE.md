@@ -104,18 +104,24 @@ per firm under `sources/` — `intel`, `amd`, `creative`, `terratec`, `maudio`,
 **Three words, three sizes, and they are not synonyms.** A **source component**
 is the BCE unit: one directory per firm under `sources/`, holding one scraper
 per generation. A **scraper** is what a command runs — a **crawler** that turns
-start urls into a pool of article urls, a **fetcher** that brings each one's
-bytes back into `page_cache`, an optional **converter** for what is not HTML,
-and a **parser** that lifts the release out of it. A **source** is the tag a row
-carries, one per mirror, so one scraper may stamp several. Only the crawler and
-the parser are per-scraper: the fetcher is `capture/control/`, the converter
-`attachment/control/conversion.py`, and a scraper needing neither writes
-neither.
-**Prose that says "source" for the middle size is the smell.**
+what the scraper starts from into the pool phase 1 loops over (article urls,
+or, where a release only ever existed inside a listing, that listing's own
+captures walked along time), a **fetcher** that brings each one's bytes back
+into `page_cache`, an optional **converter** for what is not HTML, and a
+**parser** that lifts the release out of the bytes — one from a page, many from
+a listing. A **source** is the tag a row carries, one per mirror, so one scraper
+may stamp several. Only the crawler and the parser are per-scraper, and a
+parser takes bytes and never fetches them: the fetcher is `capture/control/`,
+called from `scraping/` and from a crawler reading its listings, never from a
+parser; the converter is `attachment/control/conversion.py`; a scraper needing
+neither writes neither. A **collector** is not a fifth role: it is the listing
+parser run by phase 2 over the captures the crawler knows (`cached_entries`),
+and only a scraper whose releases exist inside a listing has one.
+**Prose that says "source" for the middle size is the smell, and so is a
+`fetch_*` inside a parser.**
 
-**A scraper splits the same way every time**: the crawl, the parser and the
-listing collector go in `control/<generation>.py`, and the command line in
-`boundary/<generation>.py`. The module name is the **CMS generation**, not
+**A scraper splits the same way every time**: the crawler and the parser go in
+`control/<generation>.py`, and the command line in `boundary/<generation>.py`. The module name is the **CMS generation**, not
 the domain, because that is what a source tag identifies — which is why
 `sources/terratec/control/pressemit.py` is not called `terratec.py` and
 `sources/maudio/control/golive.py` is not called `midiman.py`.

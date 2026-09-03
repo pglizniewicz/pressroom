@@ -137,9 +137,11 @@ def parse_detail(content: bytes) -> Detail:
     return {"body": body, "body_html": body_html}
 
 
-def collect(conn, session, pages: int | None = None) -> dict[str, Entry]:
-    """Walk both facets -> {url: item}. Deduped across facets by url, which is
-    also the DB's key, so the two lists cannot produce two rows."""
+def candidates(conn, session, pages: int | None = None) -> dict[str, Entry]:
+    """The crawler: walk both facets -> {url: item}. Deduped across facets by
+    url, which is also the DB's key, so the two lists cannot produce two rows.
+    Not a collector - that word is phase 2's, for a listing parser run over
+    cached captures - and this one fetches live pages to find the pool."""
     found = {}
     for facet in FACETS:
         print(f"[{SOURCE}] facet {facet['subject']} ({facet['label']})", flush=True)
@@ -179,9 +181,9 @@ def scrape(
     conn = connection.connect()
     session = requests.Session()
 
-    # A dict, not a list: collect() returns {url: item} and the next line asks
+    # A dict, not a list: candidates() returns {url: item} and the next line asks
     # for .values() - an empty *list* here is an AttributeError.
-    found = {} if catch_up.no_crawl(catch) else collect(conn, session, pages)
+    found = {} if catch_up.no_crawl(catch) else candidates(conn, session, pages)
     print(f"\n[{SOURCE}] {len(found)} unikalnych artykułów w obu listach", flush=True)
     if list_only:
         conn.close()
