@@ -91,7 +91,7 @@ class StaleIndexTest(unittest.TestCase):
 
     An UPDATE over many rows, or an out-of-band DELETE from a GUI DB tool,
     leaves releases_fts holding tokens that are no longer in `releases`. The
-    index built here is stale on purpose: the schema, the insert trigger only,
+    index built here is stale: the schema, the insert trigger only,
     then rows changed underneath it.
     """
 

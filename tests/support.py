@@ -11,11 +11,10 @@ Three things every file here needs and exactly one of them is subtle:
   no_network()  a context manager that makes any outbound request raise.
 
 The subtle one is the third. It raises a **BaseException**, not an Exception,
-and that is not fussiness: several fetch sites in this tree wrap their call in
-`except Exception` and degrade gracefully, so a probe raising an Exception is
-swallowed and the source under test reports clean. The first version of the
-manual ritual this replaces did exactly that and pronounced five
-network-crawling sources offline.
+because several fetch sites in this tree wrap their call in `except Exception`
+and degrade gracefully, so a probe raising an Exception is swallowed and the
+source under test reports clean. The first version of this probe did exactly
+that and pronounced five network-crawling sources offline.
 """
 
 import contextlib

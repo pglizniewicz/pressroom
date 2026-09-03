@@ -105,7 +105,7 @@ def candidate_bodies(
         mine = [e.get("body") or "" for e in entries if e.get("url") == url]
         return mine or [e.get("body") or "" for e in entries]
     # Explicit tags, not a suffix: `maudio_com_news` also ends in `_news` and
-    # belongs to a different scraper entirely (scrape_maudio_news), which the
+    # belongs to a different scraper entirely (news_blog.py), which the
     # suffix rule silently mis-parsed into 25 reported mismatches whose bodies
     # were in fact identical.
     if source in (

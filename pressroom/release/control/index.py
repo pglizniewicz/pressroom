@@ -19,7 +19,7 @@ def rebuild_fts(conn) -> None:
     the tokens actually indexed, so the next UPDATE corrupts the index rather
     than merely leaving it wrong. FTS5 verifies none of this.
 
-    No caller on purpose: it is typed by hand after a bulk change. The statement
+    No caller: it is typed by hand after a bulk change. The statement
     lives in one place all the same.
     """
     conn.execute("INSERT INTO releases_fts(releases_fts) VALUES('rebuild')")

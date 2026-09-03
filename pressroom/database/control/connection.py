@@ -18,8 +18,8 @@ from pressroom.database.control import creation
 # The depth is load-bearing - moving this module without fixing the count gives
 # a silently empty database somewhere else on disk rather than an error.
 #
-# PRESSROOM_DB overrides it, which is what makes a whole-corpus dry run against a
-# copy possible: a `--force` is free but not reversible.
+# PRESSROOM_DB overrides it, which makes a whole-corpus dry run against a copy
+# possible: a `--force` is free but not reversible.
 _DEFAULT = Path(__file__).resolve().parents[3] / "pressroom.db"
 DB_PATH = Path(os.environ.get("PRESSROOM_DB") or _DEFAULT)
 

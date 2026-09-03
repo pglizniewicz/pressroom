@@ -45,7 +45,7 @@ CDX_URL = "https://web.archive.org/cdx/search/cdx"
 SLEEP = 1.0
 
 # Base for the retry backoff after a connection-level CDX failure (-> 5s, 10s).
-# Kept separate from SLEEP on purpose: one is how polite we are when things
+# Kept separate from SLEEP: one is how polite we are when things
 # work, the other is how long we wait when they don't, and tying the second to
 # the first meant every increase in politeness silently inflated retry waits.
 RETRY_BACKOFF = 5.0

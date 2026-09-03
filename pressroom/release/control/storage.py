@@ -20,7 +20,7 @@ def _transaction(conn, commit: bool):
     """The transaction boundary for one write, or nothing when the caller owns it.
 
     `with conn:` rather than a bare conn.commit() because it **rolls back on an
-    exception**, which is what makes a row and its body_origin entry one write:
+    exception**, which makes a row and its body_origin entry one write:
     a raising origin write once left the INSERT in an open transaction for the
     next commit on that connection to adopt.
     """
@@ -55,7 +55,7 @@ def store_release(
     already present and nothing was written. Callers keeping a "new" counter
     should gate it on this rather than incrementing unconditionally.
 
-    Content fields are keyword-only on purpose: the six positional columns
+    Content fields are keyword-only: the six positional columns
     were easy to transpose silently, and this way a mistake is a TypeError.
 
     `grade` defaults to 'full' because most callers store a real article; a

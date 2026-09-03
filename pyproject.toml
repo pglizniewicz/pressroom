@@ -15,13 +15,13 @@ dependencies = [
 [project.optional-dependencies]
 # One source, one dependency. GlobeNewswire sits behind Akamai Bot Manager,
 # which drops requests/urllib3 on the TLS fingerprint - see
-# scrape_globenewswire_creative.make_session. curl_cffi is imported lazily
-# inside that function, so the other ~29 modules import and run fine without
-# it; only this source breaks, and it breaks with a plain ImportError.
+# globenewswire.make_session. curl_cffi is imported lazily inside that function,
+# so every other module imports and runs fine without it; only this source
+# breaks, and it breaks with a plain ImportError.
 #
 # It is an extra rather than a base dependency because it ships a patched
 # libcurl in its wheel, and this repo's readers (database/, release/control/
-# query.py, browser/) are deliberately dependency-free. The documented install
+# query.py, browser/) are dependency-free. The documented install
 # line includes it anyway, so the normal path is not missing anything.
 #
 # There is no `dev` extra: the test suite is stdlib unittest, run with
@@ -29,10 +29,8 @@ dependencies = [
 # extra to verify itself.
 globenewswire = ["curl_cffi"]
 
-# One entry point per thing anyone runs: fifteen scrapers, two readers, three
-# read-only checks, two calibration passes - 22, which tests/test_entry_points.py
-# asserts, because this sentence said 22 for as long as there were three
-# `verify` commands. Declared rather than left as
+# One entry point per thing anyone runs; tests/test_entry_points.py asserts the
+# four families and their sizes. Declared rather than left as
 # `python -m pressroom.sources.terratec.boundary.portal`, because the layer path is an
 # implementation detail of where the code lives and has no business in a
 # documented command line.
@@ -92,7 +90,7 @@ include = ["pressroom*"]
 # pressroom-verify-names reports clean (it only inspects `module.attr` forms) and
 # the hermetic suite never reaches (they are network paths).
 #
-# E501 is deliberately out. After formatting, 26 lines still exceed 88, and every
+# E501 is out. After formatting, 26 lines still exceed 88, and every
 # one of them is an HTML template, a SQL string, a User-Agent or a message meant
 # for a human - things the formatter will not split and should not.
 select = ["E4", "E7", "E9", "F"]

@@ -38,7 +38,7 @@ ROOT = support.HERE.parent
 SEARCHED = ("pressroom", "tests", "docs")
 PROSE = ("CLAUDE.md", "checks.md")
 
-# A bare module-style filename in prose. Deliberately not matching a path with
+# A bare module-style filename in prose. Not matching a path with
 # directories in it: `text/control/decoding.py` is resolved by the same check
 # below, through the basename, and a stricter pattern would miss the flat names
 # this exists to catch.
@@ -58,7 +58,7 @@ RETIRED = {
     "midiman.py": "the name maudio/control/golive.py deliberately does not have",
     # Folded into the module whose parser it already imported: one CMS
     # generation on two hosts is one crawler. docs/adr/catch-up.md names it as
-    # one of the two loops that graded a bodyless row honestly before the
+    # one of the two loops that graded a bodyless row correctly before the
     # library did, which is the record the merge does not get to erase.
     "presse.py": "the terratec .de loop now merged into terratec/control/pressemit.py",
     # The retired backfill_/repair_/migrate_ family. These two are the evidence
@@ -69,7 +69,7 @@ RETIRED = {
 }
 
 
-# This file, which names the dead modules on purpose as the examples of what
+# This file, which names the dead modules as the examples of what
 # it is for. Every other file has the allowlist.
 SELF = pathlib.Path(__file__).resolve()
 

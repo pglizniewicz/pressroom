@@ -34,7 +34,7 @@ neither varies by source — `sources/amd` and `sources/intel` have no `control/
 layer at all, both halves coming from `q4`, and `terratec/control/early.py`
 opens by saying it is not a crawler like the others.
 
-Three things kept their names, each of which could have gone the other way:
+Three names stayed:
 
 - **`releases.source` and `--source`.** The tag is per mirror and one scraper
   may own several, so the column does not hold a scraper's name — renaming it to
@@ -76,8 +76,7 @@ named the leaks:
   `politeness.fetch_cached` themselves and hand the bytes over, with the site's
   Crawl-delay passed as a value. The five live fixtures are detail fixtures,
   byte-identical under a new name, and the proof that a parser cannot fetch is
-  its signature. (`fetch_body` is quoted above as evidence for the verb
-  `fetch_`; the evidence stands, the function does not.)
+  its signature.
 - **The fetcher's module called a parser.** `archive.sample_all_captures` walked
   a listing's captures and parsed each; `archive.fetch_detail_snapshot` chose
   the best capture and parsed it. Both are a fetch composed with a parse —
@@ -96,13 +95,13 @@ the word for the *rows* (`attachment_crawl.py`, `--attachments`,
 [attachments.md](attachments.md)) is the separate question of what a `.pdf` that
 is the release itself should be called, and was left where it was. `scraping/`
 became `scraper/` — the loops that compose the four roles, phase 1, phase 2,
-`twin`, `attachment_crawl`, the parse types and the command line, which is what
-a scraper *is*, with the fifteen concrete ones under `sources/`. "scraping" had
+`twin`, `attachment_crawl`, the parse types and the command line — a scraper,
+with the fifteen concrete ones under `sources/`. "scraping" had
 been the whole's activity naming its connective tissue, the size error in a
 path; `run/` was the first candidate and lost because it is not one of the
 words the tree was missing.
 
-Three decisions inside this one, each measured before it was taken:
+Three decisions inside this one:
 
 - **The crawler has its place already, and CDX stays with the fetcher.** Every
   scraper has a crawler; what differs is the pool — article urls off index
@@ -116,8 +115,7 @@ Three decisions inside this one, each measured before it was taken:
   `list_all_captures` — and both halves share the cooldown, the error classifier
   and the `wayback_calls` log. A `crawler/` holding CDX alone would be one
   module through which two components write one log. It is the one place where
-  a role's tool sits under another role's name, recorded so it reads as a
-  choice rather than an oversight.
+  a role's tool sits under another role's name.
 - **A collector is a composition, not a fifth role.** `cached_entries(conn) ->
   {url: Entry}` in `presse_de`, `early` and `cms` is the listing parser run by
   phase 2 over the captures the crawler knows, out of `page_cache` — the same
@@ -127,31 +125,20 @@ Three decisions inside this one, each measured before it was taken:
   lines behind a signature no fourth scraper would use. The word survives with a
   definition in the rulebook, and the one collision went: `soundonsound`'s
   `collect()` was a crawler and is `candidates()`, pressemit's word for the job.
-- **`sources` stayed, and not because it was not measured** — the bullet that
-  records it is with the others on that directory, below.
 
 ## One place a command line is assembled
 
-**`boundary/command.py` is the one place a command line is assembled.** Sixteen
-scrapers each carried a hand-written `__main__`, and eleven were the same five
-lines. A boundary now declares its per-scraper options as values:
-
-```python
-def main():
-    command.run(portal.scrape, __doc__, command.LIMIT)
-```
-
-and gets the catch-up flags for free. An `Option`'s `dest` is the keyword the
-crawl receives, which is the intended coupling: the flag and the parameter it
-feeds are named the same thing on purpose. `run()` takes the docstring **whole**
-and uses its first paragraph — slicing it in the caller was silent, because
+Sixteen scrapers each carried a hand-written `__main__`, and eleven were the
+same five lines; `boundary/command.py` replaced them all. Two couplings came
+with it. An `Option`'s `dest` is the keyword the crawl receives, so the flag and
+the parameter it feeds share a name. And `run()` takes the docstring **whole**
+and uses its first paragraph, because slicing it in the caller was silent:
 `splitlines()[0]` drops the second half of every two-line summary and four of
 these sources have one.
 
 ## The retired `backfill_` / `repair_` / `migrate_` prefixes
 
-**There is no `backfill_`, `repair_` or `migrate_` family any more, and
-reintroducing one is the smell.** Those prefixes named a *moment* — "the gap has
+The `backfill_`, `repair_` and `migrate_` prefixes named a *moment* — "the gap has
 been filled", "the damage has been undone" — and every one of them outlived it:
 `repair_encoding.py`'s own docstring ended up reading "written as a one-off and
 no longer one". Two rules replaced them:
@@ -178,7 +165,7 @@ rebuild announced itself on every *fresh* database (`user_version` starts at 0),
 which is why the suite and `tests/refresh.py` both had to suppress stdout to
 stay readable.
 
-What the removal deliberately keeps is the archaeology, here and in the other
+What the removal keeps is the archaeology, here and in the other
 records: `captures.md` on `wayback_cache`, `provenance.md` on `body_capture`'s
 two removed columns, `grade-and-detail-id.md` on the sentinels that used to live
 in `detail_id`. The names belong in the file someone opens to ask *why the
@@ -187,22 +174,12 @@ them again.
 
 ## The read-only passes are a third kind of boundary
 
-**The read-only passes are a third kind of boundary, next to a scraper and a
-reader.** They write nothing, ever:
-
-- **`pressroom-verify-*`** checks that a claim still holds and is run after
-  anything that could break it: `pressroom-verify-body-origin` (a recorded
-  origin really produces the body it claims), `pressroom-verify-encoding`
-  (nothing repairable is stored, and the two detectors still agree), and
-  `pressroom-verify-names` (the tree's own names still resolve). The first two
-  are what a deleted repair leaves behind: the reporting half survives, the
-  writing half moved into the write path.
-- **`pressroom-calibrate-*`** is a review pass over the whole cache, printing
-  metrics *and* writing a page of full texts:
-  `pressroom-calibrate-containers` for DOM containers,
-  `pressroom-calibrate-converters` for the attachment converters. The second
-  half is not decoration — a column of metrics once said "100% of words kept"
-  about a conversion that had put the release's headline after the footer.
+Next to a scraper and a reader, and writing nothing, ever. The two
+`pressroom-verify-*` passes over the corpus are what a deleted repair leaves
+behind: the reporting half survives, the writing half moved into the write path.
+`pressroom-calibrate-*` prints metrics *and* writes a page of full texts, because
+a column of metrics once said "100% of words kept" about a conversion that had
+put the release's headline after the footer.
 
 ## The source components moved under `sources/`
 
@@ -213,8 +190,7 @@ runs, so the root read as a list of companies with the architecture filed
 somewhere among it. They sit under `pressroom/sources/` now, and what is left in
 the root is the shared components, `q4`, and one directory that is not one.
 
-The tidiness is the reason it was raised. The reason it was worth doing is
-underneath it: **"a source component" stopped being a list of names and became
+What it bought: **"a source component" stopped being a list of names and became
 a fact about a path.** That list was literal in three independent places —
 `CLAUDE.md`'s roll-call, `SOURCE_COMPONENTS` in
 `tests/test_import_direction.py`, and the company slugs in
@@ -223,7 +199,7 @@ third, so a seventh firm had to be added by hand in two of them before the
 dependency direction below would cover it at all. The test reads the directory
 now, and a firm that is in the tree is in the rule.
 
-Four decisions inside that one, each of which could have gone the other way:
+Four decisions inside that one:
 
 - **`sources`, not `scrapers`.** The rename the vocabulary seems to ask for, and
   the size error again: `scrapers/terratec/` says one scraper where there are
@@ -251,9 +227,9 @@ Four decisions inside that one, each of which could have gone the other way:
   `sources/` imports anything inside it" false the day it landed, for a module
   that is a dependency of two source components rather than being one.
 
-What the move cost was one thing worth naming, because it would have passed
-silently. `tests/test_import_direction.py` derived a module's component and
-layer positionally, from `parts[0]` and `parts[1]` of its path under
+One thing would have passed silently. `tests/test_import_direction.py` derived a
+module's component and layer positionally, from `parts[0]` and `parts[1]` of its
+path under
 `pressroom/`. Left alone, every source module would have reported the component
 `sources` with the layer `terratec`, `SOURCE_COMPONENTS` would have matched
 none of them, and the four isolation classes would have gone green by asserting
@@ -263,8 +239,7 @@ it refuses a graph with no edges: a rule that cannot fail is not a rule.
 
 ## Two BCE deviations
 
-**Two BCE deviations, recorded rather than glossed** — the same way `checks.md`
-records `[no-js]` against `web-static`:
+**Two BCE deviations:**
 
 - **Transactions stay at the write, not in the boundary.** The pattern puts
   transaction wrapping in the boundary; here "commit per row unless a loop
@@ -278,7 +253,7 @@ records `[no-js]` against `web-static`:
 
 ## The dependency direction
 
-**The dependency direction is a rule, not an accident.** A source component
+**The dependency direction is a rule.** A source component
 imports `scraper`, `release`, `fetcher`, `text`, `database`, `reporting` and
 `q4`; none of those imports a source component. The one exception is documented
 and safe: `provenance/boundary/verification.py` imports source control modules

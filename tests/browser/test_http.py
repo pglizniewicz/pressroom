@@ -2,10 +2,7 @@
 renders next to a capture link.
 
 The capture annotations are the half of this file that had to be got right
-twice. The first cut of "(capture strony: …)" annotated all 1763 rows with an
-entry, including the 1605 whose capture is of their own page; and a mirrored
-file was announced as "z listingu" while its link was labelled with a timestamp
-the link does not open.
+twice; each test below names its incident.
 """
 
 import json
@@ -66,8 +63,8 @@ class CaptureAnnotationTest(support.DbCase):
         self.assertIsNone(http.capture_ts(None))
 
     def test_a_row_with_no_capture_gets_no_link(self):
-        """The only honest answer, including for the live sources, whose
-        detail_id is their platform's own id and never named a capture."""
+        """No link, the live sources included: their detail_id is their
+        platform's own id and never named a capture."""
         self.assertIsNone(http.wayback_url(None))
 
     def test_the_link_drops_the_raw_bytes_marker(self):
@@ -79,9 +76,8 @@ class CaptureAnnotationTest(support.DbCase):
 
 class ParamTest(support.DbCase):
     def test_an_unknown_company_is_a_bad_request(self):
-        """`"inne"` is not a key of COMPANIES, so an unmapped source's panel
-        entry 400s the moment anyone clicks it - which is why soundonsound has
-        an entry of its own even though the axis is labelled "firmy"."""
+        """An unmapped source 400s in the panel - `tests/taxonomy/test_company.py`
+        says why, and why soundonsound has an entry of its own."""
         with self.assertRaises(http.BadRequest):
             http._sources({"company": ["inne"]})
         with self.assertRaises(http.BadRequest):

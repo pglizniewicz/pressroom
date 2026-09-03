@@ -26,16 +26,14 @@ bump `curl_cffi` and try a newer profile before suspecting the parser.
 source is one company announcing its own products; this is a magazine writing
 *about* many. Three consequences:
 
-- **It gets its own `COMPANIES` entry** even though the axis is labelled "firmy".
-  Not cosmetic: an unmapped source falls through to `UNKNOWN`, and `"inne"` is
-  not a key of `COMPANIES`, so `http._sources()` answers **HTTP 400** the moment
-  anyone clicks it in the panel.
+- **It gets its own `COMPANIES` entry** even though the axis is labelled "firmy":
+  an unmapped source 400s in the panel (`taxonomy/entity/company.py`).
 - **`Crawl-delay: 30`**, honoured via `fetch_cached(sleep=CRAWL_DELAY)` — the
   reason that parameter exists. ~820 requests is a ~7 hour run, but everything
   lands in `page_cache`, so it is one-time and an interrupted run resumes free.
 - **The listing URLs match `Disallow: /*?*f[0]=`; the articles do not.** That rule
   guards against faceted-search crawl traps, not content. Two named facets at one
-  page per 30s was a deliberate call, recorded in the scraper's docstring.
+  page per 30s is the call, recorded in the scraper's docstring.
 
 Two markup traps that produce wrong data rather than failing: the listing carries
 **two date formats** (`19/8/26` on news, `Published March 2000` in
@@ -43,7 +41,7 @@ Two markup traps that produce wrong data rather than failing: the listing carrie
 dateutil fills the day in from *today*), and a page holds 23 `div.views-row` of
 which only **20 contain `article[about]`**, the rest promo blocks.
 
-`detail_id` is Drupal's node id, deliberately not a timestamp: faking one would
+`detail_id` is Drupal's node id, not a timestamp: faking one would
 have put a dead archive.org link on every row. Belt *and* braces now — the link
 comes from `body_origin` and a live source has no entry — but it was this
 docstring that showed the digit rule had become a constraint on what a scraper may

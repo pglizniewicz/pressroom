@@ -11,7 +11,7 @@ Same source, same title, same date - one a listing blurb, the other the full
 article. Wherever the twin already holds the real text, the teaser can be filled
 from the database itself, with no request for a capture a neighbouring row has.
 
-Deliberately non-destructive. Nothing is deleted and nothing is merged:
+Non-destructive. Nothing is deleted and nothing is merged:
 `releases.url` stays the dedup key and both urls genuinely existed, so both rows
 stay. Only the short row's `body` is replaced, and its `detail_id` becomes the
 twin's capture timestamp - which is where that text actually came from.

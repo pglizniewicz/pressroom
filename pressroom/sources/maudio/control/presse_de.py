@@ -62,7 +62,7 @@ German forms have found nothing - _english_date().
 
 No <a name> is dependable on the two listings, so an inline release there has no
 natural per-release url; a stable synthetic one is built from the slugified
-(title, date) - deliberately independent of which of the two pages the entry
+(title, date) - independent of which of the two pages the entry
 came off, so a release found on both collapses to one row.
 
 Encoding is Windows-1252, undeclared: 0x99 appearing as (TM) is only valid in

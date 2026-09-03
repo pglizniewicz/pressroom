@@ -4,7 +4,7 @@ The second reader here, next to the search CLI, and like it a dependency-free
 one: stdlib http.server, a JSON API, and one static page of vanilla JS. No
 framework, no build step, nothing added to pyproject.toml.
 
-What it deliberately does NOT do: write. `connect_ro()`, never `connect()`, so
+What it does NOT do: write. `connect_ro()`, never `connect()`, so
 an accidental write is an OperationalError rather than a quietly corrupted
 index; and 127.0.0.1 only, so there is no auth because there is no remote
 listener.
@@ -74,7 +74,7 @@ def capture_kind(page, row_url):
     A copy of the *same file* on a sibling domain is not a listing, and a badge
     saying "z listingu" for `midiman.net/.../BX5_PR.pdf` read off
     `m-audio.com/.../BX5_PR.pdf` is simply false. Both addresses are start urls
-    of one scraper, so the honest label is "a copy from another domain".
+    of one scraper, so the label is "a copy from another domain".
 
     The file name decides, and only here: this is a *label*, never an identity
     test. Identity is established by the bytes and by the extracted text, because
@@ -107,7 +107,7 @@ def wayback_url(origin_url):
 
     Reads `body_origin` and nothing else - never `detail_id`, whose *shape* is
     not a statement about what it refers to. A row with no recorded capture gets
-    no link, which is the only honest answer, the live sources included.
+    no link, the live sources included.
 
     Stored minus the `id_` marker, so the reader lands on the ordinary viewer
     page rather than page_cache's raw-bytes variant.

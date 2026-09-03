@@ -61,7 +61,7 @@ class CaptureKeyTest(unittest.TestCase):
 
     def test_empty_for_a_platform_id(self):
         """The live sources' detail_id is their own platform's id and never
-        named a capture. An empty key is the honest answer, and what keeps a
+        named a capture. An empty key is the answer, and what keeps a
         reader from building a link to a page that never existed."""
         self.assertEqual(address.capture_key("970", "https://www.intc.com/x"), "")
         self.assertEqual(address.capture_key(None, "https://www.intc.com/x"), "")

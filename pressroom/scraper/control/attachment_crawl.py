@@ -13,8 +13,8 @@ both store only the listing-page teaser:
   - media.media_pr (midiman_com/net/maudio_com_media_pr)      - .doc and .pdf
 
 Called by those two scrapers, never run on its own. Everything free happens by
-default; the network crawl is opt-in (`--attachments`), the one honest
-exception to "a plain rerun gets everything" - nothing records "CDX has no
+default; the network crawl is opt-in (`--attachments`), the one exception
+to "a plain rerun gets everything" - nothing records "CDX has no
 capture of this url, ever", so a full pass re-buys every confirmed absence.
 
 Fetching goes through archive.fetch_best_matching_snapshot, never
@@ -293,7 +293,7 @@ def no_own_bytes_rows(conn) -> list[tuple[str, str]]:
     time: the row would otherwise claim its text came from a capture of another
     domain's url, which is true and unrepresentable. `domain_variants` puts the
     row's own url first, so this pass stores the right capture wherever
-    archive.org has one, and the mirror stays the honest answer where it has
+    archive.org has one, and the mirror stays the answer where it has
     none. Rows with no cached bytes anywhere are excluded - confirmed never
     archived, `docs/adr/numbers.md`.
     """

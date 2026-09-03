@@ -19,7 +19,7 @@ body { font-family: system-ui, -apple-system, sans-serif; line-height: 1.5; }
   --accent-fg: #ffffff;
   --mark-bg: #ffe9a8;
   --mark-fg: #241d05;
-  /* Panel group band. Deliberately NOT --surface: that is the item hover
+  /* Panel group band. Not --surface: that is the item hover
      colour, so a label painted with it reads as a hovered row. Sits between
      --bg and --line, i.e. visible as a band without becoming a second accent. */
   --group-bg: #efebe1;
@@ -29,7 +29,7 @@ body { font-family: system-ui, -apple-system, sans-serif; line-height: 1.5; }
   --full-bg: #e0f0da;     --full-line: #8db97f;
   --damaged-bg: #ece0ff;  --damaged-line: #a888d8;
   /* "z listingu": provenance, not grade - the text was read off another page.
-     Cool/neutral on purpose, so it does not compete with the three warm
+     Cool/neutral, so it does not compete with the three warm
      badges that do judge the body (teaser, short, full). */
   --listing-bg: #dde8f6;  --listing-line: #7d9fc6;
 

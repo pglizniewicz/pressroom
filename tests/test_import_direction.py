@@ -1,11 +1,10 @@
 """Who imports whom, checked against the rules the rulebook already states.
 
-`pressroom-verify-names` cannot see any of this, and it is worth being precise
-about why: its import pass *runs* `importlib.import_module` on every module, so
-an `import requests` added to `release/control/query.py` is reported as a
-success - `requests` is installed in this venv. Its second pass does parse the
-AST, but keeps only the first segment of each imported name in a flat set, so it
-never holds an edge.
+`pressroom-verify-names` cannot see any of this: its import pass *runs*
+`importlib.import_module` on every module, so an `import requests` added to
+`release/control/query.py` is reported as a success - `requests` is installed in
+this venv. Its second pass does parse the AST, but keeps only the first segment
+of each imported name in a flat set, so it never holds an edge.
 
 Without this, a violation passes the whole suite on a development machine and
 surfaces only where someone runs `pressroom-serve` without `requests` and `bs4`
@@ -17,7 +16,7 @@ class below names the rule it asserts. `ImportGraphTest` is the precondition for
 the rest: a graph that silently lost its edges would make every other class pass
 by matching nothing.
 
-Two things it deliberately does not check. `entity/` importing `control/` is not
+Two things it does not check. `entity/` importing `control/` is not
 forbidden by the rulebook, and inventing that rule here is not this file's job.
 Import cycles are not checked because `pressroom-verify-names` really does
 import every module, so a cycle already takes it down.
@@ -188,7 +187,7 @@ def _imported(node) -> list:
 def _relative_path(module: str) -> pathlib.PurePosixPath | None:
     """The module's path under `pressroom/`, or None for a loose module.
 
-    `integrity.py` sits at the root on purpose - it walks the tree rather than
+    `integrity.py` sits at the root - it walks the tree rather than
     belonging to it - so it has neither a component nor a layer.
     """
     path = _modules().get(module)

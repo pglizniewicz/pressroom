@@ -170,9 +170,8 @@ def fetch_detail_snapshot(conn, session, url: str, parse_fn, timeout: int = 20):
     if content is None:
         return {}, confirmed
     # The winner is parsed twice, once to score it and once for real. parse_fn
-    # is pure and one more bs4 pass costs nothing beside a network fetch, so
-    # this is deliberate rather than an oversight - caching the parse by content
-    # hash would be more machinery than the saving.
+    # is pure and one more bs4 pass costs nothing beside a network fetch, and
+    # caching the parse by content hash would be more machinery than the saving.
     parsed = parse_fn(content)
     parsed["detail_id"] = ts
     # The address, not just the timestamp: a caller that never sees the

@@ -55,13 +55,10 @@ pressroom-serve                                      # http://127.0.0.1:8765
 It is loaded into every session, so anything that must be obeyed without being
 looked up is here and nowhere else. The reasoning behind each rule — what was
 tried, what it cost, which measurement settled it — is in **`docs/adr/`**, one
-file per area, indexed in `docs/adr/README.md`. That archaeology is the expensive
-part of this project, so it is kept, not summarised away.
+file per area, indexed in `docs/adr/README.md`.
 
 **Read the `docs/adr/` file for an area before changing anything in that area.**
-Every rule below points at its own; the pointer is not decoration, because the
-rule states *what*, and only the record states what already went wrong when
-someone did otherwise.
+Every rule below points at its own.
 
 Three neighbours, each owning something neither of the above does: **a module
 docstring** owns what markup one scraper actually meets — per-scraper
@@ -70,15 +67,14 @@ file inside a component owns which job; and **`checks.md`** owns the rendered
 page, one labelled line per observation a browser can contradict.
 
 And **a measurement goes in a test or a verify pass, never into prose.** If you
-catch yourself writing a row count into any of these files, that is the signal;
-`docs/adr/numbers.md` is the 259 lines that rule replaced.
+catch yourself writing a row count into any of these files, that is the signal —
+`docs/adr/numbers.md`.
 
 ## Layout
 
 The tree is `pressroom/<business component>/<boundary|control|entity>/`. A
 component owns one responsibility and is named after it; the three layers say
-who may call what. That is the whole of the convention, and the three rules
-that matter in practice are:
+who may call what. Three rules follow from it:
 
 - **the boundary is what an outside actor reaches** — a command line, an HTTP
   request. Nothing else runs a scraper or serves a page.
@@ -88,8 +84,8 @@ that matter in practice are:
 - **the source components live under `pressroom/sources/`.** That directory
   is not a component — it owns no responsibility, has no layers, and holds
   nothing but them; the convention above simply runs one level down inside it.
-  What sits there *is* a source component, which is what makes the dependency
-  direction below a fact about a path rather than a list kept by hand.
+  What sits there *is* a source component, which makes the dependency
+  direction below a fact about a path.
 
 Adding shared logic means a **new component named for its concern**, never a
 grab-bag (`common.py` was split for exactly this reason, and `db.py` after it).
@@ -98,8 +94,8 @@ The components: `database`, `release`, `fetcher`, `provenance`, `text`,
 `converter`, `scraper`, `reporting`, `taxonomy`, `browser` and `q4`, plus one
 per firm under `sources/` — `intel`, `amd`, `creative`, `terratec`, `maudio`,
 `soundonsound`. **Which file inside a component owns which job is
-`docs/layout.md`**: a lookup rather than a rule, which is why it is not here, and
-`tests/test_layout_map.py` keeps it honest against the tree.
+`docs/layout.md`**: a lookup rather than a rule, held to the tree by
+`tests/test_layout_map.py`.
 
 **Three words, three sizes, and they are not synonyms.** A **source component**
 is the BCE unit: one directory per firm under `sources/`, holding one scraper
@@ -122,16 +118,15 @@ and only a scraper whose releases exist inside a listing has one.
 `fetch_*` inside a parser.**
 
 **A scraper splits the same way every time**: the crawler and the parser go in
-`control/<generation>.py`, and the command line in `boundary/<generation>.py`. The module name is the **CMS generation**, not
-the domain, because that is what a source tag identifies — which is why
-`sources/terratec/control/pressemit.py` is not called `terratec.py` and
-`sources/maudio/control/golive.py` is not called `midiman.py`.
+`control/<generation>.py`, and the command line in `boundary/<generation>.py`.
+The module name is the **CMS generation**, not the domain, because that is what
+a source tag identifies: `sources/terratec/control/pressemit.py` is not called
+`terratec.py` and `sources/maudio/control/golive.py` is not called `midiman.py`.
 
 **The markup archaeology travels with the parser.** Every control module's
 docstring records what its generation's markup actually does, including the
 quirks that cost time; the boundary keeps the one-line summary `--help` shows
-and the usage examples. Keep writing those down in the control module — neither
-this file nor `docs/adr/` is where a per-scraper quirk goes.
+and the usage examples.
 
 **`boundary/command.py` is the one place a command line is assembled.** A
 boundary declares its per-scraper options as values and gets the catch-up flags
@@ -143,14 +138,14 @@ def main():
 ```
 
 An `Option`'s `dest` is the keyword the crawl receives — the flag and the
-parameter it feeds are named the same thing on purpose. `run()` takes the
-docstring **whole**, never `splitlines()[0]`.
+parameter it feeds share a name. `run()` takes the docstring **whole**, never
+`splitlines()[0]`.
 
 **A scraper's command is the only thing anyone runs.** It owns that scraper's
 whole job — discovery *and* the catch-up over everything an earlier run could
 not get — and a rerun is expected to pick up exactly what the last one missed.
-`--offline` makes a run free and touches nothing on the network (proved, not
-assumed — `tests/test_offline_is_offline.py`); `--force` re-extracts every row
+`--offline` makes a run free and touches nothing on the network
+(`tests/test_offline_is_offline.py`); `--force` re-extracts every row
 after a parser change (and asks first); `--retext` re-derives text after a
 renderer change; `--seed-cache` fetches captures and parses nothing.
 
@@ -170,9 +165,9 @@ recorded origin really produces the body it claims), `-encoding` (nothing
 repairable is stored, and the two detectors still agree), `-names` (the tree's own
 names still resolve). `pressroom-calibrate-*` reviews the whole cache and prints
 metrics **and** a page of full texts — `-containers` for DOM containers,
-`-converters` for the converters; the second half is not decoration.
+`-converters` for the converters.
 
-**The dependency direction is a rule, not an accident.** A source component
+**The dependency direction is a rule.** A source component
 imports `scraper`, `release`, `fetcher`, `text`, `database`, `reporting` and
 `q4`; none of those imports a source component. The one exception is documented
 and safe: `provenance/boundary/verification.py` imports source control modules
@@ -187,9 +182,7 @@ components back out of this sentence.
 1. **`fts5(title, body)` column order is load-bearing.**
    `release/control/query.py` calls `snippet(releases_fts, 1, ...)`; the `1` is
    a *positional* ordinal. Swap the columns in `release/entity/schema.py` and it
-   starts snippeting titles with no error. The declaration and the ordinal are
-   now one component apart rather than three files apart: the CLI reader used to
-   carry its own copy of that query.
+   starts snippeting titles with no error.
 2. **All three FTS triggers must exist** (`releases_ai`/`au`/`ad`), and updates
    and deletes must use the external-content `'delete'` command form with the
    OLD values. Only `releases_ai` existed once, and every UPDATE-based recovery
@@ -205,7 +198,7 @@ components back out of this sentence.
    merely leaving it wrong. FTS5 verifies none of this.
 4. **The path a reader walks imports stdlib only.** That is
    `database/control/`, every `entity/` layer, `release/control/query.py`,
-   `taxonomy/` and `text/control/decoding.py`. The two readers are deliberately
+   `taxonomy/` and `text/control/decoding.py`. The two readers are
    dependency-free; never import `requests` or `bs4` into any of those, and
    never import `fetcher/control/politeness.py`, `q4` or a source component
    into either reader. `tests/test_import_direction.py` proves that statically,
@@ -221,7 +214,7 @@ components back out of this sentence.
 5. **`releases.url` is the dedup key** (UNIQUE) and inserts are
    `INSERT OR IGNORE`. Gate any "new" counter on `store_release()`'s bool
    return — an unconditional `count += 1` after it reports phantom inserts on
-   every rerun (this was a real bug).
+   every rerun.
 
 ## Conventions
 
@@ -231,19 +224,16 @@ couldn't get. Commit per row unless a loop batches explicitly (`commit=False`).
 
 **A write that has two statements commits through `with conn:`, never a bare
 `conn.commit()`** — it rolls back on an exception, and a bare commit cannot, so
-a raising second statement used to leave the first in an open transaction for
-the next commit on that connection to adopt. That is how a row got stored
-without the `body_origin` entry the code had just refused to write. Wherever a
-body write and an `origin.record`/`origin.clear` sit together, they are one
-transaction and both take `commit=False`.
+a raising second statement used to leave the first for the next commit on that
+connection to adopt. Wherever a body write and an `origin.record`/`origin.clear`
+sit together, they are one transaction and both take `commit=False`.
 
 **A network error is not a verdict.** `discovery.fetch_detail_snapshot()` returns
 `(parsed, confirmed)`; `confirmed=False` means archive.org failed, so the caller
 writes *nothing* and leaves the item open to a full retry. Only a confirmed
 absence may be recorded, and it is `uncertain` (`?`), never `dead`.
-**`confirmed=True` now means every capture was tried** — no attempt cap, no
-fetch error, no CDX listing truncated at `CDX_ROW_LIMIT` — and not merely that
-the newest one came back empty.
+**`confirmed=True` means every capture was tried** — no attempt cap, no fetch
+error, no CDX listing truncated at `CDX_ROW_LIMIT`.
 
 **Report progress through `outcome.Stats`** — no per-script counters or marker
 chars. The seven outcomes are fixed so a marker stream is readable without
@@ -258,7 +248,7 @@ knowing which script produced it.
   an upgrade later. `already_stored()` is right only for "have I seen this url".
 - **An upgrade that replaces a teaser body with the real article must pass
   `grade="full"`.**
-- **`length(body)` stays the honest check**: `full` is only as good as what the
+- **`length(body)` is still the check**: `full` is only as good as what the
   scraper knew.
 
 → `docs/adr/grade-and-detail-id.md`
@@ -289,16 +279,12 @@ knowing which script produced it.
 - **`twin.py` must never pair across tags** — duplication across tags is
   intended. Inside one tag `twin.fill` needs source + collapsed title + an exact,
   non-empty date, touches **no network**, and **never deletes or merges**.
-  **That refusal is what decides whether two tags may merge at all**: across
-  mirrors the same release carries the same title and date, so merging would
-  collide real duplicates; across languages the title differs because the
-  language does, so there is nothing to collide. Measure before merging — the
-  question is how many (collapsed title, exact date) groups span the two, and
-  whether any member is under `SHORT`.
+  **That refusal is what decides whether two tags may merge at all**: measure
+  how many (collapsed title, exact date) groups span the two, and whether any
+  member is under `SHORT`.
 - **`taxonomy/entity/company.py` is an explicit table, never a prefix rule, and
-  every source needs an entry.** An unmapped source falls into `inne`, whose slug
-  is not a `COMPANIES` key, so `http._sources()` answers **HTTP 400** the moment
-  anyone clicks it. No SQL knows what a company is.
+  every source needs an entry.** An unmapped source falls into `inne`, which the
+  panel answers with **HTTP 400**. No SQL knows what a company is.
 
 → `docs/adr/sources-and-tags.md`, `docs/adr/odd-sources.md`
 
@@ -310,13 +296,9 @@ the awaits before it touches the DOM, because `state` is global and a late
 response writes the new view's filters into the old view.
 
 **`checks.md` owns the panel and every rule about it** — one labelled line each,
-in the form a browser can contradict, which is a rule that can fail rather than
-one restated here. Two consequences travel with it: the frontend keeps
+in the form a browser can contradict. The frontend keeps
 `web-static`/`web-conventions` but is a JS-rendered SPA, so a run can be "all
-checks pass" and never "web-static green" (`[no-js]`), and **why** the panel
-sorts, labels and scrolls the way it does is the record below — read it before
-changing any of it, because three of those decisions look like one-liners and
-are not.
+checks pass" and never "web-static green" (`[no-js]`).
 
 → `docs/adr/browser-panel.md`
 
@@ -333,7 +315,7 @@ are not.
   no repair pass to re-add**.
 - **A wrong decode already stored is undone in text, never refetched.**
   `mac-roman` is deliberately not a candidate.
-- **Detection lives in two places on purpose** — `decoding.C1_RE`/`MOJIBAKE_RE`
+- **Detection lives in two places** — `decoding.C1_RE`/`MOJIBAKE_RE`
   and `schema.MOJIBAKE_SQL`, because SQLite has no regex — **and they must
   agree**: `tests/test_mirrored_rules.py`.
 
@@ -354,7 +336,7 @@ are not.
   text and leave `body_html` NULL.
 - **Every parser is DOM-based, and a selector comes from the dominant shape,
   never one sample** — `pressroom-calibrate-containers` is how you get it.
-- **The allowlist lives in two places on purpose** — `richtext._ALLOWED` and
+- **The allowlist lives in two places** — `richtext._ALLOWED` and
   `RICH_TAGS` in `static/app.js`, which **rebuilds every node rather than
   trusting `innerHTML`** — **and they must agree**:
   `tests/test_mirrored_rules.py`.
@@ -370,7 +352,7 @@ are not.
 
 - **A scraper that fetches a page any way other than `archive.fetch_snapshot()`
   or `politeness.fetch_cached()` is a bug.** Every fetched byte lands in
-  `page_cache`, which is what makes a parser fix cost no refetch.
+  `page_cache`, so a parser fix costs no refetch.
 - **Ask archive.org through `archive._cdx()`** — never `__wb/sparkline` or
   `__wb/calendarcaptures`.
 - **Query `wayback_calls` before tuning a timeout or a sleep constant.**
@@ -381,11 +363,9 @@ are not.
   dead article url is the rebuilt site's shell page, which parses to nothing.
   Three samples, scored by the **caller's** `score(content) -> int` (0 rejects):
   the earliest capture that scores, one `LATER_PROBE_YEARS` on, and the last one
-  that scores. **A tie goes to the earlier**, so the earliest copy is the
-  default. `score` is the caller's because byte length is the measure backwards
-  — the shell page is the bigger file — and it must be the measure the write's
-  own gate uses, or the gate vetoes what the walk just picked.
-  `get_latest_working_snapshot()` is left for a pagination probe and nothing else.
+  that scores. **A tie goes to the earlier.** `score` must be the measure the
+  write's own gate uses, or the gate vetoes what the walk just picked.
+  `get_latest_working_snapshot()` is left for a pagination probe.
   **`content is None` with a timestamp still in hand means captures exist and
   none scored** — a `stub`, not a `dead`; only a `timestamp` of None says the
   archive never saw the url.
@@ -402,12 +382,13 @@ are not.
   **`wayback_url()` must never consult `detail_id`** when an entry exists.
 - **`origin.record()` goes next to the body write, in the same transaction**, at
   every site that has the address in hand; a listing collector carries
-  `origin_url` on each entry. `run_retext` records nothing, on purpose.
+  `origin_url` on each entry. `run_retext` records nothing — no capture is
+  involved.
 - **`address.is_capture_address()` refuses anything that is not
   `web/<14 digits>id_/…`**, so a Q4 or Drupal id raises at the write site instead
   of minting a dead link.
 - **An entry must be dropped the moment it stops being true** — `origin.clear()`,
-  which is why `twin.fill` calls it.
+  as `twin.fill` does.
 - **`from_listings` only ever UPDATEs**: a parse matching no stored URL is
   dropped, never inserted, because a row's URL is not always a page that existed.
   A scraper whose releases only ever existed inside a listing **passes a collector
@@ -459,7 +440,7 @@ scraper cannot get them wrong:
    `from_listings`.
 
 **A listing entry is not automatically the better copy**, and `safe_to_write`
-provably cannot catch that — which is what rules 1 and 2 are for.
+cannot catch that — rules 1 and 2 do.
 
 **`--seed-cache` comes first when a parser is being redesigned.** Two things it
 exists to keep you away from:
@@ -497,7 +478,7 @@ exists to keep you away from:
   `archive.fetch_best_matching_snapshot` walks captures exhaustively, scoring
   each by how much text it yields, so a non-match is a verdict and a thinner
   early revision loses to the fuller later one.
-- **The attachment network crawl is opt-in** (`--attachments`), the one honest
+- **The attachment network crawl is opt-in** (`--attachments`), the one
   exception to "a plain rerun gets everything".
 
 → `docs/adr/attachments.md`
@@ -518,22 +499,20 @@ exists to keep you away from:
   AST-identical, so docstrings and `--help` are untouchable.
 - **Ask the PyCharm MCP what it says about the files you touched and their
   neighbours, and read it against the same files at `HEAD`** — the report in this
-  tree is never empty, so "is it clean" answers nothing and *what is new* is the
-  only question it can answer. Get that baseline by linting the `git show HEAD:`
-  versions out of a scratch `dupcheck/`, then delete the directory before the
-  real run, because while it exists every file duplicates against its own twin.
-  **The same run is what proves the inspection can still speak** — a file with
-  nothing to say gets no entry at all, so a quiet report and an unanalysed one
-  look identical. `Duplicated code fragment` is what makes the round trip worth
-  it: ruff has no copy-paste rule at all, so after a dedup or an extraction the
-  one thing it cannot answer is the question the change was asking, and a copy is
-  a pair — the other half sits in a file the change never opened. Nothing below
-  `warning` is visible this way, it is not a commit gate, and it is skipped where
-  no IDE is attached — ruff is the one that gates.
+  tree is never empty, so *what is new* is the only question it can answer. Get
+  that baseline by linting the `git show HEAD:` versions out of a scratch
+  `dupcheck/`, then delete the directory before the real run, because while it
+  exists every file duplicates against its own twin. **The baseline run also
+  proves the inspection can still speak** — a file with nothing to say gets no
+  entry at all. `Duplicated code fragment` is the finding worth the round trip:
+  ruff has no copy-paste rule, and a copy is a pair whose other half sits in a
+  file the change never opened. Nothing below `warning` is visible this way, it
+  is not a commit gate, and it is skipped where no IDE is attached — ruff is the
+  one that gates.
 - **`pressroom-verify-names` after any change that renames or moves a module-level
   name.** It is down to the two checks a linter cannot do — it *runs* every import,
   and it catches a local shadowing an imported module. `F821` owns undefined names
-  now, and is strictly better at it; do not add that back here. It is still static,
+  now; do not add that back here. It is still static,
   so two tests cover what it cannot see: `tests/test_offline_is_offline.py` (a
   scraper's phase 1 has to be *run*) and `tests/test_no_dead_module_references.py`
   (prose).
@@ -548,18 +527,14 @@ exists to keep you away from:
   package's own modules.
 - **Not wanted here: an ORM, a query builder, a row dataclass, schema churn on
   `releases`** — plain SQL, one function per statement. `grade` is the one
-  deliberate exception; provenance goes in its own table.
+  exception; provenance goes in its own table.
 
 → `docs/adr/working-here.md`, `docs/adr/layout-and-naming.md`
 
 ## Where the numbers live
 
-**Not here, and not in `docs/adr/` either.** The counts are asserted where they
-can fail: corpus counts and index health in `tests/corpus/` plus the
-`pressroom-verify-*` passes, command and module counts in
-`tests/test_entry_points.py`, the rendered page in `checks.md`. **A measurement
-goes in a test or a verify pass; the prose gets the rule the measurement
-established.** If you catch yourself writing a row count into a `.md` file, that
-is the signal.
+**Not here, and not in `docs/adr/` either** — in `tests/corpus/`, the
+`pressroom-verify-*` passes, `tests/test_entry_points.py` and `checks.md`, where
+a count can fail.
 
 → `docs/adr/numbers.md`

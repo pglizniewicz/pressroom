@@ -42,7 +42,7 @@ these as instructions; here they keep the reason attached.
   inherited only so that a change to ruff's defaults is not silently a change to
   this repo.
 
-  Three deliberate exclusions, each with a measurement behind it:
+  Three exclusions, each with a measurement behind it:
 
   - **`E501` is out.** After formatting, the lines still over 88 are HTML
     templates, SQL, a User-Agent and messages written for a human — none of them
@@ -61,9 +61,9 @@ these as instructions; here they keep the reason attached.
   docstring to argparse whole. Do the same before any future bulk rewrite of this
   tree; a diff that size is not reviewable by eye.
 
-  What the linter is actually worth here is not tidiness. It is that this tree
-  gets *moved* — the BCE restructuring, the retired `backfill_`/`repair_` family,
-  the CMS-generation renames — and every move leaves the same two residues: a
+  What the linter is worth here: this tree gets *moved* — the BCE restructuring,
+  the retired `backfill_`/`repair_` family, the CMS-generation renames — and
+  every move leaves the same two residues: a
   name that moved without its import, and an import that stayed after its use
   left. See the `F821` story in the next entry for what the first one cost.
 
@@ -78,7 +78,7 @@ these as instructions; here they keep the reason attached.
   nowhere — and ruff's `F821` replaced it. Not as a duplicate: it is strictly
   stronger. `_walk_unbound` only inspected `ast.Attribute` nodes, so it saw
   `foo.bar` and walked straight past a bare `foo(...)`, which is an `ast.Call` on
-  a plain `ast.Name`. That is not a hypothetical gap. `fetcher/control/archive.py`
+  a plain `ast.Name`. `fetcher/control/archive.py`
   called `snapshot_url()` in three places and imported the module it lives in
   nowhere; this pass printed `unbound qualified names: 0` and `OK` over three
   certain `NameError`s, in the network phase of two scrapers and the whole
@@ -110,7 +110,7 @@ these as instructions; here they keep the reason attached.
 
   Why any of this: grep is not enough — renaming `DETAIL_URL_TMPL` in one scraper
   silently broke a follow-up script that imported it, and it was committed that
-  way. The same class of break has happened more than once.
+  way.
 
 - **The PyCharm inspection report, through the MCP, read against `HEAD`.** The
   one check here that is not a command: it goes through whatever IDE session
@@ -124,7 +124,7 @@ these as instructions; here they keep the reason attached.
   the same files in a scratch `dupcheck/` *inside the project* — nothing outside
   it is analysed — lint those, then delete the directory and lint the real files,
   and compare on the description and the source line rather than the line number,
-  which the change has moved. Deleting before the real run is not tidiness: while
+  which the change has moved. Delete before the real run: while
   those copies exist, every real file duplicates wholesale against its own twin
   and the report is unreadable. `dupcheck/` is gitignored, because a scratch
   directory that survives one distracted `git add -A` is in the next commit.
@@ -134,12 +134,9 @@ these as instructions; here they keep the reason attached.
   "never analysed" arrive as the same empty answer, and a batch can come back
   short of what was asked for. Watching the duplicate you came to remove be
   reported, by length and line, is what makes its later absence mean something.
-  Same rule as **a test that cannot fail is worse than no test** — `'integrity-check'`
-  passing over a corrupt index is this repo's own example of an answer that means
-  nothing until the check has been shown able to say no.
 
-  **`Duplicated code fragment` is what makes the round trip worth taking**, and
-  it is the reason this entry exists at all. Ruff has no copy-paste rule, in any
+  **`Duplicated code fragment` is what makes the round trip worth taking.** Ruff
+  has no copy-paste rule, in any
   ruleset: it reasons about one construct inside one file, and a paragraph
   transcribed into a second file is, to it, two correct paragraphs. The last two
   copies removed from this tree were both invisible to it and both had survived a
@@ -148,10 +145,9 @@ these as instructions; here they keep the reason attached.
   over different queries. Run it on the files touched *and their neighbours*: a
   copy is a pair, and the other half is in a file the change never opened.
 
-  **The standing noise is not a finding**, and telling the two apart is most of
-  what makes the report readable — which the baseline does for you, and this
-  names for a reader without one. bs4's stubs hand back `Tag | NavigableString |
-  None` everywhere, so every access the code has already proved safe is a weak
+  **The standing noise is not a finding.** bs4's stubs hand back
+  `Tag | NavigableString | None` everywhere, so every access the code has already
+  proved safe is a weak
   warning. `{where}` is a `.format()` placeholder inside a string the IDE parses
   as SQL, so both attachment cursors raise a dialect error on something that is
   not a query yet. And the requirements inspection calls `requests`, `bs4` and
@@ -166,23 +162,23 @@ these as instructions; here they keep the reason attached.
   a change can be clean here and still break something only the suite asserts.
 
   **Not headless `bin/inspect.sh`, though it is installed.** It wants an
-  inspection-profile XML and this project deliberately has none: `.idea/` is
+  inspection-profile XML and this project has none: `.idea/` is
   gitignored and `USE_PROJECT_PROFILE` is false, so what actually ran is the
   IDE-wide Default profile. Wiring the headless path means committing IDE config
   into a tree that excludes it, and spinning up a second IDE to re-index a
   project the running one has indexed already. A hook cannot do it either —
   hooks are shell, and no MCP is reachable from one.
 
-- **`tests/` is outside the package on purpose**, so `pressroom-verify-names`
+- **`tests/` is outside the package**, so `pressroom-verify-names`
   sees only the package's own modules.
 - `pressroom.db` is gitignored, along with `pressroom.db.bak`. `'rebuild'` and
-  bulk updates aren't reversible — **copy the DB before one.** That is not
-  advice: it is how 122 overwritten articles were recovered.
+  bulk updates aren't reversible — **copy the DB before one.** It is how 122
+  overwritten articles were recovered.
 - archive.org intermittently refuses connections. A run full of `?` markers is
   usually the archive, not the code — confirm with a bare `curl` before debugging
   a parser.
 - Not wanted here: an ORM, a query builder, a row dataclass, schema churn on
   `releases`. Six plain functions over plain SQL is the chosen design. One
-  deliberate exception: `grade`, because the alternative was leaving a verdict
+  exception: `grade`, because the alternative was leaving a verdict
   inside a reference field and seven places guessing which was which. Provenance
   still goes in its own table — that is what `body_origin` is.

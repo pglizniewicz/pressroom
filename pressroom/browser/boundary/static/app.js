@@ -16,8 +16,8 @@
 // innerHTML on that is both an injection and a display bug.
 //
 // RICH_TAGS mirrors richtext._ALLOWED on the Python side, the same way
-// db._MOJIBAKE_SQL mirrors encoding.C1_RE: two languages, one rule. Change
-// one and change the other.
+// schema.MOJIBAKE_SQL mirrors decoding.C1_RE: two languages, one rule, and
+// tests/test_mirrored_rules.py holds each pair together.
 
 const $ = (sel) => document.querySelector(sel);
 const panel = $("#panel"), list = $("#list"), statusEl = $("#status");
@@ -229,15 +229,15 @@ function badges(row) {
   // row.damaged comes from the API, judged over the whole body - the excerpt
   // alone would miss damage further down and disagree with the audit filter.
   if (row.damaged) out.push(["damaged", "kodowanie"]);
-  // Provenance, deliberately NOT folded into the teaser badge: the text was
-  // read off a page that is not this release's own (db.body_origin). On
+  // Provenance, not folded into the teaser badge: the text was read off a
+  // page that is not this release's own (body_origin). On
   // terratec_new's CMS that listing usually carries the full release - median
   // 0.98 of the article's length over the 125 releases where both versions are
   // cached - so calling it a teaser would be wrong for most of them, while
   // saying nothing hides the one thing that is certain.
   // "z listingu" only when the capture is of a *different* document. The same
   // file on a sibling domain is a copy, and one scraper covers both addresses -
-  // see serve.capture_kind.
+  // see http.capture_kind.
   if (row.capture_page) {
     out.push(row.capture_kind === "mirror"
       ? ["listing", "z innej domeny", row.capture_page]

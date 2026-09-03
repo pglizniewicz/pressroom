@@ -11,9 +11,9 @@ It answers two questions, because one of them cannot be answered by numbers:
      survives, and how often each known defect fires.
   2. **Full texts**, written to an HTML page. Four versions of each document
      side by side: what the database holds now, the text-only extraction, the
-     structured conversion rendered, and its `body_html` source. The second half
-     is not decoration - the metric report once said "100% of words kept" about
-     a conversion that had put the headline *after* the footer.
+     structured conversion rendered, and its `body_html` source. The metric
+     report once said "100% of words kept" about a conversion that had put the
+     headline *after* the footer.
 
 Bytes come from `page_cache` only, mirror domains included: most rows with no
 cached capture of their own can still be read from a sibling's bytes.
@@ -52,7 +52,7 @@ HYPHEN_RE = re.compile(r"\w- (?!and\b|or\b|to\b|through\b)\w")
 # document it rejects (0.68) is the one where the structured output is right.
 MIN_RETENTION = 0.90
 
-# Same deliberate choice as conversion.py: poppler's bbox tree is XML read
+# Same choice as conversion.py: poppler's bbox tree is XML read
 # with html.parser, because this repo declares no lxml.
 warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
 
@@ -129,7 +129,7 @@ def furniture(body_html: str) -> int:
     header or footer that survived into the body ("Press Release", the footer
     URL). Counted as the number of surplus copies.
 
-    Deliberately not keyed to the page count: counting pages from the raw PDF
+    Not keyed to the page count: counting pages from the raw PDF
     bytes does not agree with what poppler reports, and the measure printed 0
     while the review page plainly showed the repeats. A measure that can be
     wrong in the reassuring direction is worse than no measure.

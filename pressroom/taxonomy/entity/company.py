@@ -112,7 +112,7 @@ _SUMS = ("count", "teaser", "short", "nodate", "mojibake", "plain")
 
 
 def roll_up(source_rows) -> list[dict[str, Any]]:
-    """Fold db.list_sources() rows into one row per company.
+    """Fold query.list_sources() rows into one row per company.
 
     Takes the rows rather than a connection so this module stays free of the
     database concern: the counts and gap columns are whatever list_sources

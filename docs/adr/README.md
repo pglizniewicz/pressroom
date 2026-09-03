@@ -3,8 +3,7 @@
 The archaeology. Every file here holds decisions this corpus paid for, together
 with the measurement that bought each one — the encoding repair's cp1258, the
 122 articles a listing strategy overwrote, the four gate attempts before
-`wordchars`. This is the expensive part of the project; the code is the cheap
-part.
+`wordchars`.
 
 **Four places, one job each.** Prose here rots the same way a comment rots, so
 it matters which of the four a sentence belongs in:
@@ -25,9 +24,8 @@ one area rather than a single dated choice, and they get amended as measurements
 land. Filenames are the stable handle — rename only when the area itself is
 renamed, and never reuse a name for a different area.
 
-**A measurement goes in a test or a verify pass, not into prose.** See
-[numbers.md](numbers.md); that rule replaced 259 lines of rotted tallies and it
-applies to these files too.
+**A measurement goes in a test or a verify pass, not into prose** —
+[numbers.md](numbers.md), and it applies to these files too.
 
 ## Index
 

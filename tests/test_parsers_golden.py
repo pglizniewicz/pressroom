@@ -76,7 +76,7 @@ class ShapeTest(unittest.TestCase):
         """The weakest thing that is true of all of them, and worth asserting
         because the alternative is an entry that is present and empty.
 
-        There is deliberately no `url` assertion here: the three collectors
+        There is no `url` assertion here: the three collectors
         `from_listings` consumes mint the url in their own `cached_entries`
         wrapper, not in the parse - midiman_de's inline releases only ever
         existed *inside* the page, so the scraper builds

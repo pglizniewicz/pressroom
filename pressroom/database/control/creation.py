@@ -13,7 +13,7 @@ in LAST, because all three reference `releases`.
 
 No conn.commit() here, and none is missing: executescript commits any pending
 transaction before it runs and leaves none open, so DDL under IF NOT EXISTS is
-self-committing and idempotent. Called more than once per run on purpose.
+self-committing and idempotent. It is called more than once per run.
 
 There are no migrations. This file is the whole of what happens to the schema.
 """

@@ -39,13 +39,13 @@ def fetch_cached(
     function whose signature is longer than either body.
 
     Returns bytes, never str: decoding is the caller's explicit choice
-    (encoding.decode_html or an explicit from_encoding), never a guess.
+    (decoding.decode_html or an explicit from_encoding), never a guess.
 
     `sleep` overrides SLEEP for one source that asks for more patience than
     the rest: soundonsound.com publishes `Crawl-delay: 30` in its robots.txt,
     and a per-call override is the way to honour that without slowing every
     other scraper to a crawl. Only a real fetch sleeps - a cache hit stays
-    free, which is what makes an interrupted run cheap to resume.
+    free, which makes an interrupted run cheap to resume.
     """
     row = conn.execute(
         "SELECT content FROM page_cache WHERE url = ?", (url,)

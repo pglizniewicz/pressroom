@@ -24,7 +24,7 @@ from pressroom.release.control import storage
 from pressroom.reporting.entity import selection
 
 # Not an outcome: printed once per historical capture fetched, which happens
-# before any row is stored. Deliberately not '+', so the two phases stay
+# before any row is stored. Not '+', so the two phases stay
 # tellable apart in one run's output.
 CAPTURE = ","
 

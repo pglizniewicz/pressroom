@@ -63,7 +63,7 @@ ABS_URL_RE = re.compile(r"https?://")
 # shorter is still just the listing blurb, so it is worth another attempt. The
 # longest teaser these listings produce is 864 characters.
 #
-# Deliberately duplicated from attachment_crawl rather than
+# Duplicated from attachment_crawl rather than
 # imported: a scraper importing a constant from a backfill would invert the
 # dependency. Same corpus, same rationale - change both together.
 RECOVERED_LENGTH = 900
@@ -245,7 +245,7 @@ def scrape_domain(
             # produced a longer one. `stored_grade()` cannot say so here - this
             # scraper writes `full` at insert time even over a blurb, which is
             # why the cursor is `length(body)` - so a row that arrives graded
-            # honestly is the one this verdict keeps honest.
+            # correctly is the one this verdict keeps that way.
             storage.upgrade_release(
                 conn,
                 url,

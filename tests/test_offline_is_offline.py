@@ -1,8 +1,7 @@
 """Every scraper's --offline, with the network refused.
 
-This is the manual ritual CLAUDE.md documents under "Working here", as a test.
 It is here rather than in `pressroom-verify-names` because it is not static: it
-*runs* each scraper, and that is the point. Four of the five bugs the 2026-08-26
+*runs* each scraper. Four of the five bugs the 2026-08-26
 restructuring introduced were the same mistake - a `no_crawl` guard applied to a
 scraper's *first* discovery channel and not its second - and three of the four
 were findable only this way.

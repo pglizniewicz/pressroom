@@ -31,7 +31,7 @@ def container(markup):
 
 class ExtractInvariantTest(unittest.TestCase):
     def test_body_is_to_text_of_body_html(self):
-        """`body` is *by definition* to_text(body_html), which is what makes a
+        """`body` is *by definition* to_text(body_html), which makes a
         renderer fix free (--retext, no network, no parser). extract() exists as
         one call for exactly this reason: the indexed text and the displayed
         markup are computed from each other and cannot drift."""

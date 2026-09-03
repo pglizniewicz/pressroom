@@ -144,8 +144,8 @@ def _entries_short_news(soup: BeautifulSoup, base_url: str) -> list[Entry]:
     """Avid-era listing: <div id="short-news"> per item, with #news-title and
     #news-short-content.
 
-    media_pr.py parses the same container, but deliberately not
-    the same way and the two are not shared: there, #news-title holds the date
+    media_pr.py parses the same container, but not the same way and the two
+    are not shared: there, #news-title holds the date
     in its own <strong> and the title in the anchor. Here both hold the single
     string "Date - Title", so it goes through DATE_TITLE_RE instead - feeding
     this markup to that parser would glue the date onto every title.

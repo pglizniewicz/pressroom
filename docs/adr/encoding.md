@@ -1,8 +1,6 @@
 # Encoding
 
 Every rule here was bought with mangled characters someone had to go and find.
-The damage is greppable, and `page_cache` holds the original bytes, so all of it
-is repairable without a refetch.
 
 **Never use `r.text`, and never let BeautifulSoup sniff.** These sites are
 pre-UTF-8 or half-converted; `requests` guesses Latin-1 and bs4 falls back to
@@ -43,11 +41,11 @@ go back through cp1252 *per character*, because a whole-string
 re-encoded with the charset it was misread as, accepted only when the round trip
 leaves no markers and every qualifying codepage agrees. The misreads were cp1252
 and, on German prose, **cp1258** — chardet's guess, not a typo. `mac-roman` is
-deliberately not a candidate: it re-encodes cleanly and produces garbage. One row
+not a candidate: it re-encodes cleanly and produces garbage. One row
 is refused by design — its only damage is three 0x81 bytes, and cp1252 does not
 define that byte.
 
-**Detection lives in two places on purpose** — `decoding.C1_RE`/`MOJIBAKE_RE` for
+**Detection lives in two places** — `decoding.C1_RE`/`MOJIBAKE_RE` for
 the repair, `schema.MOJIBAKE_SQL` for the audit view, because SQLite has no
 regex. They had drifted (the SQL named five C1 codepoints by hand while the regex
 matched the whole `0x80-0x9F` range), so `_C1_SQL` now generates all 32

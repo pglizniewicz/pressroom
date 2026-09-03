@@ -30,9 +30,9 @@ class DedupTest(support.DbCase):
 
 class OriginTest(support.DbCase):
     def test_a_platform_id_cannot_reach_this_write(self):
-        """The guard that answers the fear which kept provenance in a separate
-        pass for a week: a Q4 numeric id or a bare row url raises here rather
-        than silently minting a dead link."""
+        """The guard `tests/fetcher/test_address.py` is about, at the write site:
+        a Q4 numeric id or a bare row url raises here rather than silently
+        minting a dead link."""
         for bad in ("970", "node-4935591", "http://www.terratec.de/presse.html"):
             with self.subTest(value=bad):
                 with self.assertRaises(ValueError):
@@ -112,10 +112,9 @@ class RepairAtTheWriteTest(support.DbCase):
         self.assertEqual(self.row("http://x/1")["title"], "GeForce™")
 
     def test_a_body_with_markup_is_left_to_richtext(self):
-        """Repairing `body` and `body_html` independently could break
-        `body == to_text(body_html)`: undo_mojibake accepts a round trip only
-        when every qualifying codepage agrees, and text with tags in it can
-        answer that differently from text without."""
+        """`richtext.extract` repairs the markup before rendering the text, so
+        `body == to_text(body_html)` holds by construction; its docstring says
+        why the two cannot be repaired independently."""
         storage.store_release(
             self.conn,
             "src",

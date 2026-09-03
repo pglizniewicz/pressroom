@@ -1,4 +1,4 @@
-"""The three rules this repo deliberately spells out twice, and a fourth that is
+"""The three rules this repo spells out twice, and a fourth that is
 spelled out twice and then has to be obeyed somewhere else entirely.
 
 Each pair is documented as "change one and change the other", which is a comment

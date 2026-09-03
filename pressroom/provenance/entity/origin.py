@@ -27,8 +27,7 @@ SCHEMA_SQL = """
 
 
 def record(conn, url: str, origin_url: str, commit: bool = True) -> None:
-    """Record which capture a row's body came from. One statement, one place,
-    like every other write here."""
+    """Record which capture a row's body came from."""
     conn.execute(
         "INSERT INTO body_origin (url, origin_url) VALUES (?,?) "
         "ON CONFLICT(url) DO UPDATE SET origin_url = excluded.origin_url",

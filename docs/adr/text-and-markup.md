@@ -34,9 +34,8 @@ Three things `richtext.py` does that are decisions, not cleanup:
   that is what separates a product photo in its own paragraph from a banner built
   out of `top.gif` and 1x1 spacers.
 
-**The allowlist lives in two places on purpose**: `richtext._ALLOWED` and
-`RICH_TAGS` in `static/app.js`, which rebuilds every node rather than trusting
-`innerHTML`. `tests/test_mirrored_rules.py` asserts the pair.
+**The allowlist lives in two places**, `richtext._ALLOWED` and `RICH_TAGS` in
+`static/app.js`; `tests/test_mirrored_rules.py` asserts the pair.
 
 **`richtext.cut_from()` must find the text node, not the element.** The naive
 version scanned leaf *elements* and silently did nothing on midiman.de, where
@@ -48,7 +47,7 @@ survived into 37 bodies that should have had it cut.
 empty body. Every parser keeps the old flat text in that case and leaves
 `body_html` NULL; some of these captures are 290-byte "page moved" stubs.
 
-**Every parser is DOM-based, and the method matters more than the result.**
+**Every parser is DOM-based, and a selector comes from the dominant shape.**
 `pressroom-calibrate-containers` walks **every cached capture** of a source,
 finds the smallest element covering that row's stored body, and reports the
 distribution — a selector comes from the dominant shape, never one sample. That

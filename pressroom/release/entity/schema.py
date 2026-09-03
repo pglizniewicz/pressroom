@@ -26,7 +26,7 @@ SCHEMA_SQL = """
         -- The same content as `body`, but as the small HTML subset
         -- text/control/richtext.py emits: paragraphs, lists, headings, links,
         -- images, tables. NULL means the row predates that change and still
-        -- renders as preformatted text. Deliberately not indexed: FTS reads
+        -- renders as preformatted text. Not indexed: FTS reads
         -- `body`, which is derived from this column and therefore can never
         -- disagree with it.
         body_html TEXT,
@@ -38,7 +38,7 @@ SCHEMA_SQL = """
         -- 'full' is only ever as good as what the scraper knew: the media_pr
         -- and pressdb sources store a capture timestamp on a row whose body is
         -- just the listing blurb, so a 'full' grade there means "not marked
-        -- otherwise", and length(body) remains the honest check.
+        -- otherwise", and length(body) remains the check.
         grade     TEXT NOT NULL DEFAULT 'full'
     );
 
@@ -101,11 +101,7 @@ UPGRADE_SQL = """
 """
 
 
-# --- The query shapes both readers share -----------------------------------
-#
-# Neither reader owns SQL of its own: the CLI and the browser go through
-# control/query.py, and every statement lives once. These are read-only by
-# construction - none of them changes a row.
+# --- The query shapes both readers share (control/query.py) ----------------
 
 # The two damage shapes: 'â€' is UTF-8 read as something 8-bit, a raw C1
 # control character is cp1252 read as ISO-8859-1 (0x99 tm, 0x92 apostrophe,
@@ -115,7 +111,7 @@ UPGRADE_SQL = """
 #
 # This is the same rule as text/control/decoding.py's C1_RE / MOJIBAKE_RE,
 # written in SQL because SQLite has no regex; the audit view needs it as a
-# WHERE clause. Two languages, one rule: change one and change the other.
+# WHERE clause. tests/test_mirrored_rules.py holds the two together.
 #
 # The whole range, as 32 instr() calls generated from the same bounds rather
 # than a hand-written list of the codepoints that happened to occur - which is

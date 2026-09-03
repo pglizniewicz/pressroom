@@ -29,7 +29,7 @@ SCHEMA_SQL = """
         -- that happened to share a file name (#5343).
         content_sha256     TEXT,
         -- When these bytes were fetched (time.time()). NULL wherever the table
-        -- never recorded it, which is the honest answer: the question "when did
+        -- never recorded it: the question "when did
         -- this file arrive" had no answer at all there - not even "before the
         -- call log started", since a cache hit is not logged as an attempt.
         fetched_at         REAL

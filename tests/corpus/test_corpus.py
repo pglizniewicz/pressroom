@@ -45,8 +45,7 @@ class CorpusCase(unittest.TestCase):
 
 class TaxonomyTest(CorpusCase):
     def test_every_source_in_the_corpus_has_a_company(self):
-        """An unmapped source lands in `inne`, which is not a key of COMPANIES -
-        so its panel entry answers HTTP 400 the moment anyone clicks it."""
+        """An unmapped source 400s in the panel (`tests/taxonomy/test_company.py`)."""
         unmapped = [
             s
             for (s,) in self.conn.execute("SELECT DISTINCT source FROM releases")
@@ -74,8 +73,8 @@ class BodyInvariantTest(CorpusCase):
         self.assertEqual(bad, [])
 
     def test_a_pdf_or_doc_row_never_holds_a_decoded_binary(self):
-        """23 rows once held `%PDF-1.3 %...` over text pdftotext had extracted
-        correctly, and it read as encoding damage rather than as data loss."""
+        """The decoded-binary failure `tests/converter/test_conversion.py` pins,
+        checked over the live corpus."""
         bad = [
             rid
             for rid, body in self.conn.execute(
@@ -123,8 +122,7 @@ class EncodingTest(CorpusCase):
 
 class SearchIndexTest(CorpusCase):
     def test_the_index_agrees_with_the_content_table(self):
-        """Not `'integrity-check'`, which passes on a stale index because it
-        only checks internal consistency."""
+        """Not `'integrity-check'` - `tests/release/test_index.py` says why."""
         orphans = self.conn.execute(
             "SELECT count(*) FROM releases_fts f LEFT JOIN releases r"
             " ON r.id = f.rowid WHERE r.id IS NULL"
@@ -187,7 +185,7 @@ class ProvenanceTest(CorpusCase):
 
     def test_no_live_source_row_has_a_capture(self):
         """Their detail_id is their platform's own id and never named a capture,
-        so no link is the honest answer."""
+        so no link is the answer."""
         live = tuple(company.sources_for(["intel", "amd", "creative", "soundonsound"]))
         got = self.conn.execute(
             "SELECT count(*) FROM body_origin o JOIN releases r ON r.url = o.url"

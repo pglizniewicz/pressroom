@@ -44,7 +44,7 @@ extraction, so rewriting it would delete text belonging to other rows
 sits next to the body write, in the same transaction, at every site that has the
 address in hand; the listing collectors carry `origin_url` on each entry for it,
 where they used to parse a capture and throw its address away. `run_retext`
-records nothing on purpose — its text comes from stored HTML, no capture
+records nothing — its text comes from stored HTML, no capture
 involved. **So nothing has to be re-run after a crawl.**
 `address.is_capture_address()` requires `web/<14 digits>id_/…`, so a Q4 id, a
 Drupal node id or a bare row url raises `ValueError` at the write site rather
@@ -83,9 +83,9 @@ back from the capture walk, often under a mirror domain, and a crash between the
 two commits left the row holding the PDF's text while still advertising whatever
 capture it had before. All three now pass `origin_url=` to `upgrade_release` and
 inherit its transaction, which also puts `is_capture_address()` on a path that
-never had it. `tests/scraper/test_attachment_crawl.py` holds it, and that test
-was checked against the old code first: there nothing raises at all, because
-`origin.record` does not validate - only the write site does.
+never had it. `tests/scraper/test_attachment_crawl.py` holds it; against the old
+code nothing raises at all, because `origin.record` does not validate - only the
+write site does.
 
 The table covers every Wayback row, which is what lets `http.wayback_url()` be
 two lines with no idea what a timestamp looks like — no entry, no link, the right

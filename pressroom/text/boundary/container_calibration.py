@@ -45,7 +45,7 @@ def norm(text: str) -> str:
 
 def describe(tag) -> str:
     """A stable, greppable shape for one element: tag plus the attributes that
-    a selector could actually key on. Deliberately keeps `width`/`valign` -
+    a selector could actually key on. Keeps `width`/`valign` -
     on 1998-era table layouts those are the only distinguishing marks there
     are, and dropping them would collapse every <td> into one bucket."""
     bits = []

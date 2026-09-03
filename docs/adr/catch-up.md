@@ -1,22 +1,19 @@
 # A run's two phases
 
 Phase 1 discovers and stores, phase 2 finishes what it could not get. Both are
-libraries now, `scraper/control/discovery.py` and
-`scraper/control/catch_up.py`, and both hold their rules in one copy for the
-same reason — the reason being what happened while phase 1 did not.
+libraries, `scraper/control/discovery.py` and `scraper/control/catch_up.py`, and
+both hold their rules in one copy; the second half of this file is what happened
+while phase 1 did not.
 
 ## The catch-up
 
 The six strategies a rerun composes, and the three rules that hold inside every
-one of them. Rules 1 and 2 were bought with 122 articles.
+one of them.
 
-**What each strategy needs and does is its own docstring**, next to the code.
-What is here is why the set is split at all, and what picking the wrong member
-of it cost.
+**What each strategy needs and does is its own docstring.** What is here is what
+picking the wrong member of the set cost.
 
-**Three rules hold inside every strategy, and each cost data before it was a
-rule.** They live in the library, in one copy, so a scraper cannot get them
-wrong:
+**Three rules hold inside every strategy**, in one copy in the library:
 
 1. the cursor is `body_html IS NULL`; `force=True` widens it and says so first.
 2. `gate.not_shorter` applies **under** every other gate, `force` included.
@@ -37,11 +34,10 @@ listing teasers**, one going 4287 -> 359 characters: this CMS embeds the full
 text on the listing for recent releases and truncates older entries, so a listing
 entry is not automatically the better copy. `safe_to_write` provably cannot catch
 that — a lost tail is `edges_only`, the same signature as correctly dropped nav.
-The loss was restored from a pre-run copy of the DB, which is why that copy is a
-rule here and not advice.
+The loss was restored from a pre-run copy of the DB.
 
 **`--seed-cache` comes first when a parser is being redesigned.** It fetches and
-stores, full stop — no parsing, no write to `releases` — so it cannot damage a
+stores — no parsing, no write to `releases` — so it cannot damage a
 row and needs no parser to exist yet. Two traps that cost real data:
 
 - **A `.pdf`/`.doc` row must never reach an HTML parser.** BeautifulSoup does not
@@ -69,9 +65,8 @@ cached PDFs carry markup.
 the second"*, and for as long as it said so the first half existed only as a loop
 written out by hand in every scraper: nineteen copies over fourteen control
 modules, twelve of which PyCharm reported as `Duplicated code fragment`, the
-longest at 35 lines. The reason to consolidate them was never the line count.
-**It is that the copies disagreed, and each disagreement was a bug in whichever
-copy lost.**
+longest at 35 lines. **The copies disagreed, and each disagreement was a bug in
+whichever copy lost.**
 
 Four of them, and all four were found by reading the copies side by side rather
 than by any test going red:
@@ -103,7 +98,7 @@ than by any test going red:
 - **A bodyless row was stored as `full`.** Eleven rows in
   `terratec_pressde`/`_pressen` say `full` over an empty body, all from this
   loop; `cms.py` and `presse.py` computed `"full" if body else "stub"` and the
-  rest did not. What the two halves of the library then do differs on purpose: a
+  rest did not. What the two halves of the library then do differs: a
   live fetch that came back empty leaves nothing to return to, so nothing is
   written at all, while an archived candidate has a real url and a named capture
   and the row is what lets phase 2 come back for the text.
@@ -139,17 +134,11 @@ question and is now none of them: the one page it ever fetched as a detail turne
 out to be a third listing, so the scraper passes a collector and no parser at all.
 
 **What proved it: the corpus, on a copy.** Deleting five rows per source and
-re-running the scraper brings them back identical to the byte — title, date,
-grade, body length, markup length, `detail_id` **and** `origin_url` — and the
-one row whose probe failed mid-rehearsal was reported `uncertain`, written
-nowhere, and picked up by the next run and nothing else. That is the whole
-contract of a resumable crawl, observed rather than asserted.
-
-Two of those fields have since stopped being part of the claim, and the
-rehearsal is still worth running for the rest. The identity of `detail_id` and
-`origin_url` was a statement about the *newest working capture* rule, which no
-longer selects anything ([captures.md](captures.md)); re-run today, a row whose
+re-running the scraper brings them back identical — title, date, grade, body
+length, markup length — and the one row whose probe failed mid-rehearsal was
+reported `uncertain`, written nowhere, and picked up by the next run. That is the
+contract of a resumable crawl. `detail_id` and `origin_url` are not part of the
+claim: their identity was a statement about the *newest working capture* rule,
+which no longer selects anything ([captures.md](captures.md)), so a row whose
 earliest good capture is not its newest legitimately comes back naming a
-different one. That is the change working, not the rehearsal failing. What the
-rehearsal still proves is what it was for: nothing is written twice, and a row
-whose fetch failed is left for the next run and touched nowhere else.
+different one.

@@ -196,9 +196,8 @@ class WriteTest(support.DbCase):
         )
 
     def test_an_attachment_row_never_reaches_an_html_parser(self):
-        """BeautifulSoup does not refuse binary - it returns a document whose
-        get_text() is the PDF stream decoded as characters, with no exception to
-        catch. 23 rows held `%PDF-1.3 %...` over correctly extracted text."""
+        """BeautifulSoup does not refuse binary, so the check has to happen before
+        the parse - `tests/converter/test_conversion.py` has the failure."""
         url = self.seed(
             "src", url="http://x/spec.pdf", body="the extracted text", detail_id=TS
         )
@@ -306,9 +305,9 @@ class FlagTest(support.DbCase):
                 self.assertEqual(catch_up.no_crawl(opts), want)
 
     def test_confirm_force_refuses_when_there_is_no_terminal(self):
-        """--force is the flag whose earlier equivalent overwrote 122 full
-        articles, so a bulk rewrite is stated out loud first - and a pipe with
-        no tty answers no rather than blocking a cron."""
+        """--force is the flag whose earlier equivalent overwrote the 122 articles
+        above, so a bulk rewrite is stated out loud first - and a pipe with no tty
+        answers no rather than blocking a cron."""
         self.seed("src", url="http://x/1", body="b", body_html="<p>b</p>")
         self.assertFalse(self._confirm(yes=False))
         self.assertTrue(self._confirm(yes=True))

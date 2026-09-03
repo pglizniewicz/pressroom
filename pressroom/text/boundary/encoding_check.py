@@ -23,7 +23,7 @@ Three claims, all read-only:
 Bytes are the ground truth for claim 1, so `--bytes` cross-checks any damaged
 field against the original capture in `page_cache`: every word carrying a
 non-ASCII character is looked up in the capture with tags stripped, which says
-whether the database or the page is wrong. Not academic - a server really does
+whether the database or the page is wrong. A server really does
 serve valid UTF-8 for a C1 control where a trademark sign belongs, and for those
 rows the database is *better* than the page.
 

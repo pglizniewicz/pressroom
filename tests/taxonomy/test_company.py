@@ -21,7 +21,7 @@ class TableTest(unittest.TestCase):
                 seen[src] = slug
 
     def test_the_unknown_bucket_is_not_a_company(self):
-        """`serve._sources()` answers HTTP 400 for a slug that is not a key here,
+        """`http._sources()` answers HTTP 400 for a slug that is not a key here,
         and the panel links to whatever company_of returns - so if UNKNOWN were
         ever made a key the 400 would turn into a silent whole-corpus search,
         and if a real source falls through to it the link 400s. Both halves of
@@ -36,7 +36,7 @@ class TableTest(unittest.TestCase):
         self.assertEqual(company.company_of("terratec_brand_new"), company.UNKNOWN)
 
     def test_midiman_and_maudio_are_one_company(self):
-        """Not cosmetic: midiman.com serves releases signed M-Audio and
+        """midiman.com serves releases signed M-Audio and
         m-audio.com serves ones signed Midiman, so a split by domain would not
         be a split by brand."""
         self.assertEqual(

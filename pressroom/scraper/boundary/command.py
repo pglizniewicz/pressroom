@@ -8,7 +8,7 @@ than re-implemented as argparse calls.
 
 The crawl is always called with `catch=` plus one keyword per declared Option,
 so an Option's `dest` is part of the crawl's signature. That coupling is the
-point: the flag and the parameter it feeds are named the same thing on purpose.
+point: the flag and the parameter it feeds share a name.
 """
 
 import argparse

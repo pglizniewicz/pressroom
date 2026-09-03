@@ -23,4 +23,4 @@ the digit rule had started constraining what a *new* scraper was allowed to stor
   job, and only the archive-facing code asks.
 - `full` is only as good as what the scraper knew: `media_pr` and `pressdb` store
   a timestamp on rows whose body is a listing blurb, so `length(body)` stays the
-  honest check. That is what the `short` flag is for.
+  check — the `short` flag.

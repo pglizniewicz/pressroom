@@ -421,7 +421,7 @@ def from_categories(conn, session, source: str, prefix: str) -> None:
                 stats.added()
             continue
 
-        # Ordered before the teaser check on purpose: a failed probe is not a
+        # Ordered before the teaser check: a failed probe is not a
         # verdict, so an already-stored teaser is `uncertain` (a rerun retries
         # it) rather than `skipped`.
         if not confirmed:

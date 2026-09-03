@@ -1,10 +1,10 @@
 """The one place a scraper's command line is assembled.
 
-Sixteen scrapers each carried a hand-written `__main__` and eleven were the same
-five lines. What is worth asserting about the replacement is the two couplings
-it introduced, both of which fail quietly: an Option's `dest` is the keyword the
-crawl receives, and the description comes from a docstring that must be taken
-whole.
+`boundary/command.py` replaced sixteen hand-written `__main__`s
+(`docs/adr/layout-and-naming.md`). What is worth asserting about the replacement
+is the two couplings it introduced, both of which fail quietly: an Option's
+`dest` is the keyword the crawl receives, and the description comes from a
+docstring that must be taken whole.
 """
 
 import argparse
@@ -16,7 +16,7 @@ from pressroom.scraper.boundary import command
 class OptionTest(unittest.TestCase):
     def test_dest_follows_argparse_s_own_rule(self):
         """`dest` is what the crawl receives, so the flag and the parameter it
-        feeds are named the same thing on purpose - the first long flag wins and
+        feeds share a name - the first long flag wins and
         dashes become underscores."""
         self.assertEqual(command.Option("--seed-cache").dest, "seed_cache")
         self.assertEqual(command.Option("-l", "--limit").dest, "limit")
@@ -31,9 +31,8 @@ class OptionTest(unittest.TestCase):
 
 class SummaryTest(unittest.TestCase):
     def test_the_whole_first_paragraph_is_used(self):
-        """`splitlines()[0]` drops the second half of every two-line summary and
-        four of these sources have one - silently, since a truncated --help is
-        still a --help."""
+        """`command._summary` says what `splitlines()[0]` would drop - silently,
+        since a truncated --help is still a --help."""
         doc = (
             "Scraper for TerraTec's 2007-2013 CMS-era press site\n"
             "(terratec.net/en/company/press/ and /de/unternehmen/presse/).\n"

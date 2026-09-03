@@ -10,7 +10,7 @@ declared once.
 
 One tag, `terratec`, because a tag identifies a scraper - a CMS generation -
 and not a domain. The language is a property of a row, legible in its url
-(`.de/presse/` against `.net/press/`), and it is deliberately not deduped: the
+(`.de/presse/` against `.net/press/`), and it is not deduped: the
 same release exists in both and the "prefer the English version" call is made by
 hand. What that costs is stated plainly: no reader can ask for the German half
 any more.
@@ -140,7 +140,7 @@ MARKER_RE = re.compile(r"press\s*release|communiqu\w*\s+de\s+presse|presseinfo",
 
 _HEADINGS = ("h1", "h2", "h3", "h4")
 
-# What ends a bare-text headline. Deliberately not "any block": <tr>/<td> are
+# What ends a bare-text headline. Not "any block": <tr>/<td> are
 # the container being walked into, so stopping on those would end the walk
 # before any text. Stopping on <p> is the point of the rule - a cell that opens
 # with a paragraph has no headline, and descending into it would title the row
@@ -177,7 +177,7 @@ def find_headline(soup) -> str:
     "" when none of them finds anything: five captures under these two sources
     are 290-byte placeholder pages carrying no article at all, and one French
     release opens straight into a <p> with no headline of any kind - which
-    shape 3 refuses on purpose rather than titling the row with its lead
+    shape 3 refuses rather than titling the row with its lead
     sentence.
     """
     bolds = soup.find_all(["b", "strong"])
@@ -229,7 +229,7 @@ def parse_page(content: bytes, date_re: re.Pattern, markers: tuple[str, ...]) ->
     it, and `markers` are the lowercase substrings that identify the bold
     dateline the headline follows.
 
-    `markers` is deliberately not MARKER_RE, which covers all three languages
+    `markers` is not MARKER_RE, which covers all three languages
     and would be wrong here. The rule below takes `bold_tags[i + 1]` blindly, so
     on the French pages a "communiqué de presse" match would title all four of
     them with the download-link label that follows it. Today nothing matches
@@ -370,7 +370,7 @@ def from_prefix(site: str, prefix: str) -> dict[str, Entry]:
     """Every article page CDX lists under this site's folder.
 
     Keyed by filename, and carrying no metadata: a url is all this channel
-    knows, which is what makes a confirmed absence here a `dead` rather than
+    knows, which makes a confirmed absence here a `dead` rather than
     the stub an index entry earns.
 
     `or_exit` rather than the degrading form golive.py uses, even though there
@@ -453,8 +453,8 @@ def scrape(
     session = requests.Session()
     wanted = list(sites or SITES)
 
-    # Both pools before any article is fetched, so one `Stats` can carry an
-    # honest total across the hosts - one tag, one summary - and so a CDX
+    # Both pools before any article is fetched, so one `Stats` can carry the
+    # total across the hosts - one tag, one summary - and so a CDX
     # outage on either host ends the run before it has done any work.
     pools = {
         site: candidates(
@@ -481,6 +481,6 @@ def scrape(
         )
     stats.summary(conn)
 
-    # One tag, so one phase 2 - which is what proving the single parser bought.
+    # One tag, so one phase 2.
     catch_up.run(conn, SOURCE, catch, parser=parse_snapshot, session=session)
     conn.close()

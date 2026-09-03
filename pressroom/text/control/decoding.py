@@ -86,7 +86,7 @@ MOJIBAKE_RE = re.compile(
 # otherwise identical A-breve, since the same rows carry U+00BC and cp1250 has no
 # byte for it. The rest are cheap to test.
 #
-# mac-roman is deliberately absent: it re-encodes this text happily, its output
+# mac-roman is absent: it re-encodes this text happily, its output
 # carries no damage markers, and the text it produces is simply wrong. The
 # codepages that remain are the Windows/ISO family, which coincide exactly on the
 # byte ranges UTF-8 uses, so where several qualify they agree character for
@@ -110,7 +110,7 @@ def undo_c1(text: str) -> str:
     """Re-read every C1 control character as the cp1252 byte it really was,
     leaving the five cp1252 does not define untouched.
 
-    Per character, deliberately. The obvious whole-string version -
+    Per character. The obvious whole-string version -
     text.encode("latin-1").decode("cp1252") - raises on any character above
     U+00FF, and the rows that need this are exactly the mixed ones: 21 of
     `creative`'s 23 damaged rows hold a stray 0x95 bullet *and* correctly

@@ -22,7 +22,7 @@ class OriginKeyTest(support.DbCase):
 
     def test_the_recorded_entry_wins(self):
         """The derivation can only get the 158 listing-derived rows wrong: their
-        detail_id is the *listing's* timestamp, honest and not enough."""
+        detail_id is the *listing's* timestamp, true and not enough."""
         origin.record(self.conn, ROW_URL, LISTING)
         self.assertEqual(resolution.origin_key(self.conn, ROW_URL, TS), LISTING)
 

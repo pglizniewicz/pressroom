@@ -60,7 +60,7 @@ published one release under two URL schemes on one domain
 (`news/en_us-596.html` and `index.php?do=media.new&ID=596`), one a blurb and one
 the article. `twin.fill` fills the short one from its twin with **no network at
 all**, and never deletes or merges: both URLs really existed, so both rows stay
-and only `body` (and `detail_id`, to keep provenance honest) changes. Pairing
+and only `body` (and `detail_id`, which follows the body) changes. Pairing
 needs source + collapsed title + an exact, non-empty date, because this CMS
 reused headlines across years.
 
@@ -110,5 +110,4 @@ That makes `source` the right axis for debugging a scraper and the wrong one for
 reading the corpus, so **`taxonomy/entity/company.py` owns a second axis**: firms
 over the 24 tags, shown by default with the flat tag list behind a switch. It is
 an explicit table, never a prefix rule — an unmapped source lands in a visible
-`inne` bucket rather than vanishing from the counts. `browser/boundary/http.py`
-translates a company to a list of sources, so no SQL knows what a company is.
+`inne` bucket rather than vanishing from the counts (`taxonomy/entity/company.py`).

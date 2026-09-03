@@ -39,7 +39,7 @@ change — it has established nothing about the verdict, and stamping one there
 would be the same kind of lie as withholding it in the other two. These
 scrapers grade at insert time, before the attachment has been fetched at all —
 the state `length(body)` exists to see through — so what the two verdicts buy is
-the row that arrives here graded honestly, not a rewrite of the ones already
+the row that arrives here graded correctly, not a rewrite of the ones already
 stored.
 
 **Dispatch is on magic bytes, not the extension** — CMS-era attachments are
@@ -56,7 +56,7 @@ early, thinner revision the win. `domain_variants()` tries the mirror siblings
 before giving up.
 
 **The attachment network crawl is opt-in** (`--attachments`) and is the one
-honest exception to "a plain rerun gets everything": nothing records "CDX has no
+exception to "a plain rerun gets everything": nothing records "CDX has no
 capture of this url, ever", so a full pass costs hours to rediscover rows already
 known dead.
 

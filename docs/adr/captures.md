@@ -71,7 +71,7 @@ scorer has to parse anyway to answer "is there an article here", a number is wha
 the trailer prints, and 0 as the rejection makes admission and ranking one call.
 It must agree with the gate the write goes through — `gate.not_shorter` for a body,
 the length comparison in `catch_up_network_source` for an attachment — or the walk
-picks a copy its own gate then refuses. Two scorers differ on purpose:
+picks a copy its own gate then refuses. Two scorers differ:
 `discovery._detail_score` gives a title-only capture one point, because
 `from_candidates` stores that as the `stub` phase 2 comes back to, and a scorer
 that rejected it would turn every such row into `dead`.
@@ -94,6 +94,4 @@ pass would be a rule someone has to remember. It is also the measurement the two
 probes have not got yet: they cost fetches to catch cases nobody has counted, so
 a full crawl whose trailer stays empty is the argument for deleting them.
 
-**The numbers are in `tests/fetcher/test_archive.py`**, not here — the 915-vs-0
-pair the whole change rests on is a test that can fail, which is what
-[numbers.md](numbers.md) asks for.
+**The measured pair is in `tests/fetcher/test_archive.py`**, where it can fail.

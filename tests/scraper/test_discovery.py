@@ -4,11 +4,6 @@ Nineteen hand-written copies of this loop existed before the library did, and
 what they drifted on is exactly these three rules - each one had a copy that
 got it wrong while its siblings carried a comment saying why it must not be.
 So this is the file that has to prove the library still holds them.
-
-It is also the first test this layer has ever had.
-`tests/test_offline_is_offline.py` runs all fifteen scrapers, but
-`catch_up.no_crawl()` empties the candidate list, so the loop body never
-executed under test until now.
 """
 
 import contextlib
@@ -108,7 +103,7 @@ class FromItemsTest(support.DbCase):
         )
 
     def test_a_parser_raising_on_a_page_is_uncertain_too(self):
-        """The fetch and the parse sit in one `try` on purpose: a parser that
+        """The fetch and the parse sit in one `try`: a parser that
         trips on a page is no more a verdict about the release than a timeout."""
 
         def trip(content):

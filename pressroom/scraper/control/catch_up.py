@@ -5,7 +5,7 @@ incomplete and finishes them, cheapest route first - stored markup, then the
 bytes page_cache already holds, then the network. A plain rerun of a scraper
 does all of it, which is why none of this is a script anyone schedules.
 
-A library, deliberately: no `__main__`, no argparse, no source names. The caller
+A library: no `__main__`, no argparse, no source names. The caller
 passes its own parser, its own listing collector, its own live parser, so this
 module imports no scraper and a scraper can import it at the top of the file.
 
@@ -322,7 +322,7 @@ def retry_missing(conn, source: str, parser, session, *, limit=None) -> None:
     So a failure falls back to discovery.fetch_detail_snapshot, which asks CDX
     what captures of this url actually exist. That turns a permanent 404 into
     either a real recovery from a different capture - detail_id is updated to
-    say which, so provenance stays honest - or a confirmed `dead`, which matters
+    say which - or a confirmed `dead`, which matters
     more than it sounds: without it these rows stay `uncertain` and every future
     run retries them forever.
 
@@ -390,7 +390,7 @@ def retry_missing(conn, source: str, parser, session, *, limit=None) -> None:
 def seed_cache(conn, source: str, session, *, force: bool = False, limit=None) -> None:
     """Fetch captures into page_cache. Writes nothing to `releases`.
 
-    Deliberately incapable of damaging a row: it never parses and never calls
+    Incapable of damaging a row: it never parses and never calls
     upgrade_release. The point is to turn "redesigning this parser needs another
     crawl" into "redesigning this parser is free", once.
 
@@ -489,7 +489,7 @@ def catch_up(
     `attachments` is accepted and ignored here: it belongs to the other
     contract (attachment_crawl), and the scrapers pass one options dict to both.
 
-    `offline=True` is the honest name for "touch nothing on the network": the
+    `offline=True` means "touch nothing on the network": the
     free strategies run and the two that fetch are skipped. `seed=True` is the
     opposite special case - fetch captures for a parser redesign and parse
     nothing - so it runs alone.

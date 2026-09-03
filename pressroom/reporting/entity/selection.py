@@ -12,7 +12,7 @@ Its own module rather than a counter on `Stats`, for the same reason
 it back out through every scraper would be sixteen chances to forget. Collected
 here, drained by `Stats.summary()`, silent when there is nothing to say.
 
-Stdlib only, on purpose - `outcome.py` imports it and every `entity/` layer is
+Stdlib only - `outcome.py` imports it and every `entity/` layer is
 on the readers' import path.
 """
 
@@ -77,7 +77,7 @@ def _line(o: Override) -> str:
 def drain(prefix: str = "") -> list[str]:
     """The trailer's lines, and clear the collector.
 
-    Clearing is not tidiness: `catch_up()` builds a fresh `Stats` per strategy
+    Clearing matters: `catch_up()` builds a fresh `Stats` per strategy
     and calls `summary()` several times per source, so a collector that is not
     drained reprints the first strategy's rows under the third. That is the bug
     `decoding.REPAIRS.clear()` already exists to avoid.

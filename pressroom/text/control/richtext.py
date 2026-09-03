@@ -17,8 +17,8 @@ Imports bs4, so nothing on a reader's path may import this - CLAUDE.md
 invariant 4, held by tests/test_import_direction.py.
 
 The tag allowlist below is mirrored in static/app.js, which rebuilds these nodes
-one by one instead of trusting innerHTML. Change one and change the other;
-tests/test_mirrored_rules.py fails when they disagree.
+one by one instead of trusting innerHTML; tests/test_mirrored_rules.py fails when
+they disagree.
 
 → docs/adr/text-and-markup.md
 """
@@ -95,7 +95,7 @@ _ALLOWED = {
 # sheet is a real table and collapses into nonsense without them.
 _ATTRS = {
     "a": {"href"},
-    # <img> is preserved as-is on purpose. These sites are dead, so most of
+    # <img> is preserved as-is. These sites are dead, so most of
     # these src values resolve to nothing today - but they are the only record
     # of which image belonged where, and rewriting or dropping them would
     # throw that away for good. Only the scheme is filtered.
@@ -487,7 +487,7 @@ def _walk(node, parts: list) -> None:
             continue
         name = child.name
         if name == "img":
-            # Skipped on purpose: `alt` on this corpus is as often 'spacer.gif'
+            # Skipped: `alt` on this corpus is as often 'spacer.gif'
             # or '' as it is a real caption, and `body` feeds the FTS index.
             continue
         if name == "br":

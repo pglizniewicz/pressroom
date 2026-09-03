@@ -174,9 +174,8 @@ class PoolTest(support.DbCase):
 
 class SiteTest(support.DbCase):
     def test_the_one_tag_has_a_company(self):
-        """A tag with no `COMPANIES` entry falls into `inne`, whose slug is not
-        a key of COMPANIES, so the panel answers HTTP 400 the moment anyone
-        clicks it."""
+        """A tag with no `COMPANIES` entry 400s in the panel
+        (`tests/taxonomy/test_company.py`)."""
         from pressroom.taxonomy.entity import company
 
         self.assertNotEqual(company.company_of(pressemit.SOURCE), company.UNKNOWN)

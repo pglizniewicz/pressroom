@@ -104,7 +104,7 @@ LIST_BREAK_GAP = 3.0
 def _run(cmd: list, data: bytes) -> str:
     """Feed `data` to an extractor on stdin; "" on any failure.
 
-    The output goes through encoding.decode_html, not bytes.decode: pdftotext
+    The output goes through decoding.decode_html, not bytes.decode: pdftotext
     and antiword hand back whatever the document held, and this corpus is full
     of cp1252 bytes inside files that claim UTF-8. Same rule as everywhere else
     here - the decode is a decision, never a guess.
@@ -159,7 +159,8 @@ def is_attachment(content: bytes) -> bool:
 # same question asked before and after a fetch - and because three modules used
 # to import it from a scraper, which pointed the dependency the wrong way.
 # release/entity/schema.py spells the same rule in SQL (`_FLAG_SQL["plain"]`)
-# because it may not import this module; change one and change the other.
+# because it may not import this module; tests/test_mirrored_rules.py holds them
+# together.
 ATTACHMENT_EXTS = (".pdf", ".doc")
 
 
@@ -260,7 +261,7 @@ def _page_lines(page) -> list[tuple[float, float, list[str]]]:
     """Every text line of one page as (y0, y1, [(x, word), ...]), rotated blocks
     dropped, words kept separate with their own x.
 
-    Two levels of poppler's grouping are deliberately distrusted here:
+    Two levels of poppler's grouping are distrusted here:
 
     - **blocks**, because they split a numbered list down the middle: the
       markers `1) 2) 3)` become one block at x=45 and their sentences another at

@@ -79,7 +79,7 @@ class ReextractWriteTest(support.DbCase):
 
 class RichtextCursorTest(support.DbCase):
     """`write_richtext`'s cursor is `body_html IS NULL`, and that is the whole
-    of what keeps its report honest.
+    of what keeps its report right.
 
     Without the filter the pass re-converted every PDF it had already converted:
     the same extractor over the same bytes, writing them back identical, and
@@ -179,7 +179,7 @@ class VerdictTest(support.DbCase):
         self.assertEqual(row["grade"], "full")
 
     def test_a_re_extraction_recovers_layout_and_states_no_verdict(self):
-        """The deliberate asymmetry, pinned so it can fail rather than drift.
+        """The asymmetry, pinned so it can fail rather than drift.
 
         `strict_same_text` admits only a body that already is this extraction,
         so nothing that reaches the write is a teaser and nothing here has

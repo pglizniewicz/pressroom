@@ -9,8 +9,8 @@ CMS generation a tag covers, which is a per-source debugging fact; rolled up to 
 company it is always the whole corpus. It sits on its own line because the
 longest tag already fills the 15rem panel.
 
-**The two lists are sorted differently, and that is the point.** The API sorts by
-size, right for the audit table and wrong for a picker, so the frontend re-sorts:
+**The two lists are sorted differently.** The API sorts by size, right for the
+audit table and wrong for a picker, so the frontend re-sorts:
 companies alphabetical (you arrive knowing the name), sources grouped by company
 and **chronological inside a group**, because alphabetically the tags interleave
 by domain and the site's history is lost. On full ISO dates, not displayed years;

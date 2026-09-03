@@ -21,7 +21,7 @@ MARKUP (Drupal 7, views + facetapi)
             anchor href - the row contains several links (image, title, topic
             tags) and `about` is the one that names the node.
   detail_id `<article id="node-4935591">` -> "4935591". Drupal's own node id,
-            stable across url changes, and deliberately NOT a timestamp: a
+            stable across url changes, and NOT a timestamp: a
             14-digit detail_id means "Wayback capture" everywhere in this repo,
             so faking one here would put a dead archive.org link on every row.
   date      TWO formats, both in the listing, and picking the wrong parser
@@ -45,8 +45,7 @@ ROBOTS.TXT
   The *listing* urls match `Disallow: /*?*f[0]=`; the articles do not. That rule
   guards against faceted-search crawl traps - the combinatorial explosion of
   filter permutations - and fetching a few dozen named pages at one every thirty
-  seconds is not the behaviour it defends against. Recorded here rather than
-  assumed, because it was a deliberate call.
+  seconds is not the behaviour it defends against.
 """
 
 import re
