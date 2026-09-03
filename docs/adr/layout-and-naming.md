@@ -49,6 +49,87 @@ Three things kept their names, each of which could have gone the other way:
   ADRs and in every source docstring, and because the one thing that made the
   word ambiguous was the fetch stage, which now has its own name.
 
+## The tree catches up with the vocabulary
+
+The split above was prose only, and for one commit the tree said the old words
+while the rulebook said the new ones. What the tree had to change was decided on
+one rule: **a word the rulebook uses for a role has a place named for it, and
+"it is a role inside X" is not an answer.** BCE names a component for its
+responsibility and the vocabulary names the responsibilities, so a reader
+entering `pressroom/` should meet the same words. `scraper/`, `fetcher/` and
+`converter/` sit in the root now and read as the sentence in `CLAUDE.md`; a
+`sources/<firm>/control/<generation>.py` is a crawler and a parser, which is
+where the rule had always put them.
+
+Two things had to become true in code first, because the roles leaked across
+component boundaries in both directions and renaming the directories would have
+named the leaks:
+
+- **A parser in a scraper called the fetcher.** Four scrapers — `q4`,
+  `soundonsound`, both `creative` modules — carried a `fetch_body(conn, session,
+  url)` of one shape: `fetch_cached`, `decode_html`, one selector,
+  `richtext.extract`. Named for the fetcher, four fifths parser, and the reason
+  `tests/parsers.py` had a third route, `live`, that had to be handed a seeded
+  `page_cache` and `session=None` to prove it stayed off the network. Each is a
+  `parse_detail(content) -> Detail` now, the shape the archived ten already had;
+  `discovery.from_items` and `catch_up.from_live` fetch through
+  `politeness.fetch_cached` themselves and hand the bytes over, with the site's
+  Crawl-delay passed as a value. The five live fixtures are detail fixtures,
+  byte-identical under a new name, and the proof that a parser cannot fetch is
+  its signature. (`fetch_body` is quoted above as evidence for the verb
+  `fetch_`; the evidence stands, the function does not.)
+- **The fetcher's module called a parser.** `archive.sample_all_captures` walked
+  a listing's captures and parsed each; `archive.fetch_detail_snapshot` chose
+  the best capture and parsed it. Both are a fetch composed with a parse —
+  siblings of `discovery.capture()` — and both live in `scraper/control/
+  discovery.py` now. `archive.py` takes no parser anywhere: `fetch_best_matching_
+  snapshot` takes a scorer, which [captures.md](captures.md) says is the
+  caller's measure, not a parse.
+
+Then three components moved whole. `capture/` became `fetcher/` — both
+fetchers, `page_cache`, `wayback_calls` and the address arithmetic, because the
+table stays with the component that writes it; the domain noun *capture* is
+untouched in every function name and in `captures.md`, whose area is which
+capture is right, not who goes and gets it. `attachment/` became `converter/` —
+the two converters, the magic-byte table, and `pressroom-calibrate-converters`;
+the word for the *rows* (`attachment_crawl.py`, `--attachments`,
+[attachments.md](attachments.md)) is the separate question of what a `.pdf` that
+is the release itself should be called, and was left where it was. `scraping/`
+became `scraper/` — the loops that compose the four roles, phase 1, phase 2,
+`twin`, `attachment_crawl`, the parse types and the command line, which is what
+a scraper *is*, with the fifteen concrete ones under `sources/`. "scraping" had
+been the whole's activity naming its connective tissue, the size error in a
+path; `run/` was the first candidate and lost because it is not one of the
+words the tree was missing.
+
+Three decisions inside this one, each measured before it was taken:
+
+- **The crawler has its place already, and CDX stays with the fetcher.** Every
+  scraper has a crawler; what differs is the pool — article urls off index
+  pages, a CDX folder listing, a dropdown or a paginated live list; for
+  `pressdb`, `media_pr`, `presse_de` and `cms`'s first channel the listing's own
+  captures walked along time (`sample_all_captures`); for `early` two addresses
+  given by hand. It lives in `control/<generation>.py`, as the rule says. The
+  CDX listing it calls stays in `fetcher/control/archive.py`: at the move the
+  listing functions had 21 calls from crawlers in nine scraper modules and 10
+  from inside `archive.py` itself — `fetch_best_matching_snapshot` walks
+  `list_all_captures` — and both halves share the cooldown, the error classifier
+  and the `wayback_calls` log. A `crawler/` holding CDX alone would be one
+  module through which two components write one log. It is the one place where
+  a role's tool sits under another role's name, recorded so it reads as a
+  choice rather than an oversight.
+- **A collector is a composition, not a fifth role.** `cached_entries(conn) ->
+  {url: Entry}` in `presse_de`, `early` and `cms` is the listing parser run by
+  phase 2 over the captures the crawler knows, out of `page_cache` — the same
+  fusion `fetch_body` was, from the other side. It stays fused because the three
+  differ in how they find their captures (LIKE by domain, an exact capture
+  address, LIKE by suffix) and one decodes cp1252 first; the shared part is ten
+  lines behind a signature no fourth scraper would use. The word survives with a
+  definition in the rulebook, and the one collision went: `soundonsound`'s
+  `collect()` was a crawler and is `candidates()`, pressemit's word for the job.
+- **`sources` stayed, and not because it was not measured** — the bullet that
+  records it is with the others on that directory, below.
+
 ## One place a command line is assembled
 
 **`boundary/command.py` is the one place a command line is assembled.** Sixteen
@@ -142,8 +223,19 @@ third, so a seventh firm had to be added by hand in two of them before the
 dependency direction below would cover it at all. The test reads the directory
 now, and a firm that is in the tree is in the rule.
 
-Three decisions inside that one, each of which could have gone the other way:
+Four decisions inside that one, each of which could have gone the other way:
 
+- **`sources`, not `scrapers`.** The rename the vocabulary seems to ask for, and
+  the size error again: `scrapers/terratec/` says one scraper where there are
+  four. Every other word for the largest size is taken — `firms` (next),
+  `companies` (the reader's axis in `taxonomy/entity/company.py`, whose six keys
+  are these six components but whose word belongs to the reader), `publishers`
+  ([odd-sources.md](odd-sources.md)'s opposite of a press room), `sites`
+  (`pressemit.SITES`, a host), `origins` (`body_origin`). "Source", in the plain
+  sense of where the releases come from, fits TerraTec and Sound on Sound alike,
+  and "source component" is what the test and this file already call the unit.
+  That a grouping directory sits between the package and its components is the
+  BCE deviation the next bullet is, and it stands.
 - **`sources`, not `firms`.** `soundonsound` is a magazine, not a company whose
   press releases these are — and a source tag names a scraper, not a domain, so
   the directory is named for what the components are rather than for who they

@@ -110,11 +110,12 @@ captures walked along time), a **fetcher** that brings each one's bytes back
 into `page_cache`, an optional **converter** for what is not HTML, and a
 **parser** that lifts the release out of the bytes — one from a page, many from
 a listing. A **source** is the tag a row carries, one per mirror, so one scraper
-may stamp several. Only the crawler and the parser are per-scraper, and a
-parser takes bytes and never fetches them: the fetcher is `fetcher/control/`,
-called from `scraper/` and from a crawler reading its listings, never from a
-parser; the converter is `converter/control/conversion.py`; a scraper needing
-neither writes neither. A **collector** is not a fifth role: it is the listing
+may stamp several. Only the crawler and the parser are per-scraper, and the
+tree says so: the fetcher and the converter are components of their own,
+`fetcher/` and `converter/`, the loops that compose all four are `scraper/`,
+and a parser takes bytes and never fetches them — a crawler may call the
+fetcher for its listings, a parser never does. A **collector** is not a fifth
+role: it is the listing
 parser run by phase 2 over the captures the crawler knows (`cached_entries`),
 and only a scraper whose releases exist inside a listing has one.
 **Prose that says "source" for the middle size is the smell, and so is a
