@@ -41,7 +41,8 @@ by 2019 that listing url answered 200 with m-audio.com's home page, so it uses
 `sample_all_captures`. `fetch_first_matching_snapshot` was the second answer,
 written for attachments: a validity-checked walk, but newest-first and capped at
 six attempts. Three answers to one question, and the detail path had the weakest.
-There is one now.
+There is one now. `get_latest_working_snapshot()` survives for a pagination
+probe, where the newest capture that answered 200 is the question being asked.
 
 **Oldest-first, because a press release is not edited after publication.** The
 earliest capture is normally the article itself and the least contaminated by a

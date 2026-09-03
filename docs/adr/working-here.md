@@ -171,9 +171,15 @@ these as instructions; here they keep the reason attached.
 
 - **`tests/` is outside the package**, so `pressroom-verify-names`
   sees only the package's own modules.
+- **`.venv/bin/python`, not bare `python3`.** `pressroom` is only on the venv's
+  path, so bare `python3` cannot import it — which is loud, and used to be
+  silent: everything ran on Fedora's system RPMs until the first dependency
+  Fedora does not package.
 - `pressroom.db` is gitignored, along with `pressroom.db.bak`. `'rebuild'` and
   bulk updates aren't reversible — **copy the DB before one.** It is how 122
-  overwritten articles were recovered.
+  overwritten articles were recovered. `PRESSROOM_DB` is how a whole-corpus
+  `--force` gets rehearsed against that copy, without moving the file in and
+  out of place.
 - archive.org intermittently refuses connections. A run full of `?` markers is
   usually the archive, not the code — confirm with a bare `curl` before debugging
   a parser.

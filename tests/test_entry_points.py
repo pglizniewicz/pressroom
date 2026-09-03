@@ -5,8 +5,8 @@ and a renamed boundary leaves the entry point pointing at a module that is gone
 - which shows up only as "command not found" after the next
 `uv pip install -e`, if anyone happens to run that command.
 
-The counts are asserted too. They are the one thing in this repo that CLAUDE.md
-states as a number and nothing enforces: "22 of them", "15 scrapers".
+The counts are asserted too. CLAUDE.md used to state them as numbers, which
+nothing enforced: "22 of them", "15 scrapers".
 """
 
 import tomllib
@@ -49,7 +49,7 @@ class EntryPointTest(unittest.TestCase):
                 self.assertIn(".boundary.", module_name)
 
     def test_the_four_families_and_their_sizes(self):
-        """The counts CLAUDE.md and pyproject.toml both state in prose. Both
+        """The counts CLAUDE.md and pyproject.toml used to state in prose. Both
         said 22 when there were 23 - the third `pressroom-verify-*` arrived
         without the sentence being updated, which is the whole reason a number
         in a comment is worth an assertion."""
