@@ -16,7 +16,7 @@ import io
 import unittest
 from unittest import mock
 
-from pressroom.capture.control import archive
+from pressroom.fetcher.control import archive
 
 from pressroom.reporting.entity import selection
 from pressroom.reporting.entity.outcome import Stats
@@ -201,7 +201,7 @@ class FakeArchive:
 
     One capture in the list unless `captures` says otherwise, so there is no
     year-later probe and no tail to walk back over: what the walk chooses out
-    of several is `tests/capture/test_archive.py`'s subject, not this file's.
+    of several is `tests/fetcher/test_archive.py`'s subject, not this file's.
     """
 
     def __init__(
@@ -595,7 +595,7 @@ class FromTeasersTest(support.DbCase):
 class DetailSnapshotTest(unittest.TestCase):
     """`fetch_detail_snapshot`: the walk's choice, parsed, with its address on it.
 
-    The regression it guards is `tests/capture/test_archive.py`'s: the newest
+    The regression it guards is `tests/fetcher/test_archive.py`'s: the newest
     capture of a dead article is the rebuilt site's shell page, and it parses
     to nothing. So the fixture is that pair - an early capture that scores and
     a late one that does not - and the walk is real, only CDX and the fetch are

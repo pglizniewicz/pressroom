@@ -26,9 +26,9 @@ told apart from a release which genuinely had none.
 
 from typing import NamedTuple
 
-from pressroom.capture.control import address
-from pressroom.capture.control import archive
-from pressroom.capture.control import politeness
+from pressroom.fetcher.control import address
+from pressroom.fetcher.control import archive
+from pressroom.fetcher.control import politeness
 from pressroom.release.control import storage
 from pressroom.reporting.entity import outcome
 from pressroom.scraping.entity.parse import Detail, Entry

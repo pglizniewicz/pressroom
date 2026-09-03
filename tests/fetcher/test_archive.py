@@ -15,7 +15,7 @@ import contextlib
 import unittest
 from unittest import mock
 
-from pressroom.capture.control import archive
+from pressroom.fetcher.control import archive
 from pressroom.reporting.entity import selection
 
 URL = "http://www.m-audio.com/news/en_us-1738.html"

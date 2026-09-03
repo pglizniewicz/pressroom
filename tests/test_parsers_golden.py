@@ -152,7 +152,7 @@ class CollectorTest(support.DbCase):
         stamping a page url rather than a capture address would break the write
         it feeds - at the write, not here, which is the wrong place to find out.
         """
-        from pressroom.capture.control import address
+        from pressroom.fetcher.control import address
 
         for source in sorted(self.COLLECTORS):
             for url, entry in self._collect(source).items():

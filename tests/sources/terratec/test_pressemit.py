@@ -19,7 +19,7 @@ import contextlib
 import io
 from unittest import mock
 
-from pressroom.capture.control import archive
+from pressroom.fetcher.control import archive
 from pressroom.sources.terratec.control import pressemit
 from tests import support
 

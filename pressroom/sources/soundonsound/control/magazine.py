@@ -57,7 +57,7 @@ from bs4 import BeautifulSoup
 
 from pressroom.text.control.dating import iso_date
 from pressroom.text.control.decoding import decode_html
-from pressroom.capture.control.politeness import fetch_cached
+from pressroom.fetcher.control.politeness import fetch_cached
 from pressroom.database.control import connection
 from pressroom.scraping.control import catch_up
 from pressroom.scraping.control import discovery

@@ -78,7 +78,7 @@ these as instructions; here they keep the reason attached.
   nowhere — and ruff's `F821` replaced it. Not as a duplicate: it is strictly
   stronger. `_walk_unbound` only inspected `ast.Attribute` nodes, so it saw
   `foo.bar` and walked straight past a bare `foo(...)`, which is an `ast.Call` on
-  a plain `ast.Name`. That is not a hypothetical gap. `capture/control/archive.py`
+  a plain `ast.Name`. That is not a hypothetical gap. `fetcher/control/archive.py`
   called `snapshot_url()` in three places and imported the module it lives in
   nowhere; this pass printed `unbound qualified names: 0` and `OK` over three
   certain `NameError`s, in the network phase of two scrapers and the whole

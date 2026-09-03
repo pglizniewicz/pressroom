@@ -88,7 +88,7 @@ include = ["pressroom*"]
 # silently a change to this repo.
 #
 # It earns its place: F821 found three calls to `snapshot_url` in
-# capture/control/archive.py that imported nothing of the kind, in code
+# fetcher/control/archive.py that imported nothing of the kind, in code
 # pressroom-verify-names reports clean (it only inspects `module.attr` forms) and
 # the hermetic suite never reaches (they are network paths).
 #

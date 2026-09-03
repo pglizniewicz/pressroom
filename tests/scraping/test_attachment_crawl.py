@@ -13,7 +13,7 @@ import re
 from unittest import mock
 
 from pressroom.attachment.control import conversion
-from pressroom.capture.control import archive
+from pressroom.fetcher.control import archive
 from pressroom.provenance.entity import origin
 from pressroom.release.entity.grade import Grade
 from pressroom.scraping.control import attachment_crawl

@@ -9,7 +9,7 @@ archive; a caller that batches passes commit=False and commits after its loop.
 
 import contextlib
 
-from pressroom.capture.control import address
+from pressroom.fetcher.control import address
 from pressroom.provenance.entity import origin
 from pressroom.release.entity import schema
 from pressroom.release.entity.grade import Grade

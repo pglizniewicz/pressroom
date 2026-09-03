@@ -16,7 +16,7 @@ from pressroom.database.control import connection
 from pressroom.release.control import storage
 from pressroom.scraping.control import catch_up
 from pressroom.text.control import richtext
-from pressroom.capture.control import archive
+from pressroom.fetcher.control import archive
 from pressroom.scraping.entity.parse import Entry
 
 SOURCE = "terratec_early"

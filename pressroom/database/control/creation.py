@@ -18,7 +18,7 @@ self-committing and idempotent. Called more than once per run on purpose.
 There are no migrations. This file is the whole of what happens to the schema.
 """
 
-from pressroom.capture.entity import call_log, page
+from pressroom.fetcher.entity import call_log, page
 from pressroom.provenance.entity import origin
 from pressroom.release.control import index
 from pressroom.release.entity import schema

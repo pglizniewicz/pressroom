@@ -5,7 +5,7 @@ whole-page parser cost 64 rows, so "is this a capture of the row's own url" is
 not an inline comparison anywhere.
 """
 
-from pressroom.capture.control import address
+from pressroom.fetcher.control import address
 from pressroom.provenance.control import resolution
 from pressroom.provenance.entity import origin
 from tests import support

@@ -24,11 +24,11 @@ import time
 import requests
 from bs4 import BeautifulSoup
 
-from pressroom.capture.entity import call_log
+from pressroom.fetcher.entity import call_log
 from pressroom.database.control import connection
-from pressroom.capture.entity import page
-from pressroom.capture.control import address
-from pressroom.capture.control.politeness import HEADERS, SLEEP as CONTENT_SLEEP
+from pressroom.fetcher.entity import page
+from pressroom.fetcher.control import address
+from pressroom.fetcher.control.politeness import HEADERS, SLEEP as CONTENT_SLEEP
 from pressroom.reporting.entity import selection
 
 CDX_URL = "https://web.archive.org/cdx/search/cdx"
@@ -379,7 +379,7 @@ def _year_after(timestamps, earliest: str) -> str | None:
 
     On the four-digit year prefix, not on a date arithmetic: pure string work,
     no `datetime`, no timezone and no leap question - the same instinct
-    `capture/control/address.py` states about addresses. It also cannot pick a
+    `fetcher/control/address.py` states about addresses. It also cannot pick a
     capture from the winner's own year, which is where a second opinion buys
     least.
     """

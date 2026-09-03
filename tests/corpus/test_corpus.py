@@ -18,7 +18,7 @@ import sqlite3
 import unittest
 
 from pressroom.attachment.control import conversion
-from pressroom.capture.control import address
+from pressroom.fetcher.control import address
 from pressroom.provenance.boundary import verification
 from pressroom.provenance.entity import origin
 from pressroom.release.entity import schema

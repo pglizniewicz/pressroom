@@ -6,12 +6,12 @@ authoritative, the derived one is a guess that is only right when the capture is
 of the row's own url.
 
 The derivation itself is pure string work and lives with the other addresses
-(capture/control/address.py); what is here is everything that needs the database
+(fetcher/control/address.py); what is here is everything that needs the database
 to answer. No parsing and no verdicts: this module answers "which bytes" and
 nothing about what they contain.
 """
 
-from pressroom.capture.control import address
+from pressroom.fetcher.control import address
 from pressroom.provenance.entity import origin
 
 

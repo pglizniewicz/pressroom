@@ -9,7 +9,7 @@ that write.
 
 import unittest
 
-from pressroom.capture.control import address
+from pressroom.fetcher.control import address
 
 GOOD = (
     "https://web.archive.org/web/20111011173713id_/http://www.terratec.de/presse.html"

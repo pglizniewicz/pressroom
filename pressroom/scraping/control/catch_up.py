@@ -21,15 +21,15 @@ written, the row is `uncertain`, and only a confirmed absence is `dead`.
 
 import sys
 
-from pressroom.capture.control import address
+from pressroom.fetcher.control import address
 from pressroom.attachment.control import conversion
 from pressroom.release.control import gate
 from pressroom.provenance.control import resolution
 from pressroom.release.control import storage
 from pressroom.text.control import richtext
 from pressroom.scraping.control import discovery, twin
-from pressroom.capture.control import archive
-from pressroom.capture.control import politeness
+from pressroom.fetcher.control import archive
+from pressroom.fetcher.control import politeness
 from pressroom.reporting.entity.outcome import Stats
 
 

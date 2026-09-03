@@ -94,6 +94,6 @@ pass would be a rule someone has to remember. It is also the measurement the two
 probes have not got yet: they cost fetches to catch cases nobody has counted, so
 a full crawl whose trailer stays empty is the argument for deleting them.
 
-**The numbers are in `tests/capture/test_archive.py`**, not here — the 915-vs-0
+**The numbers are in `tests/fetcher/test_archive.py`**, not here — the 915-vs-0
 pair the whole change rests on is a test that can fail, which is what
 [numbers.md](numbers.md) asks for.

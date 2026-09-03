@@ -94,7 +94,7 @@ that matter in practice are:
 Adding shared logic means a **new component named for its concern**, never a
 grab-bag (`common.py` was split for exactly this reason, and `db.py` after it).
 
-The components: `database`, `release`, `capture`, `provenance`, `text`,
+The components: `database`, `release`, `fetcher`, `provenance`, `text`,
 `attachment`, `scraping`, `reporting`, `taxonomy`, `browser` and `q4`, plus one
 per firm under `sources/` — `intel`, `amd`, `creative`, `terratec`, `maudio`,
 `soundonsound`. **Which file inside a component owns which job is
@@ -111,7 +111,7 @@ into `page_cache`, an optional **converter** for what is not HTML, and a
 **parser** that lifts the release out of the bytes — one from a page, many from
 a listing. A **source** is the tag a row carries, one per mirror, so one scraper
 may stamp several. Only the crawler and the parser are per-scraper, and a
-parser takes bytes and never fetches them: the fetcher is `capture/control/`,
+parser takes bytes and never fetches them: the fetcher is `fetcher/control/`,
 called from `scraping/` and from a crawler reading its listings, never from a
 parser; the converter is `attachment/control/conversion.py`; a scraper needing
 neither writes neither. A **collector** is not a fifth role: it is the listing
@@ -172,7 +172,7 @@ metrics **and** a page of full texts — `-containers` for DOM containers,
 `-attachments` for the converters; the second half is not decoration.
 
 **The dependency direction is a rule, not an accident.** A source component
-imports `scraping`, `release`, `capture`, `text`, `database`, `reporting` and
+imports `scraping`, `release`, `fetcher`, `text`, `database`, `reporting` and
 `q4`; none of those imports a source component. The one exception is documented
 and safe: `provenance/boundary/verification.py` imports source control modules
 to reproduce bodies, and nothing imports it back.
@@ -206,7 +206,7 @@ components back out of this sentence.
    `database/control/`, every `entity/` layer, `release/control/query.py`,
    `taxonomy/` and `text/control/decoding.py`. The two readers are deliberately
    dependency-free; never import `requests` or `bs4` into any of those, and
-   never import `capture/control/politeness.py`, `q4` or a source component
+   never import `fetcher/control/politeness.py`, `q4` or a source component
    into either reader. `tests/test_import_direction.py` proves that statically,
    which `pressroom-verify-names` cannot: it imports for real, and `requests` is
    installed here.

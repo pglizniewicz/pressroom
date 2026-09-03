@@ -32,7 +32,7 @@ import contextlib
 
 import requests
 
-from pressroom.capture.control import address
+from pressroom.fetcher.control import address
 from pressroom.release.control import gate
 from pressroom.database.control import connection
 from pressroom.release.control import storage
@@ -41,7 +41,7 @@ from pressroom.reporting.entity.outcome import Stats
 # What an attachment's bytes mean is conversion.py's concern; this file owns the
 # crawl.
 from pressroom.attachment.control import conversion
-from pressroom.capture.control import archive
+from pressroom.fetcher.control import archive
 
 SOURCES = [
     "midiman_com_pressdb",

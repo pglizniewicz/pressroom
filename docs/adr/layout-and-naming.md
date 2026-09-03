@@ -29,7 +29,7 @@ own fetcher or parser". That was the only collision in the four, and naming it
 `fetcher` is what let the whole keep the name it had.
 
 Only two of the four are per-scraper: the crawler and the parser. The fetcher is
-`capture/control/` and the converter `attachment/control/conversion.py`, and
+`fetcher/control/` and the converter `attachment/control/conversion.py`, and
 neither varies by source — `sources/amd` and `sources/intel` have no `control/`
 layer at all, both halves coming from `q4`, and `terratec/control/early.py`
 opens by saying it is not a crawler like the others.
@@ -187,7 +187,7 @@ records `[no-js]` against `web-static`:
 ## The dependency direction
 
 **The dependency direction is a rule, not an accident.** A source component
-imports `scraping`, `release`, `capture`, `text`, `database`, `reporting` and
+imports `scraping`, `release`, `fetcher`, `text`, `database`, `reporting` and
 `q4`; none of those imports a source component. The one exception is documented
 and safe: `provenance/boundary/verification.py` imports source control modules
 to reproduce bodies, and nothing imports it back.

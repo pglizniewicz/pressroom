@@ -59,7 +59,7 @@ READERS = {
     "pressroom.browser.boundary.http": "pressroom-serve",
 }
 
-POLITENESS = "pressroom.capture.control.politeness"
+POLITENESS = "pressroom.fetcher.control.politeness"
 
 # The grouping directory the source components live in, and the components
 # themselves - read off the tree, not typed out. This list was literal here and
@@ -80,7 +80,7 @@ SOURCE_COMPONENTS = frozenset(
 SOURCE_MAY_IMPORT = {
     "scraping": "the command line, the catch-up strategies and the parse types",
     "release": "the gates, the write path and the FTS index",
-    "capture": "archive.org and the polite live fetch",
+    "fetcher": "archive.org and the polite live fetch",
     "text": "the richtext extractor and the date parser",
     "database": "connect(), which every crawl opens",
     "reporting": "outcome.Stats and the seven fixed markers",
@@ -239,7 +239,7 @@ def _forbidden_to_a_reader(module: str) -> str | None:
 def _out_of_bounds(module: str) -> str | None:
     """The three things Invariant 4 names beyond "no requests, no bs4"."""
     if module == POLITENESS:
-        return "capture/control/politeness.py"
+        return "fetcher/control/politeness.py"
     component = _component(module)
     if component == "q4":
         return "q4"

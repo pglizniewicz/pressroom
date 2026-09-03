@@ -28,7 +28,7 @@ the one place with a reason to call origin.clear().
 
 import collections
 
-from pressroom.capture.control import address
+from pressroom.fetcher.control import address
 from pressroom.provenance.entity import origin
 from pressroom.release.control import storage
 

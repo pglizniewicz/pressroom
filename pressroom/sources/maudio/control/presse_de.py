@@ -80,7 +80,7 @@ from pressroom.release.control import storage
 from pressroom.scraping.control import catch_up
 from pressroom.text.control import richtext
 from pressroom.reporting.entity.outcome import Stats
-from pressroom.capture.control import address
+from pressroom.fetcher.control import address
 from pressroom.scraping.control import discovery
 from pressroom.scraping.entity.parse import Entry
 

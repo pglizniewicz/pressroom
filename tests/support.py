@@ -119,7 +119,7 @@ class DbCase(unittest.TestCase):
         reuse either, and the entity layer that owns the table exposes only its
         DDL and the hash.
         """
-        from pressroom.capture.entity import page
+        from pressroom.fetcher.entity import page
 
         self.conn.execute(
             "INSERT OR REPLACE INTO page_cache (url, content, content_sha256)"

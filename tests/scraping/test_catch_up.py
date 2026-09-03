@@ -8,7 +8,7 @@ file that has to prove they are still there.
 import contextlib
 import io
 
-from pressroom.capture.control import address
+from pressroom.fetcher.control import address
 from pressroom.provenance.entity import origin
 from pressroom.release.control import storage
 from pressroom.scraping.control import catch_up
