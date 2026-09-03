@@ -260,7 +260,7 @@ def discover_listing_best(
         # URL answered HTTP 200 with m-audio.com's modern home page, so the
         # newest working capture is not a listing at all. Sampling every
         # capture means the genuine older ones are parsed regardless.
-        entries = archive.sample_all_captures(
+        entries = discovery.sample_all_captures(
             conn, session, listing_url, extract_entries, limit=limit
         )
         for e in entries:
@@ -303,7 +303,7 @@ def fetch_detail_if_identified(conn, session, url: str, parse):
     """
     if not ID_HREF_RE.search(url):
         return {}, True
-    return archive.fetch_detail_snapshot(conn, session, url, parse)
+    return discovery.fetch_detail_snapshot(conn, session, url, parse)
 
 
 def scrape_domain(
@@ -373,7 +373,7 @@ def scrape_domain(
             stats.skipped()
             continue
 
-        parsed, confirmed = archive.fetch_detail_snapshot(
+        parsed, confirmed = discovery.fetch_detail_snapshot(
             conn, session, url, parse_detail
         )
         if not parsed.get("body") or not parsed.get("title"):

@@ -20,7 +20,6 @@ these constants got mistuned before the log existed.
 
 import sqlite3
 import time
-from typing import Any
 
 import requests
 from bs4 import BeautifulSoup
@@ -30,7 +29,6 @@ from pressroom.database.control import connection
 from pressroom.capture.entity import page
 from pressroom.capture.control import address
 from pressroom.capture.control.politeness import HEADERS, SLEEP as CONTENT_SLEEP
-from pressroom.reporting.entity import outcome
 from pressroom.reporting.entity import selection
 
 CDX_URL = "https://web.archive.org/cdx/search/cdx"
@@ -335,89 +333,6 @@ def fetch_snapshot(
     conn.commit()
     time.sleep(CONTENT_SLEEP)
     return content
-
-
-def sample_all_captures(
-    conn: sqlite3.Connection,
-    session: requests.Session,
-    url: str,
-    parse_fn,
-    limit: int | None = None,
-) -> list[dict[str, Any]]:
-    """Every historical HTTP-200 capture of `url` - a listing page whose content
-    grows over time - parsed through `parse_fn(content, url, timestamp)` and
-    returned as one flat list.
-
-    Owns the listing -> fetch -> parse loop and nothing above it: the dedup that
-    picks the best of several captures is per-scraper, so the caller does it.
-    """
-    try:
-        timestamps = list_all_captures(url)
-    except Exception as e:
-        print(f"  ERROR listing captures: {e}")
-        return []
-    if limit:
-        timestamps = timestamps[:limit]
-    print(f"  {len(timestamps)} captures to sample", flush=True)
-
-    entries = []
-    for ts in timestamps:
-        snap_url = address.snapshot_url(ts, url)
-        try:
-            content = fetch_snapshot(conn, session, snap_url, timeout=20)
-            entries.extend(parse_fn(content, url, ts))
-        except Exception as e:
-            print(f"\n  ERROR fetching {snap_url}: {e}")
-            continue
-        print(outcome.CAPTURE, end="", flush=True)
-    return entries
-
-
-def fetch_detail_snapshot(
-    conn: sqlite3.Connection,
-    session: requests.Session,
-    url: str,
-    parse_fn,
-    timeout: int = 20,
-):
-    """Fetch and parse a per-item detail page -> (parsed, confirmed).
-
-    `parsed` is {} when nothing was recovered, and `confirmed` says whether that
-    is a verdict: a verified dead end may be recorded permanently, a network
-    hiccup must leave the item open to a full retry. A recovered `parsed`
-    carries `detail_id` and `origin_url`, so the caller can write the body and
-    its provenance in one transaction.
-
-    Capture selection is fetch_best_matching_snapshot's, scored by how much body
-    the page yields - the same measure `gate.not_shorter` compares on, so a
-    capture this walk picks cannot then be vetoed downstream for being shorter
-    than one it passed over. `({}, True)` now means every capture was tried and
-    none carried an article, which is the verdict a caller records as `dead`;
-    it used to mean only that the newest one did not.
-
-    A probe failure backs off twice the *content* interval - not this module's
-    CDX one, because the extra patience is aimed at the endpoint doing the
-    rate-limiting.
-    """
-
-    def score(raw: bytes) -> int:
-        return len(parse_fn(raw).get("body") or "")
-
-    content, ts, confirmed = fetch_best_matching_snapshot(
-        conn, session, url, score, timeout=timeout
-    )
-    if content is None:
-        return {}, confirmed
-    # The winner is parsed twice, once to score it and once for real. parse_fn
-    # is pure and one more bs4 pass costs nothing beside a network fetch, so
-    # this is deliberate rather than an oversight - caching the parse by content
-    # hash would be more machinery than the saving.
-    parsed = parse_fn(content)
-    parsed["detail_id"] = ts
-    # The address, not just the timestamp: a caller that never sees the
-    # snapshot url cannot record where the body came from.
-    parsed["origin_url"] = address.snapshot_url(ts, url)
-    return parsed, True
 
 
 def _rate(

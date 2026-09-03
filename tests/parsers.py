@@ -1,16 +1,16 @@
 """How to reproduce one scraper's parse from bytes - the table the golden tests
 walk.
 
-Three shapes, matching the three the corpus actually has:
+Two shapes, matching the two the corpus actually has:
 
-  detail    bytes -> {title, date, body, body_html}. A whole-page parse.
+  detail    bytes -> {title, date, body, body_html}. A whole-page parse. The
+            five live scrapers are in here too: their `parse_detail` takes the
+            bytes `politeness.fetch_cached` cached under the row's own url, so
+            the fixture is that page rather than an archive capture -
+            `LIVE_SOURCES` says which, for `refresh.py`'s picker.
   listing   bytes -> [entry, ...]. A capture holding many releases; the golden
             file pins the whole list, which is also what pins each collector's
             `origin_url` stamping - the thing the collectors used to throw away.
-  live      (conn, url) -> (body, body_html), through fetch_cached. The five
-            live scrapers have no snapshot parser at all: their extraction is
-            inside fetch_body, and calling it with the bytes already in
-            page_cache exercises the cache path as well as the parser.
 
 `verification.CACHED_PARSERS` is reused verbatim where it covers a tag, because
 a second copy would drift. The rest cannot come from there:
@@ -43,6 +43,10 @@ PRESSDB = ("midiman_com_pressdb", "midiman_net_pressdb")
 PORTAL = ("terratec_pressde", "terratec_pressen")
 CMS = ("terratec_new_de", "terratec_new_en")
 
+# The tags whose pages are fetched live and cached under the row's own url, so
+# their detail fixture is that page and carries no capture timestamp.
+LIVE_SOURCES = ("intel", "amd", "creative", "creative_gnw", "soundonsound")
+
 # --- detail: bytes -> dict --------------------------------------------------
 
 DETAIL = dict(CACHED_PARSERS)
@@ -50,6 +54,15 @@ DETAIL.update({tag: pressdb.parse_detail for tag in PRESSDB})
 DETAIL.update({tag: media_news.parse_detail for tag in MEDIA_NEWS})
 DETAIL.update({tag: portal.parse_snapshot for tag in PORTAL})
 DETAIL.update({tag: cms.parse_detail for tag in CMS})
+DETAIL.update(
+    {
+        "intel": platform.parse_detail,
+        "amd": platform.parse_detail,
+        "creative": creative_press.parse_detail,
+        "creative_gnw": globenewswire.parse_detail,
+        "soundonsound": magazine.parse_detail,
+    }
+)
 
 # --- listing: (bytes, base_url, timestamp) -> list --------------------------
 
@@ -74,38 +87,13 @@ LISTING["terratec_early"] = lambda c, base, ts: early.extract_entries(
     next(p for p in early.PAGES if p["timestamp"] == ts or p["base_url"] == base),
 )
 
-# --- live: (conn, url) -> (body, body_html) ---------------------------------
 
-LIVE = {
-    "intel": platform.fetch_body,
-    "amd": platform.fetch_body,
-    "creative": creative_press.fetch_body,
-    "creative_gnw": globenewswire.fetch_body,
-    "soundonsound": magazine.fetch_body,
-}
-
-
-def parse(
-    kind: str,
-    source: str,
-    content: bytes,
-    *,
-    base_url="",
-    timestamp="",
-    conn=None,
-    url="",
-):
+def parse(kind: str, source: str, content: bytes, *, base_url="", timestamp=""):
     """Run the route this fixture declares and return something JSON-able."""
     if kind == "detail":
         return DETAIL[source](content)
     if kind == "listing":
         return LISTING[source](content, base_url, timestamp)
-    if kind == "live":
-        # session=None on purpose: fetch_cached must answer from page_cache and
-        # never reach for it. A route that fetches raises AttributeError here,
-        # which is the failure we want rather than a silent request.
-        body, body_html = LIVE[source](conn, None, url)
-        return {"body": body, "body_html": body_html}
     raise ValueError(f"unknown fixture kind: {kind!r}")
 
 
@@ -115,6 +103,4 @@ def routes_for(source: str) -> list:
         out.append("detail")
     if source in LISTING:
         out.append("listing")
-    if source in LIVE:
-        out.append("live")
     return out

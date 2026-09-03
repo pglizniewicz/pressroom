@@ -33,8 +33,6 @@ import sys
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
 from pressroom.attachment.control import conversion  # noqa: E402
-from pressroom.capture.entity import page  # noqa: E402
-from pressroom.database.control import creation  # noqa: E402
 from pressroom.sources.maudio.control import (
     media_news,
     media_pr,  # noqa: E402
@@ -206,7 +204,9 @@ def _cached_like(conn, pattern):
 
 
 def _live_candidates(conn, source):
-    """A live source caches under the row's own url, not a capture address."""
+    """A live scraper's page is cached under the row's own url, not a capture
+    address, so its detail fixture is picked here rather than by timestamp.
+    """
     return conn.execute(
         """
         SELECT p.url, length(p.content), r.url
@@ -257,8 +257,9 @@ def refresh_captures() -> None:
             picker = {
                 "detail": _detail_candidates,
                 "listing": _listing_candidates,
-                "live": _live_candidates,
             }[kind]
+            if kind == "detail" and source in parsers.LIVE_SOURCES:
+                picker = _live_candidates
             rows = picker(conn, source)
             want = 2 if kind == "listing" and source in TWO_LISTINGS else 1
             if kind == "listing" and (source in extra or source in patterns):
@@ -335,21 +336,16 @@ def _usable(conn, source, kind, rows, want) -> list:
         content = conn.execute(
             "SELECT content FROM page_cache WHERE url = ?", (capture,)
         ).fetchone()[0]
-        seeded = _seeded(url or capture, content)
         try:
             got = parsers.parse(
                 kind,
                 source,
                 content,
-                url=url,
                 timestamp=_ts(capture),
-                conn=seeded,
                 base_url=origin.page_of(capture) or url or capture,
             )
         except Exception:
             continue
-        finally:
-            seeded.close()
         got = len(got) if kind == "listing" else len((got or {}).get("body") or "")
         (rich if got >= floor else thin).append((size, capture, url, got))
     rich.sort()
@@ -410,23 +406,6 @@ def refresh_golden() -> None:
         print(f"  {name}")
 
 
-def _seeded(url: str, content: bytes):
-    """An in-memory database holding these bytes under `url`.
-
-    What the live route needs: its extraction lives inside `fetch_body`, which
-    reads page_cache before it reaches for the network, so handing it a seeded
-    cache exercises the parser *and* proves the cache path answers.
-    """
-    conn = sqlite3.connect(":memory:")
-    creation.init_db(conn)
-    conn.execute(
-        "INSERT INTO page_cache (url, content, content_sha256) VALUES (?,?,?)",
-        (url, content, page.content_hash(content)),
-    )
-    conn.commit()
-    return conn
-
-
 def produce(name: str, spec: dict):
     """The parse this fixture stands for, as a JSON-able value."""
     content = support.fixture(name)
@@ -440,19 +419,13 @@ def produce(name: str, spec: dict):
             "plain_kind": plain_kind,
             "plain": plain,
         }
-    conn = _seeded(spec["url"], content)
-    try:
-        return parsers.parse(
-            spec["kind"],
-            spec["source"],
-            content,
-            base_url=spec["base_url"],
-            timestamp=spec["timestamp"],
-            url=spec["url"],
-            conn=conn,
-        )
-    finally:
-        conn.close()
+    return parsers.parse(
+        spec["kind"],
+        spec["source"],
+        content,
+        base_url=spec["base_url"],
+        timestamp=spec["timestamp"],
+    )
 
 
 def main() -> None:

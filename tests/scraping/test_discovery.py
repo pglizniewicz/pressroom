@@ -13,10 +13,12 @@ executed under test until now.
 
 import contextlib
 import io
+import unittest
 from unittest import mock
 
 from pressroom.capture.control import archive
 
+from pressroom.reporting.entity import selection
 from pressroom.reporting.entity.outcome import Stats
 from pressroom.scraping.control import discovery
 from tests import support
@@ -40,24 +42,39 @@ def item(url="http://x/one", **kw):
     }
 
 
+class Refusing:
+    """A session whose every request fails, the way a dead network does."""
+
+    def __init__(self, error=None):
+        self.error = error or OSError("connection reset by peer")
+
+    def get(self, *a, **kw):
+        raise self.error
+
+
+def article(content):
+    return {"body": ARTICLE, "body_html": f"<p>{ARTICLE}</p>"}
+
+
 class FromItemsTest(support.DbCase):
-    def run_items(self, items, fetch_body):
+    def run_items(self, items, parse, session=None):
+        """The page is either in page_cache already or the session refuses: a
+        parser takes bytes, so the only way to the network is fetch_cached."""
         stats = Stats("src")
         quiet(
             discovery.from_items,
             self.conn,
-            None,
+            session or Refusing(),
             "src",
             items,
-            fetch_body=fetch_body,
+            parse=parse,
             stats=stats,
         )
         return stats.counts
 
     def test_a_body_is_stored_with_the_listing_s_title_and_date(self):
-        counts = self.run_items(
-            [item()], lambda conn, session, url: (ARTICLE, f"<p>{ARTICLE}</p>")
-        )
+        self.cache("http://x/one", b"<html>the page</html>")
+        counts = self.run_items([item()], article)
         self.assertEqual(counts["added"], 1)
         row = self.conn.execute(
             "SELECT source, title, date, body, body_html, detail_id, grade"
@@ -82,11 +99,7 @@ class FromItemsTest(support.DbCase):
         to pick up. An inserted empty row would be worse than no row at all -
         already_stored() would skip it forever, so one timeout would cost the
         release permanently."""
-
-        def boom(conn, session, url):
-            raise OSError("connection reset by peer")
-
-        counts = self.run_items([item()], boom)
+        counts = self.run_items([item()], article)
         self.assertEqual(counts["uncertain"], 1)
         self.assertEqual(counts["dead"], 0)
         self.assertEqual(counts["skipped"], 0)
@@ -94,10 +107,25 @@ class FromItemsTest(support.DbCase):
             self.conn.execute("SELECT count(*) FROM releases").fetchone()[0], 0
         )
 
+    def test_a_parser_raising_on_a_page_is_uncertain_too(self):
+        """The fetch and the parse sit in one `try` on purpose: a parser that
+        trips on a page is no more a verdict about the release than a timeout."""
+
+        def trip(content):
+            raise ValueError("unexpected markup")
+
+        self.cache("http://x/one", b"<html>the page</html>")
+        counts = self.run_items([item()], trip)
+        self.assertEqual(counts["uncertain"], 1)
+        self.assertEqual(
+            self.conn.execute("SELECT count(*) FROM releases").fetchone()[0], 0
+        )
+
     def test_an_empty_body_is_dead_and_never_a_stored_row(self):
         """A row with a full grade and no text cannot be told apart from a
         release that genuinely had none, and rule 1 makes it permanent."""
-        counts = self.run_items([item()], lambda conn, session, url: ("", ""))
+        self.cache("http://x/one", b"<html>no article in here</html>")
+        counts = self.run_items([item()], lambda content: {})
         self.assertEqual(counts["dead"], 1)
         self.assertEqual(counts["added"], 0)
         self.assertEqual(
@@ -107,10 +135,14 @@ class FromItemsTest(support.DbCase):
     def test_an_item_already_stored_is_skipped_without_a_fetch(self):
         self.seed("src", url="http://x/one", body="already here")
 
-        def refuse(conn, session, url):
-            raise AssertionError("fetched an item that was already stored")
+        def refuse(content):
+            raise AssertionError("parsed an item that was already stored")
 
-        counts = self.run_items([item()], refuse)
+        counts = self.run_items(
+            [item()],
+            refuse,
+            session=Refusing(AssertionError("fetched an item that was already stored")),
+        )
         self.assertEqual(counts["skipped"], 1)
 
     def test_a_write_that_inserted_nothing_is_skipped_not_added(self):
@@ -121,22 +153,23 @@ class FromItemsTest(support.DbCase):
         `already_stored` is url-keyed, so it normally catches this first and the
         write's return value is the second gate on the same question. Reaching
         that gate needs the row to appear *after* the pre-check, which is what
-        the fetch does here: it is the shape of two runs of the same source
+        the parse does here: it is the shape of two runs of the same source
         overlapping, and the reason the gate is not redundant.
         """
 
-        def fetch_and_race(conn, session, url):
-            self.seed("other", url=url, body="stored while we were fetching")
-            return ARTICLE, f"<p>{ARTICLE}</p>"
+        def parse_and_race(content):
+            self.seed("other", url="http://x/one", body="stored while we were parsing")
+            return article(content)
 
-        counts = self.run_items([item()], fetch_and_race)
+        self.cache("http://x/one", b"<html>the page</html>")
+        counts = self.run_items([item()], parse_and_race)
         self.assertEqual(counts["added"], 0)
         self.assertEqual(counts["skipped"], 1)
         self.assertEqual(
             self.conn.execute(
                 "SELECT source, body FROM releases WHERE url = ?", ("http://x/one",)
             ).fetchone()[1],
-            "stored while we were fetching",
+            "stored while we were parsing",
             "the row that won the race must be left exactly as it was",
         )
 
@@ -144,14 +177,12 @@ class FromItemsTest(support.DbCase):
         """These are hour-long crawls against a flaky archive: a rerun must pick
         up exactly what the last one could not get, which needs the loop to keep
         going past a single failure."""
-
-        def fetch(conn, session, url):
-            if url.endswith("two"):
-                raise OSError("timed out")
-            return ARTICLE, f"<p>{ARTICLE}</p>"
-
+        self.cache("http://x/one", b"<html>one</html>")
+        self.cache("http://x/three", b"<html>three</html>")
         counts = self.run_items(
-            [item("http://x/one"), item("http://x/two"), item("http://x/three")], fetch
+            [item("http://x/one"), item("http://x/two"), item("http://x/three")],
+            article,
+            session=Refusing(OSError("timed out")),
         )
         self.assertEqual((counts["added"], counts["uncertain"]), (2, 1))
         self.assertEqual(
@@ -168,15 +199,22 @@ class FakeArchive:
     walk itself is left real - `capture()` is now one call into it, and stubbing
     that call out would test nothing but the mock.
 
-    One capture in the list, so there is no year-later probe and no tail to walk
-    back over: what the walk chooses out of several is
-    `tests/capture/test_archive.py`'s subject, not this file's.
+    One capture in the list unless `captures` says otherwise, so there is no
+    year-later probe and no tail to walk back over: what the walk chooses out
+    of several is `tests/capture/test_archive.py`'s subject, not this file's.
     """
 
     def __init__(
-        self, *, snapshot=None, parsed=None, probe_error=None, fetch_error=None
+        self,
+        *,
+        snapshot=None,
+        parsed=None,
+        probe_error=None,
+        fetch_error=None,
+        captures=None,
     ):
         self.snapshot = snapshot
+        self.captures = captures  # {timestamp: bytes}, for a walk over several
         self.parsed = parsed if parsed is not None else {}
         self.probe_error = probe_error
         self.fetch_error = fetch_error
@@ -186,11 +224,16 @@ class FakeArchive:
         self.probed.append(url)
         if self.probe_error:
             raise self.probe_error
+        if self.captures is not None:
+            return sorted(self.captures)
         return [TS] if self.snapshot else []
 
     def fetch_snapshot(self, conn, session, url, timeout=20):
         if self.fetch_error:
             raise self.fetch_error
+        if self.captures is not None:
+            ts = url.split("/web/", 1)[1].split("id_/", 1)[0]
+            return self.captures[ts]
         return b"<html>whatever the parser is fed</html>"
 
     def install(self, case):
@@ -547,3 +590,51 @@ class FromTeasersTest(support.DbCase):
         counts, calls = self.run_entries([teaser_entry()], detail=detail())
         self.assertEqual(counts["skipped"], 1)
         self.assertEqual(calls, [], "the detail page was fetched for nothing")
+
+
+class DetailSnapshotTest(unittest.TestCase):
+    """`fetch_detail_snapshot`: the walk's choice, parsed, with its address on it.
+
+    The regression it guards is `tests/capture/test_archive.py`'s: the newest
+    capture of a dead article is the rebuilt site's shell page, and it parses
+    to nothing. So the fixture is that pair - an early capture that scores and
+    a late one that does not - and the walk is real, only CDX and the fetch are
+    faked.
+    """
+
+    ARTICLE_BYTES = b"x" * 915
+    SHELL = b"y" * 40772
+
+    def setUp(self):
+        selection.OVERRIDES.clear()
+        self.addCleanup(selection.OVERRIDES.clear)
+
+    @staticmethod
+    def parse(content):
+        return {"body": "a" * content.count(b"x")}
+
+    def fetch(self, captures):
+        FakeArchive(captures=captures).install(self)
+        (parsed, confirmed), _ = quiet(
+            discovery.fetch_detail_snapshot, None, None, "http://x/one", self.parse
+        )
+        return parsed, confirmed
+
+    def test_it_carries_the_chosen_captures_address_not_the_newest(self):
+        """`detail_id` and `origin_url` have to name the capture the body was
+        actually read out of - four sources lost their provenance here once."""
+        parsed, confirmed = self.fetch(
+            {"20120607000000": self.ARTICLE_BYTES, "20240320000000": self.SHELL}
+        )
+        self.assertTrue(confirmed)
+        self.assertEqual(parsed["detail_id"], "20120607000000")
+        self.assertEqual(
+            parsed["origin_url"],
+            "https://web.archive.org/web/20120607000000id_/http://x/one",
+        )
+
+    def test_a_page_whose_every_capture_is_bodyless_is_a_confirmed_dead_end(self):
+        parsed, confirmed = self.fetch(
+            {"20120607000000": self.SHELL, "20240320000000": self.SHELL}
+        )
+        self.assertEqual((parsed, confirmed), ({}, True))

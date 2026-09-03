@@ -160,7 +160,7 @@ def extract_entries(
     pages (many headings, each in its own div.block) and individual article
     pages (one heading, no div.block wrapper). `base_url` is unused (this
     page's own links are already absolute) - the 3-arg shape matches
-    archive.sample_all_captures' parse_fn contract.
+    discovery.sample_all_captures' parse_fn contract.
 
     Takes bytes and decodes them here through `decode_html`: these pages declare
     charset=utf-8 and are valid UTF-8, and handing the bytes to BeautifulSoup
@@ -252,7 +252,7 @@ def scrape_lang(lang: str, limit: int | None = None, catch: dict | None = None) 
         entries = (
             []
             if catch_up.no_crawl(catch)
-            else archive.sample_all_captures(
+            else discovery.sample_all_captures(
                 conn, session, listing_url, extract_entries
             )
         )

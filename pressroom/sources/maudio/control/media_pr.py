@@ -46,7 +46,7 @@ from pressroom.release.control import storage
 from pressroom.scraping.control import catch_up
 from pressroom.text.control import richtext
 from pressroom.reporting.entity.outcome import Stats
-from pressroom.capture.control import archive
+from pressroom.scraping.control import discovery
 from pressroom.scraping.entity.parse import Entry
 
 
@@ -163,7 +163,7 @@ def scrape_domain(
     entries = (
         []
         if catch_up.no_crawl(catch)
-        else archive.sample_all_captures(
+        else discovery.sample_all_captures(
             conn, session, listing_url, extract_entries, limit=limit
         )
     )

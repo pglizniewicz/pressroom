@@ -80,7 +80,8 @@ from pressroom.release.control import storage
 from pressroom.scraping.control import catch_up
 from pressroom.text.control import richtext
 from pressroom.reporting.entity.outcome import Stats
-from pressroom.capture.control import address, archive
+from pressroom.capture.control import address
+from pressroom.scraping.control import discovery
 from pressroom.scraping.entity.parse import Entry
 
 SOURCE = "midiman_de"
@@ -378,7 +379,7 @@ def scrape(limit: int | None = None, catch: dict | None = None) -> None:
         entries = (
             []
             if catch_up.no_crawl(catch)
-            else archive.sample_all_captures(
+            else discovery.sample_all_captures(
                 conn, session, page_url, parse_page, limit=limit
             )
         )

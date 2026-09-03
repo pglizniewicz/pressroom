@@ -12,13 +12,13 @@ import requests
 from bs4 import BeautifulSoup
 
 from pressroom.text.control.decoding import decode_html
-from pressroom.capture.control.politeness import HEADERS, SLEEP, fetch_cached
+from pressroom.capture.control.politeness import HEADERS, SLEEP
 from pressroom.text.control import richtext
 from pressroom.database.control import connection
 from pressroom.scraping.control import catch_up
 from pressroom.scraping.control import discovery
 from pressroom.reporting.entity.outcome import Stats
-from pressroom.scraping.entity.parse import Entry
+from pressroom.scraping.entity.parse import Detail, Entry
 
 BASE_URL = "https://sg.creative.com"
 LIST_URL = f"{BASE_URL}/corporate/pressroom"
@@ -57,15 +57,16 @@ def parse_list_page(session: requests.Session, year: int) -> list[Entry]:
     return items
 
 
-def fetch_body(conn, session: requests.Session, url: str) -> tuple[str, str]:
-    """(body, body_html) for one release, or ("", "") if the content column is
-    missing. Goes through fetch_cached, so a reparse costs no request."""
-    content = fetch_cached(conn, session, url)
+def parse_detail(content: bytes) -> Detail:
+    """The release out of one live page, or `{}` if the content column is
+    missing. Bytes in and no fetch: the library brings the page through
+    `politeness.fetch_cached`, so a reparse costs no request."""
     soup = BeautifulSoup(decode_html(content), "html.parser")
     col = soup.select_one("div.corporate-content div.col-sm-8")
     if not col:
-        return "", ""
-    return richtext.extract(col)
+        return {}
+    body, body_html = richtext.extract(col)
+    return {"body": body, "body_html": body_html}
 
 
 def scrape(
@@ -96,13 +97,14 @@ def scrape(
         time.sleep(SLEEP)
 
         discovery.from_items(
-            conn, session, SOURCE, items, fetch_body=fetch_body, stats=stats
+            conn, session, SOURCE, items, parse=parse_detail, stats=stats
         )
 
         print()
 
     stats.summary(conn)
-    # fetch_body goes through fetch_cached, so a page already in page_cache
-    # costs nothing: this is both the offline reparse and the live retry.
-    catch_up.run(conn, SOURCE, catch, fetch_body=fetch_body, session=session)
+    # The live pass fetches through fetch_cached, so a page already in
+    # page_cache costs nothing: this is both the offline reparse and the live
+    # retry.
+    catch_up.run(conn, SOURCE, catch, live_parser=parse_detail, session=session)
     conn.close()

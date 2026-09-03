@@ -63,7 +63,7 @@ from pressroom.scraping.control import catch_up
 from pressroom.scraping.control import discovery
 from pressroom.text.control import richtext
 from pressroom.reporting.entity.outcome import Stats
-from pressroom.scraping.entity.parse import Entry
+from pressroom.scraping.entity.parse import Detail, Entry
 
 BASE_URL = "https://www.soundonsound.com"
 SOURCE = "soundonsound"
@@ -121,17 +121,20 @@ def parse_listing(content: bytes) -> list[Entry]:
     return items
 
 
-def fetch_body(conn, session: requests.Session, url: str) -> tuple[str, str]:
-    """(body, body_html) for one article, or ("", "") if the container is
-    missing. The signature is the one catch_up.from_live expects."""
-    content = fetch_cached(conn, session, url, sleep=CRAWL_DELAY)
-    # decode_html(bytes), never r.text - the page declares UTF-8 but requests
-    # falls back to ISO-8859-1 whenever a header omits the charset.
+def parse_detail(content: bytes) -> Detail:
+    """The article out of one live page, or `{}` if the container is missing.
+    Bytes in and no fetch: the library brings the page through
+    `politeness.fetch_cached`, with this site's Crawl-delay as `sleep`.
+
+    decode_html(bytes), never r.text - the page declares UTF-8 but requests
+    falls back to ISO-8859-1 whenever a header omits the charset.
+    """
     soup = BeautifulSoup(decode_html(content), "html.parser")
     node = soup.select_one("div.node__content")
     if not node:
-        return "", ""
-    return richtext.extract(node)
+        return {}
+    body, body_html = richtext.extract(node)
+    return {"body": body, "body_html": body_html}
 
 
 def collect(conn, session, pages: int | None = None) -> dict[str, Entry]:
@@ -188,9 +191,22 @@ def scrape(
     stats = Stats(SOURCE, total=len(items))
 
     discovery.from_items(
-        conn, session, SOURCE, items, fetch_body=fetch_body, stats=stats
+        conn,
+        session,
+        SOURCE,
+        items,
+        parse=parse_detail,
+        stats=stats,
+        sleep=CRAWL_DELAY,
     )
 
     stats.summary(conn)
-    catch_up.run(conn, SOURCE, catch, fetch_body=fetch_body, session=session)
+    catch_up.run(
+        conn,
+        SOURCE,
+        catch,
+        live_parser=parse_detail,
+        sleep=CRAWL_DELAY,
+        session=session,
+    )
     conn.close()

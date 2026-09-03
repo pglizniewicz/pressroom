@@ -1,9 +1,9 @@
 {
-  "amd__live": {
+  "amd__detail": {
     "base_url": "https://ir.amd.com/news-events/press-releases/detail/95/amd-announces-2010-financial-analyst-day-date-change",
     "capture": "https://ir.amd.com/news-events/press-releases/detail/95/amd-announces-2010-financial-analyst-day-date-change",
-    "file": "amd__live",
-    "kind": "live",
+    "file": "amd__detail",
+    "kind": "detail",
     "source": "amd",
     "timestamp": "",
     "url": "https://ir.amd.com/news-events/press-releases/detail/95/amd-announces-2010-financial-analyst-day-date-change"
@@ -26,29 +26,29 @@
     "timestamp": "20021016075137",
     "url": "http://www.midiman.com/news/pdf/PR07022002A.pdf"
   },
-  "creative__live": {
+  "creative__detail": {
     "base_url": "https://sg.creative.com/corporate/pressroom?id=8348",
     "capture": "https://sg.creative.com/corporate/pressroom?id=8348",
-    "file": "creative__live",
-    "kind": "live",
+    "file": "creative__detail",
+    "kind": "detail",
     "source": "creative",
     "timestamp": "",
     "url": "https://sg.creative.com/corporate/pressroom?id=8348"
   },
-  "creative_gnw__live": {
+  "creative_gnw__detail": {
     "base_url": "https://www.globenewswire.com/news-release/2011/09/01/455399/14982/en/creative-unveils-new-sound-blaster-gaming-headsets-at-2011-ifa-berlin.html",
     "capture": "https://www.globenewswire.com/news-release/2011/09/01/455399/14982/en/creative-unveils-new-sound-blaster-gaming-headsets-at-2011-ifa-berlin.html",
-    "file": "creative_gnw__live",
-    "kind": "live",
+    "file": "creative_gnw__detail",
+    "kind": "detail",
     "source": "creative_gnw",
     "timestamp": "",
     "url": "https://www.globenewswire.com/news-release/2011/09/01/455399/14982/en/creative-unveils-new-sound-blaster-gaming-headsets-at-2011-ifa-berlin.html"
   },
-  "intel__live": {
+  "intel__detail": {
     "base_url": "https://www.intc.com/news-events/press-releases/detail/970/correcting-and-replacing-intel-declares-regular-cash",
     "capture": "https://www.intc.com/news-events/press-releases/detail/970/correcting-and-replacing-intel-declares-regular-cash",
-    "file": "intel__live",
-    "kind": "live",
+    "file": "intel__detail",
+    "kind": "detail",
     "source": "intel",
     "timestamp": "",
     "url": "https://www.intc.com/news-events/press-releases/detail/970/correcting-and-replacing-intel-declares-regular-cash"
@@ -242,6 +242,15 @@
     "timestamp": "20020804125531",
     "url": ""
   },
+  "soundonsound__detail": {
+    "base_url": "https://www.soundonsound.com/sound-advice/q-whats-best-way-monitor-any-instrument-connected-my-interface",
+    "capture": "https://www.soundonsound.com/sound-advice/q-whats-best-way-monitor-any-instrument-connected-my-interface",
+    "file": "soundonsound__detail",
+    "kind": "detail",
+    "source": "soundonsound",
+    "timestamp": "",
+    "url": "https://www.soundonsound.com/sound-advice/q-whats-best-way-monitor-any-instrument-connected-my-interface"
+  },
   "soundonsound__listing": {
     "base_url": "https://www.soundonsound.com/search?f%5B0%5D=node%253Afield_subject%3A7099&page=2",
     "capture": "https://www.soundonsound.com/search?f%5B0%5D=node%253Afield_subject%3A7099&page=2",
@@ -250,15 +259,6 @@
     "source": "soundonsound",
     "timestamp": "",
     "url": ""
-  },
-  "soundonsound__live": {
-    "base_url": "https://www.soundonsound.com/sound-advice/q-whats-best-way-monitor-any-instrument-connected-my-interface",
-    "capture": "https://www.soundonsound.com/sound-advice/q-whats-best-way-monitor-any-instrument-connected-my-interface",
-    "file": "soundonsound__live",
-    "kind": "live",
-    "source": "soundonsound",
-    "timestamp": "",
-    "url": "https://www.soundonsound.com/sound-advice/q-whats-best-way-monitor-any-instrument-connected-my-interface"
   },
   "terratec__detail": {
     "base_url": "http://www.terratec.net:80/press/pressemit/cameoconnect.htm",

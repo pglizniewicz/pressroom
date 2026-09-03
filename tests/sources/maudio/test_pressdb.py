@@ -15,7 +15,7 @@ import contextlib
 import io
 from unittest import mock
 
-from pressroom.capture.control import archive
+from pressroom.scraping.control import discovery
 from pressroom.sources.maudio.control import pressdb
 from pressroom.release.entity.grade import Grade
 from tests import support
@@ -65,9 +65,11 @@ class VerdictTest(support.DbCase):
         """
         with (
             support.no_network(),
-            mock.patch.object(archive, "sample_all_captures", lambda *a, **kw: entries),
             mock.patch.object(
-                archive,
+                discovery, "sample_all_captures", lambda *a, **kw: entries
+            ),
+            mock.patch.object(
+                discovery,
                 "fetch_detail_snapshot",
                 fetch_detail or (lambda *a, **kw: self.detail()),
             ),

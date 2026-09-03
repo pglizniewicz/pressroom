@@ -6,7 +6,7 @@ bytes page_cache already holds, then the network. A plain rerun of a scraper
 does all of it, which is why none of this is a script anyone schedules.
 
 A library, deliberately: no `__main__`, no argparse, no source names. The caller
-passes its own parser, its own listing collector, its own live fetcher, so this
+passes its own parser, its own listing collector, its own live parser, so this
 module imports no scraper and a scraper can import it at the top of the file.
 
 Three rules hold in every strategy, in one copy here so a scraper cannot get
@@ -27,8 +27,9 @@ from pressroom.release.control import gate
 from pressroom.provenance.control import resolution
 from pressroom.release.control import storage
 from pressroom.text.control import richtext
-from pressroom.scraping.control import twin
+from pressroom.scraping.control import discovery, twin
 from pressroom.capture.control import archive
+from pressroom.capture.control import politeness
 from pressroom.reporting.entity.outcome import Stats
 
 
@@ -242,20 +243,21 @@ def from_listings(
 def from_live(
     conn,
     source: str,
-    fetch_body,
+    parse,
     session,
     *,
+    sleep=None,
     force: bool = False,
     offline: bool = False,
     limit=None,
 ) -> None:
     """Re-fetch a row from a site that is still up.
 
-    `fetch_body(conn, session, url) -> (body, body_html)` goes through
-    fetch.fetch_cached, so a page fetched once is free forever after - which is
-    why this is also the offline strategy for the live sources: with
-    `offline=True`, a row whose page is not in page_cache is skipped rather
-    than fetched.
+    The page comes through `politeness.fetch_cached` - `sleep` is the site's
+    Crawl-delay where it publishes one - and goes to `parse(content) -> Detail`.
+    A page fetched once is free forever after, which is why this is also the
+    offline strategy for the live scrapers: with `offline=True`, a row whose
+    page is not in page_cache is skipped rather than fetched.
 
     No provenance is recorded: a live page is not an archive capture, and a row
     with no body_origin entry is exactly how the browser knows not to offer an
@@ -281,11 +283,13 @@ def from_live(
             stats.skipped()
             continue
         try:
-            body, body_html = fetch_body(conn, session, url)
+            content = politeness.fetch_cached(conn, session, url, sleep=sleep)
+            parsed = parse(content)
         except Exception as e:
             print(f"\n    {url}: {e}")
             stats.uncertain()
             continue
+        body, body_html = parsed.get("body") or "", parsed.get("body_html") or ""
         if not body_html:
             # The page came back but the container was not in it - a layout
             # change or a redirect to a landing page. Not a network problem,
@@ -315,7 +319,7 @@ def retry_missing(conn, source: str, parser, session, *, limit=None) -> None:
     timestamp, so the reconstructed address is one that never existed and 404s
     permanently - which is most of what fails here.
 
-    So a failure falls back to archive.fetch_detail_snapshot, which asks CDX
+    So a failure falls back to discovery.fetch_detail_snapshot, which asks CDX
     what captures of this url actually exist. That turns a permanent 404 into
     either a real recovery from a different capture - detail_id is updated to
     say which, so provenance stays honest - or a confirmed `dead`, which matters
@@ -346,7 +350,7 @@ def retry_missing(conn, source: str, parser, session, *, limit=None) -> None:
         try:
             parsed = guarded(archive.fetch_snapshot(conn, session, key))
         except Exception:
-            parsed, confirmed = archive.fetch_detail_snapshot(
+            parsed, confirmed = discovery.fetch_detail_snapshot(
                 conn, session, url, guarded
             )
             if not parsed:
@@ -462,7 +466,8 @@ def catch_up(
     *,
     parser=None,
     collect=None,
-    fetch_body=None,
+    live_parser=None,
+    sleep=None,
     session=None,
     force: bool = False,
     yes: bool = False,
@@ -476,7 +481,7 @@ def catch_up(
     """Phase 2 for one source, cheapest route first. The call a scraper makes.
 
     The scraper states what it has - its parser, its listing collector, its live
-    fetcher - and this runs the strategies those make possible, in the order that
+    parser - and this runs the strategies those make possible, in the order that
     spends the least: stored markup, then cached bytes, then the network. A
     source with no listing collector simply passes none, and the listing strategy
     does not run; that is what the old registry's membership tests became.
@@ -514,8 +519,10 @@ def catch_up(
         twin.fill(conn, source)
     if offline:
         return
-    if fetch_body is not None:
-        from_live(conn, source, fetch_body, session, force=force, limit=limit)
+    if live_parser is not None:
+        from_live(
+            conn, source, live_parser, session, sleep=sleep, force=force, limit=limit
+        )
     if parser is not None:
         retry_missing(conn, source, parser, session, limit=limit)
 

@@ -19,14 +19,14 @@ import requests
 from bs4 import BeautifulSoup
 
 from pressroom.text.control.decoding import decode_html
-from pressroom.capture.control.politeness import HEADERS, SLEEP, fetch_cached
+from pressroom.capture.control.politeness import HEADERS, SLEEP
 from pressroom.text.control import richtext
 from pressroom.text.control.dating import iso_date
 from pressroom.database.control import connection
 from pressroom.scraping.control import catch_up
 from pressroom.scraping.control import discovery
 from pressroom.reporting.entity.outcome import Stats
-from pressroom.scraping.entity.parse import Entry
+from pressroom.scraping.entity.parse import Detail, Entry
 
 
 def make_session():
@@ -86,19 +86,20 @@ def parse_list_page(session: requests.Session, page: int) -> list[Entry]:
     return items
 
 
-def fetch_body(conn, session: requests.Session, url: str) -> tuple[str, str]:
-    """(body, body_html) for one release, or ("", "") if the article container
-    is missing. Goes through fetch_cached, so a reparse costs no request.
+def parse_detail(content: bytes) -> Detail:
+    """The release out of one live page, or `{}` if the article container is
+    missing. Bytes in and no fetch: the library brings the page through
+    `politeness.fetch_cached`, so a reparse costs no request.
 
     decode_html(bytes), never r.text - the convention holds for live sites too:
     requests guesses ISO-8859-1 whenever the header omits a charset.
     """
-    content = fetch_cached(conn, session, url)
     soup = BeautifulSoup(decode_html(content), "html.parser")
-    body = soup.select_one("div.main-body-container.article-body")
-    if not body:
-        return "", ""
-    return richtext.extract(body)
+    node = soup.select_one("div.main-body-container.article-body")
+    if not node:
+        return {}
+    body, body_html = richtext.extract(node)
+    return {"body": body, "body_html": body_html}
 
 
 def scrape(pages: int | None = None, catch: dict | None = None) -> None:
@@ -128,12 +129,12 @@ def scrape(pages: int | None = None, catch: dict | None = None) -> None:
             break
 
         discovery.from_items(
-            conn, session, SOURCE, items, fetch_body=fetch_body, stats=stats
+            conn, session, SOURCE, items, parse=parse_detail, stats=stats
         )
 
         print()
         page += 1
 
     stats.summary(conn)
-    catch_up.run(conn, SOURCE, catch, fetch_body=fetch_body, session=session)
+    catch_up.run(conn, SOURCE, catch, live_parser=parse_detail, session=session)
     conn.close()

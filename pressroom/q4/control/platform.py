@@ -28,9 +28,9 @@ from pressroom.scraping.control import catch_up
 from pressroom.scraping.control import discovery
 from pressroom.reporting.entity.outcome import Stats
 from pressroom.text.control.decoding import decode_html
-from pressroom.capture.control.politeness import HEADERS, SLEEP, fetch_cached
+from pressroom.capture.control.politeness import HEADERS, SLEEP
 from pressroom.text.control import richtext
-from pressroom.scraping.entity.parse import Entry
+from pressroom.scraping.entity.parse import Detail, Entry
 
 
 def get_total_pages(session: requests.Session, list_url: str) -> int:
@@ -94,17 +94,18 @@ def parse_list_page(
     return items
 
 
-def fetch_body(conn, session: requests.Session, url: str) -> tuple[str, str]:
-    """(body, body_html) for one release, or ("", "") if the article container
-    is missing. Goes through fetch_cached, so a reparse costs no request."""
-    content = fetch_cached(conn, session, url)
+def parse_detail(content: bytes) -> Detail:
+    """The release out of one live page, or `{}` if the article container is
+    missing. Bytes in and no fetch: the library brings the page through
+    `politeness.fetch_cached`, so a reparse costs no request."""
     soup = BeautifulSoup(decode_html(content), "html.parser")
     article = soup.select_one("article.full-news-article")
     if not article:
-        return "", ""
+        return {}
     for el in article.select("div.related-documents-line, h1.article-heading"):
         el.decompose()
-    return richtext.extract(article)
+    body, body_html = richtext.extract(article)
+    return {"body": body, "body_html": body_html}
 
 
 def scrape(
@@ -147,12 +148,12 @@ def scrape(
         time.sleep(SLEEP)
 
         discovery.from_items(
-            conn, session, source, items, fetch_body=fetch_body, stats=stats
+            conn, session, source, items, parse=parse_detail, stats=stats
         )
 
         print()
 
     stats.summary(conn)
     # Phase 2 for the tag this run owns.
-    catch_up.run(conn, source, catch, fetch_body=fetch_body, session=session)
+    catch_up.run(conn, source, catch, live_parser=parse_detail, session=session)
     conn.close()

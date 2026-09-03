@@ -17,7 +17,7 @@ how a fixture is parsed, which would make a green run meaningless.
 import json
 import unittest
 
-from tests import refresh, support
+from tests import parsers, refresh, support
 
 
 def as_json(value):
@@ -93,16 +93,19 @@ class ShapeTest(unittest.TestCase):
                 self.assertTrue(entries)
                 self.assertTrue(all(e for e in entries), f"{name}: an empty entry")
 
-    def test_a_live_route_answers_from_the_cache_alone(self):
-        """`fetch_body` is handed session=None, so a route that reached for the
-        network would raise rather than fetch. That is the assertion: these five
-        sources are still up, and a test that quietly crawled them would be both
-        slow and rude."""
-        live = [n for n, s in support.manifest().items() if s["kind"] == "live"]
-        self.assertEqual(len(live), 5)
-        for name in sorted(live):
-            with self.subTest(fixture=name):
-                self.assertTrue(support.golden(name)["body"])
+    def test_every_live_scraper_s_parser_has_a_detail_fixture(self):
+        """The five live scrapers used to have a route of their own, `live`,
+        because their extraction sat inside a fetch. It is a `parse_detail`
+        taking bytes now, so they are detail fixtures like the rest - and a
+        parser that takes bytes cannot reach for the network, which the old
+        route had to prove by handing it session=None. What is left to keep is
+        that the five are still here."""
+        for source in parsers.LIVE_SOURCES:
+            with self.subTest(source=source):
+                spec = support.manifest().get(f"{source}__detail")
+                self.assertIsNotNone(spec, f"{source} has no detail fixture")
+                self.assertEqual(spec["kind"], "detail")
+                self.assertTrue(support.golden(f"{source}__detail")["body"])
 
 
 class CollectorTest(support.DbCase):

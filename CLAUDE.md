@@ -230,7 +230,7 @@ without the `body_origin` entry the code had just refused to write. Wherever a
 body write and an `origin.record`/`origin.clear` sit together, they are one
 transaction and both take `commit=False`.
 
-**A network error is not a verdict.** `archive.fetch_detail_snapshot()` returns
+**A network error is not a verdict.** `discovery.fetch_detail_snapshot()` returns
 `(parsed, confirmed)`; `confirmed=False` means archive.org failed, so the caller
 writes *nothing* and leaves the item open to a full retry. Only a confirmed
 absence may be recorded, and it is `uncertain` (`?`), never `dead`.

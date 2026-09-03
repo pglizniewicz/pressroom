@@ -2,7 +2,7 @@
 
 The regression this file exists for: `get_latest_working_snapshot` returned the
 newest HTTP-200 capture, and for a dead press release on a rebuilt domain that
-is the modern site's shell page. It parses to nothing, `fetch_detail_snapshot`
+is the modern site's shell page. It parses to nothing, `discovery.fetch_detail_snapshot`
 called that a confirmed verdict, and phase 2 recorded `dead` on a row whose
 article was sitting in an older capture all along.
 
@@ -212,31 +212,6 @@ class LastProbeTest(WalkCase):
         self.install({"20110101000000": SHELL, "20200101000000": SHELL})
         self.walk()
         self.assertEqual(sorted(self.fetched), ["20110101000000", "20200101000000"])
-
-
-class DetailSnapshotTest(WalkCase):
-    def test_it_carries_the_chosen_captures_address_not_the_newest(self):
-        """`detail_id` and `origin_url` have to name the capture the body was
-        actually read out of - four sources lost their provenance here once."""
-        self.install({"20120607000000": ARTICLE, "20240320000000": SHELL})
-        with contextlib.redirect_stdout(io.StringIO()):
-            parsed, confirmed = archive.fetch_detail_snapshot(
-                None, None, URL, lambda c: {"body": "a" * c.count(b"x")}
-            )
-        self.assertTrue(confirmed)
-        self.assertEqual(parsed["detail_id"], "20120607000000")
-        self.assertEqual(
-            parsed["origin_url"],
-            f"https://web.archive.org/web/20120607000000id_/{URL}",
-        )
-
-    def test_a_page_whose_every_capture_is_bodyless_is_a_confirmed_dead_end(self):
-        self.install({"20120607000000": SHELL, "20240320000000": SHELL})
-        with contextlib.redirect_stdout(io.StringIO()):
-            parsed, confirmed = archive.fetch_detail_snapshot(
-                None, None, URL, lambda c: {"body": "a" * c.count(b"x")}
-            )
-        self.assertEqual((parsed, confirmed), ({}, True))
 
 
 if __name__ == "__main__":

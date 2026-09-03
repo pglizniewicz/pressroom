@@ -2,12 +2,14 @@
 
 A library on the same terms as catch_up.py, which is phase 2: no `__main__`, no
 argparse, no source names, no parser of its own. The caller passes its own
-fetcher or parser and its own `Stats`, so this module imports no scraper and a
-scraper can import it at the top of the file.
+parser and its own `Stats`, so this module imports no scraper and a scraper can
+import it at the top of the file. The fetching is this module's - a live page
+through `politeness.fetch_cached`, an archived one through `archive` - so a
+parser takes bytes and never fetches them.
 
 The strategies are named for where the release's text comes from, because that
-is the only axis on which the loops genuinely differ. What stays in the source
-component is everything above the loop - pagination, the `catch_up.no_crawl()`
+is the only axis on which the loops genuinely differ. What stays in the scraper
+is everything above the loop - pagination, the `catch_up.no_crawl()`
 guard, `limit`, the dedup that picks the best of several captures - and every
 tail that is really per-scraper.
 
@@ -26,20 +28,25 @@ from typing import NamedTuple
 
 from pressroom.capture.control import address
 from pressroom.capture.control import archive
+from pressroom.capture.control import politeness
 from pressroom.release.control import storage
-from pressroom.scraping.entity.parse import Detail
+from pressroom.reporting.entity import outcome
+from pressroom.scraping.entity.parse import Detail, Entry
 
 
-def from_items(conn, session, source: str, items, *, fetch_body, stats) -> None:
-    """Store each listing item whose body a live fetch can produce.
+def from_items(conn, session, source: str, items, *, parse, stats, sleep=None) -> None:
+    """Store each listing item whose live page parses to an article.
 
     `items` are mappings with `url`, `title`, `date` and `detail_id` - what a
-    collector reads off a listing page. `fetch_body(conn, session, url)` returns
-    `(body, body_html)` and goes through `politeness.fetch_cached`, so an item
-    whose page is already in `page_cache` costs no request.
+    crawler reads off a live listing page. Each page comes through
+    `politeness.fetch_cached`, so an item already in `page_cache` costs no
+    request, and goes to `parse(content) -> Detail`; `sleep` is the site's
+    Crawl-delay where it publishes one. The fetch and the parse sit in one
+    `try`, because a parser raising on a page is no more a verdict than a
+    timeout is.
 
     `stats` comes from the caller because it owns the run's shape: several
-    sources drive this loop once per page or once per year and want one summary
+    scrapers drive this loop once per page or once per year and want one summary
     over all of them.
     """
     for item in items:
@@ -48,12 +55,14 @@ def from_items(conn, session, source: str, items, *, fetch_body, stats) -> None:
             continue
 
         try:
-            body, body_html = fetch_body(conn, session, item["url"])
+            content = politeness.fetch_cached(conn, session, item["url"], sleep=sleep)
+            parsed = parse(content)
         except Exception as e:
             print(f"\n    ERROR fetching {item['url']}: {e}")
             stats.uncertain()
             continue
 
+        body = parsed.get("body") or ""
         if not body:
             stats.dead()
             continue
@@ -65,7 +74,7 @@ def from_items(conn, session, source: str, items, *, fetch_body, stats) -> None:
             title=item["title"],
             date=item["date"],
             body=body,
-            body_html=body_html,
+            body_html=parsed.get("body_html"),
             detail_id=item["detail_id"],
         ):
             stats.added()
@@ -94,7 +103,7 @@ def _detail_score(parsed) -> int:
     The middle rung is not a rounding. `from_candidates` stores a title-only
     capture as a `stub` - the row phase 2 comes back to - so a scorer that
     rejected it outright would turn every one of those into `dead` and lose the
-    row. `archive.fetch_detail_snapshot` keeps the body-only rule instead,
+    row. `fetch_detail_snapshot` keeps the body-only rule instead,
     because it returns `{}` for a bodyless parse by contract and walking further
     for a headline would buy it nothing.
     """
@@ -112,7 +121,7 @@ def capture(conn, session, url: str, parse, *, stats, timeout: int = 20):
     or a body read off a listing capture instead), so this returns it rather
     than counting it.
 
-    The split is `archive.fetch_detail_snapshot`'s `(parsed, confirmed)` pair
+    The split is `fetch_detail_snapshot`'s `(parsed, confirmed)` pair
     with the capture's address kept: five loops rebuilt this by hand precisely
     because they needed `snapshot_url` and `timestamp` afterwards.
     """
@@ -130,6 +139,81 @@ def capture(conn, session, url: str, parse, *, stats, timeout: int = 20):
     # the archive never saw gets.
     parsed = parse(content) if content is not None else {}
     return Capture(parsed, timestamp, address.snapshot_url(timestamp, url))
+
+
+def fetch_detail_snapshot(conn, session, url: str, parse_fn, timeout: int = 20):
+    """Fetch and parse a per-item detail page -> (parsed, confirmed).
+
+    `parsed` is {} when nothing was recovered, and `confirmed` says whether that
+    is a verdict: a verified dead end may be recorded permanently, a network
+    hiccup must leave the item open to a full retry. A recovered `parsed`
+    carries `detail_id` and `origin_url`, so the caller can write the body and
+    its provenance in one transaction.
+
+    Capture selection is `archive.fetch_best_matching_snapshot`'s, scored by how
+    much body the page yields - the same measure `gate.not_shorter` compares on,
+    so a capture this walk picks cannot then be vetoed downstream for being
+    shorter than one it passed over. `({}, True)` means every capture was tried
+    and none carried an article, which is the verdict a caller records as
+    `dead`; it used to mean only that the newest one did not.
+
+    `capture()` above is the same fetch with the verdict left to the caller;
+    this is the older shape `from_teasers` and `catch_up.retry_missing` take.
+    """
+
+    def score(raw: bytes) -> int:
+        return len(parse_fn(raw).get("body") or "")
+
+    content, ts, confirmed = archive.fetch_best_matching_snapshot(
+        conn, session, url, score, timeout=timeout
+    )
+    if content is None:
+        return {}, confirmed
+    # The winner is parsed twice, once to score it and once for real. parse_fn
+    # is pure and one more bs4 pass costs nothing beside a network fetch, so
+    # this is deliberate rather than an oversight - caching the parse by content
+    # hash would be more machinery than the saving.
+    parsed = parse_fn(content)
+    parsed["detail_id"] = ts
+    # The address, not just the timestamp: a caller that never sees the
+    # snapshot url cannot record where the body came from.
+    parsed["origin_url"] = address.snapshot_url(ts, url)
+    return parsed, True
+
+
+def sample_all_captures(
+    conn, session, url: str, parse_fn, limit: int | None = None
+) -> list[Entry]:
+    """Every historical HTTP-200 capture of `url` - a listing page whose content
+    grows over time - parsed through `parse_fn(content, url, timestamp)` and
+    returned as one flat list.
+
+    Phase 1 for a generation whose releases only ever existed inside a listing:
+    the crawler's pool is the listing's own captures, walked along time rather
+    than along links, and each one is fetched and handed to the listing parser.
+    Owns the listing -> fetch -> parse loop and nothing above it: the dedup that
+    picks the best of several captures is per-scraper, so the caller does it.
+    """
+    try:
+        timestamps = archive.list_all_captures(url)
+    except Exception as e:
+        print(f"  ERROR listing captures: {e}")
+        return []
+    if limit:
+        timestamps = timestamps[:limit]
+    print(f"  {len(timestamps)} captures to sample", flush=True)
+
+    entries = []
+    for ts in timestamps:
+        snap_url = address.snapshot_url(ts, url)
+        try:
+            content = archive.fetch_snapshot(conn, session, snap_url, timeout=20)
+            entries.extend(parse_fn(content, url, ts))
+        except Exception as e:
+            print(f"\n  ERROR fetching {snap_url}: {e}")
+            continue
+        print(outcome.CAPTURE, end="", flush=True)
+    return entries
 
 
 def from_candidates(
@@ -237,10 +321,10 @@ def from_teasers(
     the upgrade then writes the body alone.
 
     `fetch_detail(conn, session, url, parse)` returns `(parsed, confirmed)` and
-    defaults to `archive.fetch_detail_snapshot`; it is a parameter because one
+    defaults to `fetch_detail_snapshot`; it is a parameter because one
     source has to try two addresses per release.
     """
-    fetch_detail = fetch_detail or archive.fetch_detail_snapshot
+    fetch_detail = fetch_detail or fetch_detail_snapshot
 
     for entry in entries:
         url = entry["url"]
