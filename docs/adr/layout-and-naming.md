@@ -78,7 +78,7 @@ no longer one". Two rules replaced them:
 - **a pass that has to be re-run after a crawl belongs in the write path or in
   the scraper.** Provenance and the encoding repair both moved into
   `storage.store_release`/`upgrade_release` and `richtext.extract()`; the
-  re-extraction modes became `scraping/control/catch_up.py` and are driven by
+  re-extraction modes became `scraper/control/catch_up.py` and are driven by
   the source component that owns the tag.
 - **a fix that is genuinely finished gets deleted.** Git holds the code (`git
   show <sha>:repair_cache_hashes.py`), `CLAUDE.md` holds the rule it
@@ -187,7 +187,7 @@ records `[no-js]` against `web-static`:
 ## The dependency direction
 
 **The dependency direction is a rule, not an accident.** A source component
-imports `scraping`, `release`, `fetcher`, `text`, `database`, `reporting` and
+imports `scraper`, `release`, `fetcher`, `text`, `database`, `reporting` and
 `q4`; none of those imports a source component. The one exception is documented
 and safe: `provenance/boundary/verification.py` imports source control modules
 to reproduce bodies, and nothing imports it back.

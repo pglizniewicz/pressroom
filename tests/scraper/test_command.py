@@ -10,7 +10,7 @@ whole.
 import argparse
 import unittest
 
-from pressroom.scraping.boundary import command
+from pressroom.scraper.boundary import command
 
 
 class OptionTest(unittest.TestCase):

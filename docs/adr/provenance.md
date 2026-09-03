@@ -83,7 +83,7 @@ back from the capture walk, often under a mirror domain, and a crash between the
 two commits left the row holding the PDF's text while still advertising whatever
 capture it had before. All three now pass `origin_url=` to `upgrade_release` and
 inherit its transaction, which also puts `is_capture_address()` on a path that
-never had it. `tests/scraping/test_attachment_crawl.py` holds it, and that test
+never had it. `tests/scraper/test_attachment_crawl.py` holds it, and that test
 was checked against the old code first: there nothing raises at all, because
 `origin.record` does not validate - only the write site does.
 

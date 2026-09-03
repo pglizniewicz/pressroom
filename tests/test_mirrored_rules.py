@@ -208,8 +208,8 @@ class GradeVerdictTest(unittest.TestCase):
     # `retext`, and in `reextract_from_cache` the gate admits nothing but a body
     # that already *is* this extraction.
     EXEMPT = {
-        "scraping/control/catch_up.py:retext",
-        "scraping/control/attachment_crawl.py:reextract_from_cache",
+        "scraper/control/catch_up.py:retext",
+        "scraper/control/attachment_crawl.py:reextract_from_cache",
     }
 
     def _writes(self):

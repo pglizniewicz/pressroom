@@ -20,7 +20,7 @@ from pressroom.fetcher.control import archive
 
 from pressroom.reporting.entity import selection
 from pressroom.reporting.entity.outcome import Stats
-from pressroom.scraping.control import discovery
+from pressroom.scraper.control import discovery
 from tests import support
 
 ARTICLE = "The full press release text. " * 20

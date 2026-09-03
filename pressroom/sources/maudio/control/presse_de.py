@@ -77,12 +77,12 @@ from bs4 import BeautifulSoup
 from pressroom.release.control.storage import stored_grade
 from pressroom.database.control import connection
 from pressroom.release.control import storage
-from pressroom.scraping.control import catch_up
+from pressroom.scraper.control import catch_up
 from pressroom.text.control import richtext
 from pressroom.reporting.entity.outcome import Stats
 from pressroom.fetcher.control import address
-from pressroom.scraping.control import discovery
-from pressroom.scraping.entity.parse import Entry
+from pressroom.scraper.control import discovery
+from pressroom.scraper.entity.parse import Entry
 
 SOURCE = "midiman_de"
 

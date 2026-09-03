@@ -59,11 +59,11 @@ from pressroom.text.control.dating import iso_date
 from pressroom.text.control.decoding import decode_html
 from pressroom.fetcher.control.politeness import fetch_cached
 from pressroom.database.control import connection
-from pressroom.scraping.control import catch_up
-from pressroom.scraping.control import discovery
+from pressroom.scraper.control import catch_up
+from pressroom.scraper.control import discovery
 from pressroom.text.control import richtext
 from pressroom.reporting.entity.outcome import Stats
-from pressroom.scraping.entity.parse import Detail, Entry
+from pressroom.scraper.entity.parse import Detail, Entry
 
 BASE_URL = "https://www.soundonsound.com"
 SOURCE = "soundonsound"

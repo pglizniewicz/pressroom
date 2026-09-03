@@ -67,12 +67,12 @@ from pressroom.text.control.dating import iso_date
 from pressroom.text.control.decoding import decode_html
 from pressroom.database.control import connection
 from pressroom.release.control import storage
-from pressroom.scraping.control import catch_up
-from pressroom.scraping.control import discovery
+from pressroom.scraper.control import catch_up
+from pressroom.scraper.control import discovery
 from pressroom.text.control import richtext
 from pressroom.reporting.entity.outcome import Stats
 from pressroom.fetcher.control import archive
-from pressroom.scraping.entity.parse import Detail, Entry
+from pressroom.scraper.entity.parse import Detail, Entry
 
 # source tag -> that domain's index.php front controller.
 #

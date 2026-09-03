@@ -40,14 +40,14 @@ from bs4 import BeautifulSoup
 from pressroom.release.control.storage import already_stored
 from pressroom.text.control.dating import iso_date
 from pressroom.text.control.decoding import decode_html
-from pressroom.scraping.control import attachment_crawl
+from pressroom.scraper.control import attachment_crawl
 from pressroom.database.control import connection
 from pressroom.release.control import storage
-from pressroom.scraping.control import catch_up
+from pressroom.scraper.control import catch_up
 from pressroom.text.control import richtext
 from pressroom.reporting.entity.outcome import Stats
-from pressroom.scraping.control import discovery
-from pressroom.scraping.entity.parse import Entry
+from pressroom.scraper.control import discovery
+from pressroom.scraper.entity.parse import Entry
 
 
 DOMAINS = {

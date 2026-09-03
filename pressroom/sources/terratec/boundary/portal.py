@@ -7,7 +7,7 @@ Usage:
   pressroom-terratec-portal --offline                 # only catch up from page_cache
 """
 
-from pressroom.scraping.boundary import command
+from pressroom.scraper.boundary import command
 from pressroom.sources.terratec.control import portal
 
 

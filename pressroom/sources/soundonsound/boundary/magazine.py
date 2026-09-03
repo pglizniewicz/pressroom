@@ -10,7 +10,7 @@ Usage:
   pressroom-soundonsound
 """
 
-from pressroom.scraping.boundary import command
+from pressroom.scraper.boundary import command
 from pressroom.sources.soundonsound.control import magazine
 
 

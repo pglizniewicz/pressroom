@@ -24,13 +24,13 @@ from bs4 import BeautifulSoup
 
 from pressroom.text.control.dating import iso_date
 from pressroom.database.control import connection
-from pressroom.scraping.control import catch_up
-from pressroom.scraping.control import discovery
+from pressroom.scraper.control import catch_up
+from pressroom.scraper.control import discovery
 from pressroom.reporting.entity.outcome import Stats
 from pressroom.text.control.decoding import decode_html
 from pressroom.fetcher.control.politeness import HEADERS, SLEEP
 from pressroom.text.control import richtext
-from pressroom.scraping.entity.parse import Detail, Entry
+from pressroom.scraper.entity.parse import Detail, Entry
 
 
 def get_total_pages(session: requests.Session, list_url: str) -> int:

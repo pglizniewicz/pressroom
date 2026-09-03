@@ -11,7 +11,7 @@ import io
 from pressroom.fetcher.control import address
 from pressroom.provenance.entity import origin
 from pressroom.release.control import storage
-from pressroom.scraping.control import catch_up
+from pressroom.scraper.control import catch_up
 from pressroom.release.entity.grade import Grade
 from tests import support
 

@@ -27,7 +27,7 @@ from pressroom.release.control import gate
 from pressroom.provenance.control import resolution
 from pressroom.release.control import storage
 from pressroom.text.control import richtext
-from pressroom.scraping.control import discovery, twin
+from pressroom.scraper.control import discovery, twin
 from pressroom.fetcher.control import archive
 from pressroom.fetcher.control import politeness
 from pressroom.reporting.entity.outcome import Stats

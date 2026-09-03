@@ -15,7 +15,7 @@ import contextlib
 import io
 from unittest import mock
 
-from pressroom.scraping.control import discovery
+from pressroom.scraper.control import discovery
 from pressroom.sources.maudio.control import pressdb
 from pressroom.release.entity.grade import Grade
 from tests import support

@@ -13,13 +13,13 @@ point: the flag and the parameter it feeds are named the same thing on purpose.
 
 import argparse
 
-from pressroom.scraping.control import catch_up
+from pressroom.scraper.control import catch_up
 
 
 class Option:
     """One per-scraper command-line option, as a value rather than a call.
 
-    Everything argparse accepts is passed straight through, so a source that
+    Everything argparse accepts is passed straight through, so a scraper that
     needs something unusual declares it here rather than reaching for its own
     parser.
     """

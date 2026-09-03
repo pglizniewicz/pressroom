@@ -42,12 +42,12 @@ import requests
 from bs4 import BeautifulSoup
 
 from pressroom.database.control import connection
-from pressroom.scraping.control import catch_up
-from pressroom.scraping.control import discovery
+from pressroom.scraper.control import catch_up
+from pressroom.scraper.control import discovery
 from pressroom.text.control import richtext
 from pressroom.reporting.entity.outcome import Stats
 from pressroom.fetcher.control import archive
-from pressroom.scraping.entity.parse import Detail
+from pressroom.scraper.entity.parse import Detail
 
 
 INDEX_PAGES = [

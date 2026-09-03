@@ -6,7 +6,7 @@ Usage:
 """
 
 from pressroom.sources.maudio.control import presse_de
-from pressroom.scraping.boundary import command
+from pressroom.scraper.boundary import command
 
 
 def main():

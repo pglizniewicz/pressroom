@@ -4,7 +4,7 @@ Usage:
   pressroom-terratec-early
 """
 
-from pressroom.scraping.boundary import command
+from pressroom.scraper.boundary import command
 from pressroom.sources.terratec.control import early
 
 

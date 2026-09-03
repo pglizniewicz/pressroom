@@ -8,7 +8,7 @@ Usage:
 """
 
 from pressroom.q4.control import platform
-from pressroom.scraping.boundary import command
+from pressroom.scraper.boundary import command
 
 SOURCE = "intel"
 LIST_URL = "https://www.intc.com/news-events/press-releases"

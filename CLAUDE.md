@@ -95,7 +95,7 @@ Adding shared logic means a **new component named for its concern**, never a
 grab-bag (`common.py` was split for exactly this reason, and `db.py` after it).
 
 The components: `database`, `release`, `fetcher`, `provenance`, `text`,
-`converter`, `scraping`, `reporting`, `taxonomy`, `browser` and `q4`, plus one
+`converter`, `scraper`, `reporting`, `taxonomy`, `browser` and `q4`, plus one
 per firm under `sources/` — `intel`, `amd`, `creative`, `terratec`, `maudio`,
 `soundonsound`. **Which file inside a component owns which job is
 `docs/layout.md`**: a lookup rather than a rule, which is why it is not here, and
@@ -112,7 +112,7 @@ into `page_cache`, an optional **converter** for what is not HTML, and a
 a listing. A **source** is the tag a row carries, one per mirror, so one scraper
 may stamp several. Only the crawler and the parser are per-scraper, and a
 parser takes bytes and never fetches them: the fetcher is `fetcher/control/`,
-called from `scraping/` and from a crawler reading its listings, never from a
+called from `scraper/` and from a crawler reading its listings, never from a
 parser; the converter is `converter/control/conversion.py`; a scraper needing
 neither writes neither. A **collector** is not a fifth role: it is the listing
 parser run by phase 2 over the captures the crawler knows (`cached_entries`),
@@ -172,7 +172,7 @@ metrics **and** a page of full texts — `-containers` for DOM containers,
 `-converters` for the converters; the second half is not decoration.
 
 **The dependency direction is a rule, not an accident.** A source component
-imports `scraping`, `release`, `fetcher`, `text`, `database`, `reporting` and
+imports `scraper`, `release`, `fetcher`, `text`, `database`, `reporting` and
 `q4`; none of those imports a source component. The one exception is documented
 and safe: `provenance/boundary/verification.py` imports source control modules
 to reproduce bodies, and nothing imports it back.
@@ -420,7 +420,7 @@ are not.
 
 ### The two phases
 
-**`scraping/control/discovery.py` is phase 1 and has three strategies** —
+**`scraper/control/discovery.py` is phase 1 and has three strategies** —
 `from_items`, `from_candidates`, `from_teasers`, plus `capture()` for the three
 tails that are genuinely per-scraper; **what each one takes is its own
 docstring.** A scraper owns everything above the loop — pagination, the
@@ -442,7 +442,7 @@ phase 2's are:
    that title and date (`from_candidates(stub_if_absent=True)`): the metadata is
    what earns the row, so a url only a folder listing produced keeps nothing.
 
-**`scraping/control/catch_up.py` is phase 2 and its six strategies are not
+**`scraper/control/catch_up.py` is phase 2 and its six strategies are not
 interchangeable** — `from_cache`, `from_listings`, `from_live`, `retry_missing`,
 `seed_cache`, `retext`; **what each one needs is its own docstring.**
 `catch_up()` composes them **free first, network last**.

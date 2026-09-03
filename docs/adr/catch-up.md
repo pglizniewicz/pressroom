@@ -1,8 +1,8 @@
 # A run's two phases
 
 Phase 1 discovers and stores, phase 2 finishes what it could not get. Both are
-libraries now, `scraping/control/discovery.py` and
-`scraping/control/catch_up.py`, and both hold their rules in one copy for the
+libraries now, `scraper/control/discovery.py` and
+`scraper/control/catch_up.py`, and both hold their rules in one copy for the
 same reason — the reason being what happened while phase 1 did not.
 
 ## The catch-up

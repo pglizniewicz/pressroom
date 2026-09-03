@@ -78,7 +78,7 @@ SOURCE_COMPONENTS = frozenset(
 # states this set in prose; test_the_allowlist_and_the_rulebook_name_the_same
 # _components keeps the two from drifting apart, which they had already done.
 SOURCE_MAY_IMPORT = {
-    "scraping": "the command line, the catch-up strategies and the parse types",
+    "scraper": "the command line, the catch-up strategies and the parse types",
     "release": "the gates, the write path and the FTS index",
     "fetcher": "archive.org and the polite live fetch",
     "text": "the richtext extractor and the date parser",

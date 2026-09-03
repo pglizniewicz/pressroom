@@ -31,7 +31,7 @@ from pressroom.fetcher.control import archive
 from pressroom.fetcher.control import politeness
 from pressroom.release.control import storage
 from pressroom.reporting.entity import outcome
-from pressroom.scraping.entity.parse import Detail, Entry
+from pressroom.scraper.entity.parse import Detail, Entry
 
 
 def from_items(conn, session, source: str, items, *, parse, stats, sleep=None) -> None:
@@ -117,7 +117,7 @@ def capture(conn, session, url: str, parse, *, stats, timeout: int = 20):
     reported and nothing may be written for this item in this run: a network
     error is not a verdict. A `Capture` whose `timestamp` is None is the opposite: archive.org
     answered, and the answer is that there is no usable capture. That is a
-    verdict, and what a source does with it differs (`dead`, a title-only stub,
+    verdict, and what a scraper does with it differs (`dead`, a title-only stub,
     or a body read off a listing capture instead), so this returns it rather
     than counting it.
 
@@ -230,7 +230,7 @@ def from_candidates(
 ) -> None:
     """Store each candidate url whose own capture the archive still has.
 
-    `parse(content)` is the source's whole-page parser. `titles` and `dates` are
+    `parse(content)` is the scraper's whole-page parser. `titles` and `dates` are
     optional {url: value} read off a listing - what to fall back on when the
     capture's own markup carries neither.
 

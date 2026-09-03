@@ -16,7 +16,7 @@ from pressroom.converter.control import conversion
 from pressroom.fetcher.control import archive
 from pressroom.provenance.entity import origin
 from pressroom.release.entity.grade import Grade
-from pressroom.scraping.control import attachment_crawl
+from pressroom.scraper.control import attachment_crawl
 from tests import support
 
 URL = "http://www.midiman.com/news/pdf/PR07022002A.pdf"

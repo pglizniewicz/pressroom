@@ -1,4 +1,4 @@
-"""What a source's parser hands back, independent of which source it is."""
+"""What a scraper's parser hands back, independent of which scraper it is."""
 
 from typing import Any, TypedDict
 
