@@ -40,10 +40,10 @@ class EntryPointTest(unittest.TestCase):
     def test_a_boundary_module_is_where_a_command_points(self):
         """The boundary is what an outside actor reaches; nothing else runs a
         scraper or serves a page. `pressroom-verify-names` is the exception -
-        integrity.py is not a business component and says so."""
+        names.py is not a business component and says so."""
         for name, target in sorted(self.scripts.items()):
             module_name = target.split(":")[0]
-            if module_name == "pressroom.integrity":
+            if module_name == "pressroom.names":
                 continue
             with self.subTest(command=name):
                 self.assertIn(".boundary.", module_name)

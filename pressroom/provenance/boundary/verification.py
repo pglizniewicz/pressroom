@@ -23,7 +23,7 @@ from pressroom.converter.control import conversion
 from pressroom.database.control import connection
 from pressroom.provenance.control import reproduction
 from pressroom.provenance.entity import origin
-from pressroom.sources.maudio.control import (
+from pressroom.maudio.control import (
     golive,
     media_news,
     media_pr,
@@ -31,7 +31,7 @@ from pressroom.sources.maudio.control import (
     presse_de,
     pressdb,
 )
-from pressroom.sources.terratec.control import cms, portal, pressemit
+from pressroom.terratec.control import cms, portal, pressemit
 
 # source -> parser, for the sources whose reproduction is a plain whole-page
 # parse. The re-extraction library takes its parser from the caller, so this is

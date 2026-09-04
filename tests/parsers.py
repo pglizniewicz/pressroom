@@ -18,9 +18,9 @@ a second copy would drift. The rest cannot come from there:
 golden file needs the whole parse.
 """
 
-from pressroom.sources.creative.control import globenewswire
-from pressroom.sources.creative.control import press as creative_press
-from pressroom.sources.maudio.control import (
+from pressroom.creative.control import globenewswire
+from pressroom.creative.control import press as creative_press
+from pressroom.maudio.control import (
     media_news,
     media_pr,
     news_blog,
@@ -29,8 +29,8 @@ from pressroom.sources.maudio.control import (
 )
 from pressroom.provenance.boundary.verification import CACHED_PARSERS
 from pressroom.q4.control import platform
-from pressroom.sources.soundonsound.control import magazine
-from pressroom.sources.terratec.control import cms, early, portal, pressemit
+from pressroom.soundonsound.control import magazine
+from pressroom.terratec.control import cms, early, portal, pressemit
 
 MEDIA_PR = ("midiman_com_media_pr", "midiman_net_media_pr", "maudio_com_media_pr")
 MEDIA_NEWS = (

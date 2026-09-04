@@ -66,9 +66,9 @@ who may call what:
 - **control may be called across components; entity owns a table.** A
   component's entity layer holds its table's DDL and the statements that
   change it, and nothing else creates that table.
-- **the source components live under `pressroom/sources/`**, which is not a
-  component — no responsibility, no layers — so "a source component" is a fact
-  about a path, and the dependency direction below reads it off the tree.
+- **a source component is one of the firms `taxonomy` names**, a root
+  component like every other; which components are sources is read off that
+  table, and the dependency direction below covers each of them.
 
 Adding shared logic means a **new component named for its concern**, never a
 grab-bag (`common.py` was split for exactly this reason, and `db.py` after it).
@@ -76,7 +76,7 @@ grab-bag (`common.py` was split for exactly this reason, and `db.py` after it).
 tree by `tests/test_layout_map.py`.
 
 **Three words, three sizes, and they are not synonyms.** A **source component**
-is the BCE unit: one directory per firm under `sources/`, one scraper per
+is the BCE unit: one directory per firm in the root, one scraper per
 generation. A **scraper** is what a command runs: a **crawler** turns what the
 scraper starts from into the pool phase 1 loops over, a **fetcher** brings each
 one's bytes into `page_cache`, an optional **converter** handles what is not
@@ -94,8 +94,8 @@ parser run by phase 2 over the captures the crawler knows (`cached_entries`).
 actually does; the command line in `boundary/<generation>.py`, whose docstring
 is the `--help` summary and the usage examples. The module name is the **CMS
 generation**, not the domain, because that is what a source tag identifies:
-`sources/terratec/control/pressemit.py` is not called `terratec.py` and
-`sources/maudio/control/golive.py` is not called `midiman.py`.
+`terratec/control/pressemit.py` is not called `terratec.py` and
+`maudio/control/golive.py` is not called `midiman.py`.
 
 **`boundary/command.py` is the one place a command line is assembled**: a
 boundary declares its per-scraper options as values, an `Option`'s `dest` is the
@@ -220,8 +220,9 @@ knowing which script produced it.
 - **`twin.py` must never pair across tags** — duplication across tags is
   intended. Inside one tag `twin.fill` needs source + collapsed title + an exact,
   non-empty date, touches **no network**, and **never deletes or merges**.
-- **`taxonomy/entity/company.py` is an explicit table, never a prefix rule, and
-  every source needs an entry.** An unmapped source falls into `inne`, which the
+- **`taxonomy/` owns the second axis, source tag → company, and
+  `entity/company.py` is an explicit table, never a prefix rule; every source
+  needs an entry.** An unmapped source falls into `inne`, which the
   panel answers with **HTTP 400**. No SQL knows what a company is.
 
 → `docs/adr/sources-and-tags.md`, `docs/adr/odd-sources.md`

@@ -3,12 +3,12 @@
 Why the tree is shaped the way it is. `CLAUDE.md` carries the convention itself
 — the three layers, how a scraper splits — and [../layout.md](../layout.md)
 carries the map of what each component owns. What follows is the reasoning,
-including the two places this repo knowingly departs from the BCE pattern.
+including what BCE says and this tree does differently, and why.
 
 ## Three sizes, and the word that named all of them
 
 `source` named three different things here, and they are three different sizes.
-A **source component** is the BCE unit, one directory per firm under `sources/`.
+A **source component** is the BCE unit, one directory per firm in the root.
 A **scraper** is what one command runs, one per CMS generation, so a component
 holds several. A **source** is the tag a row carries, one per mirror, so a
 scraper stamps several. Nothing was wrong with the code — the prose said
@@ -30,7 +30,7 @@ own fetcher or parser". That was the only collision in the four, and naming it
 
 Only two of the four are per-scraper: the crawler and the parser. The fetcher is
 `fetcher/control/` and the converter `converter/control/conversion.py`, and
-neither varies by source — `sources/amd` and `sources/intel` have no `control/`
+neither varies by source — `amd` and `intel` had no `control/` of their own
 layer at all, both halves coming from `q4`, and `terratec/control/early.py`
 opens by saying it is not a crawler like the others.
 
@@ -40,9 +40,9 @@ Three names stayed:
   may own several, so the column does not hold a scraper's name — renaming it to
   match this vocabulary would have made a false claim in every place it appears,
   and the true one is already in `CLAUDE.md`: a source tag identifies a scraper.
-- **`pressroom/sources/`.** "A source component" is a fact about a path, read
-  back out of the tree by `tests/test_import_direction.py`, and the directory
-  groups scrapers by whose press room they recover — which is what a source is.
+- **"source component", the word.** It named a grouping directory once
+  (`pressroom/sources/`, below); the directory is gone and the word stays, for
+  the unit the test and this file already call that.
 - **`scraper`, not `harvester`.** `harvester` is the web-archiving word for the
   whole and is free in this tree, so it was the alternative worth measuring; it
   lost because `scraper` already carries the meaning in the rulebook, in the
@@ -58,7 +58,7 @@ one rule: **a word the rulebook uses for a role has a place named for it, and
 responsibility and the vocabulary names the responsibilities, so a reader
 entering `pressroom/` should meet the same words. `scraper/`, `fetcher/` and
 `converter/` sit in the root now and read as the sentence in `CLAUDE.md`; a
-`sources/<firm>/control/<generation>.py` is a crawler and a parser, which is
+`<firm>/control/<generation>.py` is a crawler and a parser, which is
 where the rule had always put them.
 
 Two things had to become true in code first, because the roles leaked across
@@ -99,7 +99,7 @@ the word for the *rows* (`attachment_crawl.py`, `--attachments`,
 is the release itself should be called, and was left where it was. `scraping/`
 became `scraper/` — the loops that compose the four roles, phase 1, phase 2,
 `twin`, `attachment_crawl`, the parse types and the command line — a scraper,
-with the fifteen concrete ones under `sources/`. "scraping" had
+with the fifteen concrete ones in their firms' components. "scraping" had
 been the whole's activity naming its connective tissue, the size error in a
 path; `run/` was the first candidate and lost because it is not one of the
 words the tree was missing.
@@ -117,8 +117,9 @@ Three decisions inside this one:
   from inside `archive.py` itself — `fetch_best_matching_snapshot` walks
   `list_all_captures` — and both halves share the cooldown, the error classifier
   and the `wayback_calls` log. A `crawler/` holding CDX alone would be one
-  module through which two components write one log. It is the one place where
-  a role's tool sits under another role's name.
+  module through which two components write one log. The rulebook's own
+  sentence covers it: a crawler may call the fetcher for its listings, and the
+  fetcher is what talks to archive.org.
 - **A collector is a composition, not a fifth role.** `cached_entries(conn) ->
   {url: Entry}` in `presse_de`, `early` and `cms` is the listing parser run by
   phase 2 over the captures the crawler knows, out of `page_cache` — the same
@@ -184,75 +185,91 @@ behind: the reporting half survives, the writing half moved into the write path.
 a column of metrics once said "100% of words kept" about a conversion that had
 put the release's headline after the footer.
 
-## The source components moved under `sources/`
+## The source components are root components
 
-`pressroom/` used to hold the firms — `intel`, `amd`, `creative`, `terratec`,
-`maudio`, `soundonsound` — in the same row as `database`, `release`, `capture`
-and the rest. They are a minority of the components and most of what anyone
-runs, so the root read as a list of companies with the architecture filed
-somewhere among it. They sit under `pressroom/sources/` now, and what is left in
-the root is the shared components, `q4`, and one directory that is not one.
+`pressroom/` holds the firms — `amd`, `creative`, `intel`, `maudio`,
+`soundonsound`, `terratec` — in the same row as `database`, `release`,
+`fetcher` and the rest, and it has done so twice: before a grouping directory,
+`sources/`, was put between the package and its six most-run components, and
+again after that directory went. What the directory bought was real. The root
+had read as a list of companies with the architecture filed somewhere among it,
+and "a source component" stopped being a list of names and became a fact about a
+path: `tests/test_import_direction.py` read the directory, so a firm in the tree
+was in the dependency rule without anyone adding it to a roll-call.
 
-What it bought: **"a source component" stopped being a list of names and became
-a fact about a path.** That list was literal in three independent places —
-`CLAUDE.md`'s roll-call, `SOURCE_COMPONENTS` in
-`tests/test_import_direction.py`, and the company slugs in
-`taxonomy/entity/company.py` — with nothing checking the first against the
-third, so a seventh firm had to be added by hand in two of them before the
-dependency direction below would cover it at all. The test reads the directory
-now, and a firm that is in the tree is in the rule.
+It went because BCE puts a business component directly under the package, and
+the directory was the one place this tree said "here we deviate" and left it at
+that. A deviation an ADR records is either a decision with its cost stated or
+work; this one had a preference attached. So the six are root components, and
+what the directory bought is kept another way:
 
-Four decisions inside that one:
+- **Which components are sources is a fact about the taxonomy.**
+  `taxonomy/entity/company.py` has to name every firm anyway — an unmapped
+  source is a 400 in the browser — and its six keys are the six components.
+  `SOURCE_COMPONENTS` is read off `company.COMPANIES`, and the test asserts each
+  key is a root component with a `boundary/`, so a seventh firm is added in one
+  place and covered by the direction rule the moment it has a command.
+- **The word stays "source component".** `scrapers/terratec/` would say one
+  scraper where there are four; `firms/` would call Sound on Sound a company
+  whose releases these are. "Source", in the plain sense of where the releases
+  come from, fits both, and it is what the test and this file already call the
+  unit. With no directory to name, the word is only a word.
+- **`q4` is in the root for the same reason as before.** It is the Q4 platform
+  two firms delegate to, on the library side of the direction rule: a dependency
+  of two source components rather than one of them.
+- **`pressroom/names.py` sits at the root and is not a component.** It walks
+  the tree rather than belonging to it, which is what BCE reserves the root
+  for. It was called `integrity`, a word the rulebook already used for FTS's
+  `integrity-check`; its command was always `pressroom-verify-names`.
 
-- **`sources`, not `scrapers`.** The rename the vocabulary seems to ask for, and
-  the size error again: `scrapers/terratec/` says one scraper where there are
-  four. Every other word for the largest size is taken — `firms` (next),
-  `companies` (the reader's axis in `taxonomy/entity/company.py`, whose six keys
-  are these six components but whose word belongs to the reader), `publishers`
-  ([odd-sources.md](odd-sources.md)'s opposite of a press room), `sites`
-  (`pressemit.SITES`, a host), `origins` (`body_origin`). "Source", in the plain
-  sense of where the releases come from, fits TerraTec and Sound on Sound alike,
-  and "source component" is what the test and this file already call the unit.
-  That a grouping directory sits between the package and its components is the
-  BCE deviation the next bullet is, and it stands.
-- **`sources`, not `firms`.** `soundonsound` is a magazine, not a company whose
-  press releases these are — and a source tag names a scraper, not a domain, so
-  the directory is named for what the components are rather than for who they
-  are about.
-- **`sources/` is a grouping directory, not a component.** It gets no layers and
-  no row in `../layout.md`; its `__init__.py` says what it is not, the way
-  `integrity.py` does. A component owns one responsibility, and "the firms" is
-  not one — inventing a responsibility for it would be `common.py` again, in a
-  directory instead of a module.
-- **`q4` stayed in the root.** It is the Q4 Inc. platform parser two firms
-  delegate to, and the direction paragraph below already puts it on the library
-  side of the rule. Moving it under `sources/` would have made "nothing outside
-  `sources/` imports anything inside it" false the day it landed, for a module
-  that is a dependency of two source components rather than being one.
+`_inside_component()` in `tests/test_import_direction.py` reads a module's
+component and layer positionally, `parts[0]` and `parts[1]` under `pressroom/`,
+with nothing to skip.
 
-One thing would have passed silently. `tests/test_import_direction.py` derived a
-module's component and layer positionally, from `parts[0]` and `parts[1]` of its
-path under
-`pressroom/`. Left alone, every source module would have reported the component
-`sources` with the layer `terratec`, `SOURCE_COMPONENTS` would have matched
-none of them, and the four isolation classes would have gone green by asserting
-over an empty set. `_inside_component()` drops the grouping segment, and
-`ImportGraphTest` now refuses an empty `pressroom/sources/` for the same reason
-it refuses a graph with no edges: a rule that cannot fail is not a rule.
+## What BCE says here, and why
 
-## Two BCE deviations
-
-**Two BCE deviations:**
+The pattern is followed where a test can hold it, and every place it is not
+followed is here with its reason. A deviation this file records without one is
+work, not a decision.
 
 - **Transactions stay at the write, not in the boundary.** The pattern puts
-  transaction wrapping in the boundary; here "commit per row unless a loop
-  batches explicitly" is what makes an hour-long crawl against a flaky archive
-  resumable, and hoisting the commit would make a run all-or-nothing.
-- **No entity classes.** Entities here are the module that owns a table's
-  schema and its state changes, over plain sqlite3 rows. A `Release` object
-  would be the row dataclass `CLAUDE.md` rules out under "Working here".
-  `Grade` is the one closed set modelled as an enum, and it is a `StrEnum`
-  precisely so that no call site had to change for it to exist.
+  transaction wrapping in the boundary, around the operation an outside actor
+  invokes. The operation here is a crawl that runs for an hour against a flaky
+  archive, and "commit per row unless a loop batches explicitly" is what makes
+  it resumable: hoisting the commit would make a run all-or-nothing. The
+  intent of the rule — one wrapper, decided in one place — is met by
+  `storage._transaction`, the only place a write's atomicity is decided; a body
+  and its provenance are one transaction there. Kept by decision, with that
+  cost stated.
+- **Entities are modules, and they have behaviour.** An entity here is the
+  module that owns a table: its DDL and the functions that change it —
+  `page.store`, `schema.insert`/`upgrade`/`rebuild_fts`, `origin.record`/`clear`,
+  `call_log.record`. No control module executes a change to a table
+  (`tests/test_table_ownership.py`). What there is not is a row class: a
+  `Release` object would be the row dataclass `CLAUDE.md` rules out, and the
+  pattern asks for state and behaviour, not for classes. `Grade` is the one
+  closed set modelled as an enum, and it is a `StrEnum` precisely so that no
+  call site had to change for it to exist.
+- **A component may have one layer.** `database` and `q4` are control only,
+  `taxonomy` entity only, `browser` boundary only, `reporting` control only —
+  its summary was filed as an entity once, and it owns no table. The pattern
+  allows it: a responsibility that is procedural, or a table, or an entry
+  point, needs no more than its own layer.
+- **Control prints, and does not ask.** The marker stream and the summary line
+  are the product of a run, and `reporting` owns their vocabulary; routing them
+  through the boundary would be an event bus for a command-line tool. The one
+  question a scraper puts to a person is `command.ask_on_tty`'s, and
+  `catch_up.confirm_rewrite` takes the answer as a callable.
+- **`scraper/boundary/command.py` is a boundary that boundaries call.** No
+  outside actor reaches it; fifteen scraper boundaries assemble their command
+  line through it. It is the one such target, and `LayerDirectionTest` says so.
+- **The tests reach control and entity.** The pattern has tests as an outside
+  actor that reaches only boundaries. This suite is hermetic — gates, parsers
+  over gzipped captures, phase strategies over a temp database — and testing a
+  pure function through the boundary would mean a console script, a 500 MB
+  corpus or the network in every test. Two tests go through the boundary and
+  prove what only that route can: `test_offline_is_offline` runs every command,
+  `test_entry_points` proves each points at a boundary. Kept by decision.
 
 ## The dependency direction
 

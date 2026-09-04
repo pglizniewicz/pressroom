@@ -1,7 +1,6 @@
 # The map: what each component owns
 
-The tree is `pressroom/<business component>/<boundary|control|entity>/`, with the
-source components one level further down under `pressroom/sources/`, and the
+The tree is `pressroom/<business component>/<boundary|control|entity>/`, and the
 convention itself — what each layer may call, that a component is named for its
 one responsibility, how a scraper splits — is in `CLAUDE.md`. The
 reasoning behind it is in [adr/layout-and-naming.md](adr/layout-and-naming.md).
@@ -25,14 +24,13 @@ resolves to a real file.
 | `reporting` | what a run did, in one vocabulary. `control/outcome.py` = `Stats`, the seven fixed outcomes and the summary line; `control/selection.py` = which capture the archive walk did not take, drained into that summary. No table, so no entity |
 | `taxonomy` | `entity/company.py`: the source->company table. No SQL, no HTTP |
 | `browser` | `boundary/http.py` + `boundary/static/`: routing, query-param parsing, JSON, and the three frontend files. No SQL, and no facts of its own: the capture annotations come from `provenance` and `fetcher` |
-| `q4` | the Q4 Inc. IR-platform parser, shared by exactly two firms. Not under `sources/`: the direction rule puts it on the library side, where a source may reach it |
+| `q4` | the Q4 Inc. IR-platform parser, shared by exactly two firms. On the library side of the direction rule, where a source may reach it |
 | `intel`, `amd` | `control/q4.py` = the list url and, for AMD, two selectors, handed to `q4`'s crawler and parser; `boundary/press.py` = the command |
 | `creative` | its own press room (`press`) and the GlobeNewswire wire (`globenewswire`) |
 | `terratec` | four site generations: `early` (1996 anchors), `pressemit` (the hand-built template, .net and .de), `portal` (PHP-Nuke, two languages), `cms` (2007-2013) |
 | `maudio` | five CMS generations over four domains: `golive` (2001 static), `pressdb`, `media_pr`, `media_news`, plus `presse_de` (midiman.de) and `news_blog` (the m-audio.com blog) |
 | `soundonsound` | `magazine`: the one publisher here |
 
-The firm rows live under `pressroom/sources/`, which has no row of its own for the
-same reason `pressroom/integrity.py` has none: neither is a business component,
-and each says so in its own docstring. `sources/` groups the firms and owns
-nothing; `pressroom-verify-names` walks the tree rather than belonging to it.
+`pressroom/names.py` has no row: not a business component, it walks the tree
+rather than belonging to it, and its docstring says so. Its command is
+`pressroom-verify-names`.

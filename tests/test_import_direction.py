@@ -28,6 +28,7 @@ import re
 import sys
 import unittest
 
+from pressroom.taxonomy.entity import company
 from tests import support
 
 ROOT = support.HERE.parent
@@ -58,18 +59,12 @@ READERS = {
 
 POLITENESS = "pressroom.fetcher.control.politeness"
 
-# The grouping directory the source components live in, and the components
-# themselves - read off the tree, not typed out. This list was literal here and
-# again in CLAUDE.md's roll-call, and a seventh firm had to be added to both
-# before the dependency-direction rule would cover it. It is a fact about a
-# path now: what is under `pressroom/sources/` is a source component.
-GROUP = "sources"
-
-SOURCE_COMPONENTS = frozenset(
-    p.name
-    for p in (PACKAGE / GROUP).iterdir()
-    if p.is_dir() and p.name != "__pycache__"
-)
+# Which components are source components is a fact about the taxonomy, not a
+# list here: `taxonomy/entity/company.py` has to name every firm anyway (an
+# unmapped source is a 400 in the browser), and each firm is a root component
+# like every other. This list was literal here and in CLAUDE.md's roll-call
+# once, and a seventh firm had to be added to both before the rule covered it.
+SOURCE_COMPONENTS = frozenset(company.COMPANIES)
 
 # What a source component is allowed to reach, and what for. The rulebook
 # states this set in prose; test_the_allowlist_and_the_rulebook_name_the_same
@@ -185,8 +180,8 @@ def _imported(node) -> list:
 def _relative_path(module: str) -> pathlib.PurePosixPath | None:
     """The module's path under `pressroom/`, or None for a loose module.
 
-    `integrity.py` sits at the root - it walks the tree rather than
-    belonging to it - so it has neither a component nor a layer.
+    `names.py` sits at the root - it walks the tree rather than belonging to
+    it - so it has neither a component nor a layer.
     """
     path = _modules().get(module)
     if path is None:
@@ -197,19 +192,11 @@ def _relative_path(module: str) -> pathlib.PurePosixPath | None:
 
 def _inside_component(module: str) -> tuple:
     """The module's path from its component down: `(component, layer, file)`.
-
-    `sources/` is a grouping directory, not a component, so it is dropped here
-    rather than in `_relative_path` - the reader-path patterns and every failure
-    message still want the whole path under `pressroom/`. Doing it the other way
-    round is how the move under `sources/` could have passed silently: every
-    source module would have reported the component `sources` with the layer
-    `terratec`, and half the classes below would have matched nothing.
-    """
+    Positional, because every component is a direct child of `pressroom/`."""
     rel = _relative_path(module)
     if rel is None:
         return ()
-    parts = rel.parts[1:] if rel.parts[0] == GROUP else rel.parts
-    return parts if len(parts) > 1 else ()
+    return rel.parts if len(rel.parts) > 1 else ()
 
 
 def _component(module: str) -> str | None:
@@ -324,16 +311,17 @@ class ImportGraphTest(unittest.TestCase):
             "barely any edges parsed",
         )
 
-    def test_the_grouping_directory_still_names_the_sources(self):
-        """`SOURCE_COMPONENTS` is read off `pressroom/sources/`, so an empty or
-        renamed directory would leave every isolation rule below matching
-        nothing and passing."""
-        self.assertTrue(SOURCE_COMPONENTS, f"pressroom/{GROUP}/ holds no component")
+    def test_every_firm_the_taxonomy_names_is_a_component_with_a_boundary(self):
+        """`SOURCE_COMPONENTS` is read off `company.COMPANIES`, so a taxonomy
+        naming a firm the tree does not have - or a tree with a firm the taxonomy
+        does not know - would leave the isolation rules below matching the wrong
+        set and passing."""
+        self.assertTrue(SOURCE_COMPONENTS, "the taxonomy names no firm")
         for component in sorted(SOURCE_COMPONENTS):
             with self.subTest(component=component):
                 self.assertTrue(
-                    (PACKAGE / GROUP / component / "boundary").is_dir(),
-                    f"{GROUP}/{component}/ has no boundary; a source's command "
+                    (PACKAGE / component / "boundary").is_dir(),
+                    f"pressroom/{component}/ has no boundary; a source's command "
                     f"is the only thing anyone runs",
                 )
 
@@ -591,7 +579,7 @@ class LazyImportTest(unittest.TestCase):
 
     def test_curl_cffi_is_still_imported_inside_make_session(self):
         """Otherwise the assertion above passes because nothing uses it."""
-        path = _modules()["pressroom.sources.creative.control.globenewswire"]
+        path = _modules()["pressroom.creative.control.globenewswire"]
         tree = ast.parse(path.read_text(encoding="utf-8"))
         found = [
             node
@@ -604,7 +592,7 @@ class LazyImportTest(unittest.TestCase):
         ]
         self.assertTrue(
             found,
-            f"{_rel('pressroom.sources.creative.control.globenewswire')} no longer "
+            f"{_rel('pressroom.creative.control.globenewswire')} no longer "
             f"imports curl_cffi inside make_session()",
         )
 

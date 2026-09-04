@@ -12,9 +12,8 @@ with no row (the map has a hole), a row naming a component that is gone (the map
 points nowhere), and a row naming a file that has moved inside its component
 (the map is subtly wrong, which is worse than either).
 
-The last two assertions are the convention itself, which `CLAUDE.md` states and
-nothing enforced: a component holds only the three layers, and `sources/` - the
-one directory that is not a component - holds only components.
+The last assertion is the convention itself, which `CLAUDE.md` states and
+nothing enforced: a component holds only the three layers.
 `tests/test_no_dead_module_references.py` catches a dead `<name>.py` in this file
 too, but only by basename - `release/entity/schema.py` passes there as long as
 some `schema.py` exists anywhere, which is exactly the subtly-wrong case.
@@ -31,11 +30,6 @@ MAP = ROOT / "docs" / "layout.md"
 
 LAYERS = {"boundary", "control", "entity"}
 
-# The one directory under `pressroom/` that is not a component: it groups the
-# source components and owns nothing itself, so it has no row here and its
-# children are components rather than layers.
-GROUP = "sources"
-
 # A row is `| `name`[, `name`...] | prose |`; the prose names paths relative to
 # the component, e.g. `control/connection.py`.
 ROW_RE = re.compile(r"^\|\s*(`[^|]+?`)\s*\|\s*(.+?)\s*\|$")
@@ -48,14 +42,8 @@ def _dirs(parent) -> list:
 
 
 def _components() -> dict:
-    """Component name -> its directory, one level down or two under `sources/`."""
-    out = {}
-    for path in _dirs(PACKAGE):
-        if path.name == GROUP:
-            out.update({p.name: p for p in _dirs(path)})
-        else:
-            out[path.name] = path
-    return out
+    """Component name -> its directory: every directory under `pressroom/`."""
+    return {path.name: path for path in _dirs(PACKAGE)}
 
 
 def _rows() -> list:
@@ -116,21 +104,11 @@ class LayoutMapTest(unittest.TestCase):
                     )
 
     def test_a_component_holds_only_the_three_layers(self):
-        """The convention CLAUDE.md states: `<component>/<layer>/`, wherever the
-        component sits. `sources/` is exempt by not being a component - it is
-        the grouping directory, so what it holds is components."""
+        """The convention CLAUDE.md states: `<component>/<layer>/`."""
         for component, path in sorted(self.components.items()):
             for child in sorted(_dirs(path)):
                 with self.subTest(component=component, directory=child.name):
                     self.assertIn(child.name, LAYERS)
-
-    def test_the_grouping_directory_holds_only_source_components(self):
-        """`sources/` owns no responsibility of its own, so a layer directly
-        inside it would be code that belongs to no component."""
-        for child in sorted(_dirs(PACKAGE / GROUP)):
-            with self.subTest(directory=child.name):
-                self.assertNotIn(child.name, LAYERS)
-                self.assertIn(child.name, self.components)
 
 
 if __name__ == "__main__":

@@ -95,7 +95,7 @@ changed, was three things:
   keyed on the filename alone — which is what it was when each host had its own
   tag — reports all 58 German copies already-stored, silently. The key gained
   the site as its first half (`pressemit.site_of`, partitioning by url path),
-  and `tests/sources/terratec/test_pressemit.py` is what holds it there.
+  and `tests/terratec/test_pressemit.py` is what holds it there.
 
 **The other two language pairs are the same class and differ only in that third
 question.** `terratec_new_en`/`_de` (`cms.py`) share no url key and no filename

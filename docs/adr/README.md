@@ -31,7 +31,7 @@ renamed, and never reuse a name for a different area.
 
 | file | area |
 |---|---|
-| [layout-and-naming.md](layout-and-naming.md) | why the tree is shaped this way, the three sizes and the four roles and why the tree is named for them, the retired `backfill_`/`repair_` prefixes, the two BCE deviations, the dependency direction |
+| [layout-and-naming.md](layout-and-naming.md) | why the tree is shaped this way, the three sizes and the four roles and why the tree is named for them, the retired `backfill_`/`repair_` prefixes, what BCE says here and why, the dependency direction |
 | [grade-and-detail-id.md](grade-and-detail-id.md) | why a verdict and a reference are two columns |
 | [sources-and-tags.md](sources-and-tags.md) | a tag is a CMS generation, not a domain; intended duplication; `MIRROR_DOMAINS`; the two axes |
 | [captures.md](captures.md) | why every fetched byte is in the database, how archive.org is asked, and which capture of a url is the right one |
