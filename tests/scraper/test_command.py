@@ -8,7 +8,10 @@ docstring that must be taken whole.
 """
 
 import argparse
+import contextlib
+import io
 import unittest
+from unittest import mock
 
 from pressroom.scraper.boundary import command
 
@@ -77,10 +80,10 @@ class RunTest(unittest.TestCase):
         parser = argparse.ArgumentParser()
         for option in (command.PAGES, command.START):
             option.add_to(parser)
-        command.catch_up.add_flags(parser)
+        command.catch_up_flags(parser)
         args = parser.parse_args(["--pages", "5", "--offline"])
         crawl(
-            catch=command.catch_up.options(args),
+            catch=command.options(args),
             **{o.dest: getattr(args, o.dest) for o in (command.PAGES, command.START)},
         )
 
@@ -90,7 +93,7 @@ class RunTest(unittest.TestCase):
 
     def test_every_scraper_gets_the_catch_up_flags_for_free(self):
         parser = argparse.ArgumentParser()
-        command.catch_up.add_flags(parser)
+        command.catch_up_flags(parser)
         args = parser.parse_args([])
         for flag in (
             "force",
@@ -103,3 +106,50 @@ class RunTest(unittest.TestCase):
         ):
             with self.subTest(flag=flag):
                 self.assertFalse(getattr(args, flag))
+
+    def test_options_maps_the_flags_to_the_keywords_catch_up_takes(self):
+        class Args:
+            no_catch_up = False
+            force = True
+            yes = False
+            retext = False
+            offline = True
+            seed_cache = False
+            attachments = False
+
+        got = command.options(Args())
+        self.assertEqual(got["force"], True)
+        self.assertEqual(got["offline"], True)
+        self.assertEqual(got["only_retext"], False)
+        self.assertEqual(got["catch_up"], True)
+        self.assertIs(got["confirm"], command.ask_on_tty)
+
+
+class AskTest(unittest.TestCase):
+    """The one question a scraper puts to a person, and the boundary is where
+    the terminal is known: a pipe answers no, a tty gets asked."""
+
+    def test_no_terminal_answers_no_and_says_how_to_say_yes(self):
+        with (
+            mock.patch("sys.stdin", io.StringIO()),
+            contextlib.redirect_stdout(io.StringIO()) as out,
+        ):
+            self.assertFalse(command.ask_on_tty("[src] --force: 3 wierszy"))
+        self.assertIn("[src] --force: 3 wierszy", out.getvalue())
+        self.assertIn("--yes", out.getvalue())
+
+    def test_a_terminal_is_asked_and_a_yes_is_a_yes(self):
+        tty = mock.Mock()
+        tty.isatty.return_value = True
+        with (
+            mock.patch("sys.stdin", tty),
+            mock.patch("builtins.input", return_value="tak"),
+            contextlib.redirect_stdout(io.StringIO()),
+        ):
+            self.assertTrue(command.ask_on_tty("[src] --force: 3 wierszy"))
+        with (
+            mock.patch("sys.stdin", tty),
+            mock.patch("builtins.input", return_value=""),
+            contextlib.redirect_stdout(io.StringIO()),
+        ):
+            self.assertFalse(command.ask_on_tty("[src] --force: 3 wierszy"))

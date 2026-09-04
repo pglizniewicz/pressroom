@@ -19,11 +19,11 @@ def rebuild_fts(conn) -> None:
     the tokens actually indexed, so the next UPDATE corrupts the index rather
     than merely leaving it wrong. FTS5 verifies none of this.
 
-    No caller: it is typed by hand after a bulk change. The statement
-    lives in one place all the same.
+    No caller: it is typed by hand after a bulk change. The statement is
+    `schema.REBUILD_FTS_SQL`, the entity's, like every other change to its
+    tables; this is where the rule about *when* lives.
     """
-    conn.execute("INSERT INTO releases_fts(releases_fts) VALUES('rebuild')")
-    conn.commit()
+    schema.rebuild_fts(conn)
 
 
 def install_fts_triggers(conn) -> None:

@@ -26,7 +26,7 @@ from pressroom.text.control.dating import iso_date
 from pressroom.database.control import connection
 from pressroom.scraper.control import catch_up
 from pressroom.scraper.control import discovery
-from pressroom.reporting.entity.outcome import Stats
+from pressroom.reporting.control.outcome import Stats
 from pressroom.text.control.decoding import decode_html
 from pressroom.fetcher.control.politeness import SLEEP, fetch
 from pressroom.text.control import richtext

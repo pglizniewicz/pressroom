@@ -12,8 +12,7 @@ point: the flag and the parameter it feeds share a name.
 """
 
 import argparse
-
-from pressroom.scraper.control import catch_up
+import sys
 
 
 class Option:
@@ -66,6 +65,75 @@ REFETCH = Option(
 )
 
 
+def catch_up_flags(parser) -> None:
+    """The flags every scraper gets, so the vocabulary is identical everywhere.
+    Declared here, with the per-scraper Options, because this is the one place
+    a command line is assembled; `catch_up.no_crawl` reads the result."""
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="re-extract every row of this source, not just the "
+        "ones without markup (after changing the parser)",
+    )
+    parser.add_argument(
+        "--yes",
+        action="store_true",
+        help="do not ask before a bulk rewrite (--force, --refetch)",
+    )
+    parser.add_argument(
+        "--retext",
+        action="store_true",
+        help="only re-derive body from the stored HTML (after changing to_text)",
+    )
+    parser.add_argument(
+        "--offline",
+        action="store_true",
+        help="catch up from page_cache only, no network",
+    )
+    parser.add_argument(
+        "--seed-cache",
+        action="store_true",
+        help="fetch captures into page_cache and parse nothing",
+    )
+    parser.add_argument(
+        "--no-catch-up", action="store_true", help="crawl only, skip phase 2"
+    )
+    parser.add_argument(
+        "--attachments",
+        action="store_true",
+        help="also crawl archive.org for .pdf/.doc attachments "
+        "(hours, and the last two passes yielded nothing)",
+    )
+
+
+def options(args) -> dict:
+    """The parsed flags as the keywords `catch_up.catch_up` takes, plus the one
+    thing a control module may not do for itself: ask the person at the
+    terminal. `confirm` is how it asks."""
+    return {
+        "catch_up": not args.no_catch_up,
+        "force": args.force,
+        "yes": args.yes,
+        "offline": args.offline,
+        "only_retext": args.retext,
+        "seed": args.seed_cache,
+        # Read by attachment_crawl, not by catch_up.
+        "attachments": getattr(args, "attachments", False),
+        "confirm": ask_on_tty,
+    }
+
+
+def ask_on_tty(message: str) -> bool:
+    """Print what is about to happen and wait for a yes. A pipe with no
+    terminal answers no rather than blocking a cron, and says how to answer in
+    advance."""
+    print(message, flush=True)
+    if not sys.stdin.isatty():
+        print("  brak terminala - przerywam. Dodaj --yes swiadomie.", flush=True)
+        return False
+    return input("  kontynuowac? [y/N] ").strip().lower() in ("y", "yes", "t", "tak")
+
+
 def _summary(doc: str | None) -> str:
     """A module docstring's first paragraph, as one line.
 
@@ -77,7 +145,7 @@ def _summary(doc: str | None) -> str:
     return " ".join(head.split())
 
 
-def run(crawl, doc: str | None, *options) -> None:
+def run(crawl, doc: str | None, *declared) -> None:
     """Parse this scraper's command line and hand it to `crawl`.
 
     `doc` is the boundary module's `__doc__`: its first paragraph becomes the
@@ -85,10 +153,8 @@ def run(crawl, doc: str | None, *options) -> None:
     reader of the file.
     """
     parser = argparse.ArgumentParser(description=_summary(doc))
-    for option in options:
+    for option in declared:
         option.add_to(parser)
-    catch_up.add_flags(parser)
+    catch_up_flags(parser)
     args = parser.parse_args()
-    crawl(
-        catch=catch_up.options(args), **{o.dest: getattr(args, o.dest) for o in options}
-    )
+    crawl(catch=options(args), **{o.dest: getattr(args, o.dest) for o in declared})

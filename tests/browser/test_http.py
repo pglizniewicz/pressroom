@@ -1,8 +1,9 @@
-"""The browser boundary: routing, query params, and the three strings a reader
-renders next to a capture link.
+"""The browser boundary: routing, query params, and the JSON a reader renders.
 
-The capture annotations are the half of this file that had to be got right
-twice; each test below names its incident.
+The three strings next to a capture link are derived by their owners -
+`address.timestamp_of`/`viewer_url` and `resolution.capture_page`/`capture_kind`,
+tested there - and this file asserts they arrive in the JSON and `origin_url`
+does not.
 """
 
 import json
@@ -27,51 +28,6 @@ MIRROR = (
 LISTING = (
     "https://web.archive.org/web/20111011173713id_/http://www.terratec.de/presse.html"
 )
-
-
-class CaptureAnnotationTest(support.DbCase):
-    def test_the_common_case_stays_unannotated(self):
-        """1605 of the 1763 rows with a capture are captures of their own page,
-        and the first cut of this marked every one of them."""
-        self.assertIsNone(http.capture_page(OWN, ROW))
-        self.assertIsNone(http.capture_kind(http.capture_page(OWN, ROW), ROW))
-
-    def test_a_listing_capture_is_named_in_plain_text(self):
-        """#4414: built from the row's own url the link is a capture archive.org
-        does not have, while `web/<ts>/…/presse.html` holds that release's full
-        text, character for character."""
-        page = http.capture_page(LISTING, "http://www.terratec.de/September_2011.html")
-        self.assertEqual(page, "http://www.terratec.de/presse.html")
-        self.assertEqual(
-            http.capture_kind(page, "http://www.terratec.de/September_2011.html"),
-            "other",
-        )
-
-    def test_the_same_file_on_a_sibling_domain_is_not_a_listing(self):
-        """Calling it one stopped 209 attachment rows from being written for a
-        day: "z listingu" for midiman.net/.../BX5_PR.pdf read off
-        m-audio.com/.../BX5_PR.pdf is simply false, and both hosts are start
-        urls of the same scraper."""
-        page = http.capture_page(MIRROR, ROW)
-        self.assertEqual(http.capture_kind(page, ROW), "mirror")
-
-    def test_the_link_is_labelled_with_the_capture_the_link_opens(self):
-        """#4984's detail_id is the listing's 20030212170800, its capture is
-        20030421210545. Labelling the link with the row's detail_id names a
-        capture the href does not go to."""
-        self.assertEqual(http.capture_ts(MIRROR), "20030421210545")
-        self.assertIsNone(http.capture_ts(None))
-
-    def test_a_row_with_no_capture_gets_no_link(self):
-        """No link, the live sources included: their detail_id is their
-        platform's own id and never named a capture."""
-        self.assertIsNone(http.wayback_url(None))
-
-    def test_the_link_drops_the_raw_bytes_marker(self):
-        """`id_` is page_cache's variant; a human wants the ordinary viewer."""
-        self.assertEqual(
-            http.wayback_url(OWN), "https://web.archive.org/web/20030212170800/" + ROW
-        )
 
 
 class ParamTest(support.DbCase):

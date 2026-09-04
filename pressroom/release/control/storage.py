@@ -1,7 +1,10 @@
 """Writing a release, and the four questions a scraper asks before it does.
 
-Every statement over `releases` that changes a row is here, and exactly once.
-Not an ORM: plain sqlite3, plain SQL strings, one function per statement shape.
+Every change to a `releases` row goes through here, and exactly once; the
+statements themselves are `entity/schema.py`'s, run by `schema.insert` and
+`schema.upgrade`. What this module decides is what goes into them - the text
+repair, the grade verdict, the provenance written in the same transaction.
+Not an ORM: plain sqlite3, plain SQL, one function per statement shape.
 
 Commit per row by default, because these are hour-long crawls against a flaky
 archive; a caller that batches passes commit=False and commits after its loop.
@@ -63,26 +66,24 @@ def store_release(
     "stub" for title/date only) and leaves detail_id alone.
     """
     with _transaction(conn, commit):
-        cur = conn.execute(
-            schema.INSERT_SQL,
-            (
-                source,
-                detail_id,
-                repaired(title),
-                date,
-                url,
-                repaired(body) if body_html is None else body,
-                body_html,
-                str(grade),
-            ),
+        inserted = schema.insert(
+            conn,
+            source=source,
+            detail_id=detail_id,
+            title=repaired(title),
+            date=date,
+            url=url,
+            body=repaired(body) if body_html is None else body,
+            body_html=body_html,
+            grade=str(grade),
         )
         # Provenance only when the row actually came into being. A url the
         # UNIQUE constraint made this a no-op for holds a body some other pass
         # wrote, and claiming our capture as its origin would be a false
         # statement about text we did not store.
-        if cur.rowcount > 0:
+        if inserted:
             _record_origin(conn, url, origin_url)
-    return cur.rowcount > 0
+    return inserted
 
 
 def upgrade_release(
@@ -117,24 +118,22 @@ def upgrade_release(
     Returns True if a row matched `url`.
     """
     with _transaction(conn, commit):
-        cur = conn.execute(
-            schema.UPGRADE_SQL,
-            (
-                detail_id,
-                repaired(title),
-                date,
-                repaired(body) if body_html is None else body,
-                body_html,
-                None if grade is None else str(grade),
-                url,
-            ),
+        matched = schema.upgrade(
+            conn,
+            url,
+            detail_id=detail_id,
+            title=repaired(title),
+            date=date,
+            body=repaired(body) if body_html is None else body,
+            body_html=body_html,
+            grade=None if grade is None else str(grade),
         )
         # Same rule as store_release, one step further: the entry describes
         # where a *body* came from, so a call that only moves a title or a date
         # must not touch it.
-        if cur.rowcount > 0 and (body is not None or body_html is not None):
+        if matched and (body is not None or body_html is not None):
             _record_origin(conn, url, origin_url)
-    return cur.rowcount > 0
+    return matched
 
 
 def already_stored(conn, url: str) -> bool:

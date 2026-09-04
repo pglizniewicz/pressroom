@@ -12,8 +12,7 @@ Its own module rather than a counter on `Stats`, for the same reason
 it back out through every scraper would be sixteen chances to forget. Collected
 here, drained by `Stats.summary()`, silent when there is nothing to say.
 
-Stdlib only - `outcome.py` imports it and every `entity/` layer is
-on the readers' import path.
+Stdlib only - a progress trailer has no business pulling a library in.
 """
 
 from typing import NamedTuple

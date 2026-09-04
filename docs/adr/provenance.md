@@ -17,7 +17,7 @@ why it has two columns after two removals.
   opposite reason: nothing to fetch because nothing was ever there.
 
 **A timestamp does not say which page it is a capture of, and `body_origin` is
-where that is written down.** `http.wayback_url()` used to build
+where that is written down.** The browser's archive link used to be built as
 `web/<ts>/<row url>` from `detail_id`, a capture that never existed, while the
 listing capture holding that release's full text sat in `page_cache` all along.
 
@@ -25,8 +25,8 @@ It is its own table, not a column: absence has to keep meaning "no archive link
 for this row". **Two columns**, after two removals. `page_url` was a prefix of
 `origin_url`, and `origin_url` survived because it is the whole address and the
 `page_cache` key — rebuilding it the other way would need `detail_id`, which a
-recovery can rewrite underneath, so `wayback_url()` never consults the timestamp
-when an entry exists. `matched` went once its three classes turned out to be
+recovery can rewrite underneath, so the link is `address.viewer_url(origin_url)`
+and never consults the timestamp when an entry exists. `matched` went once its three classes turned out to be
 derivable from the address, which `verification.origin_class()` computes
 (`computed` = the address the row implies, `located` = a .pdf/.doc found under
 its own path, `inferred` = neither). The score was never the useful thing: most
@@ -87,10 +87,11 @@ never had it. `tests/scraper/test_attachment_crawl.py` holds it; against the old
 code nothing raises at all, because `origin.record` does not validate - only the
 write site does.
 
-The table covers every Wayback row, which is what lets `http.wayback_url()` be
-two lines with no idea what a timestamp looks like — no entry, no link, the right
+The table covers every Wayback row, which is what lets the browser's link be
+`address.viewer_url(origin_url)` with no idea what a timestamp looks like — no entry, no link, the right
 answer for a live source too. `origin_url` never reaches the JSON:
-`http.py` turns it into `wayback_url` plus `capture_page` and drops it, and
+`http.py` turns it into `wayback_url` plus `capture_page` (through `address` and
+`provenance.control.resolution`, whose facts they are) and drops it, and
 `capture_page` is **only** set when the capture is of a different page (the first
 cut annotated every row). Checked as `[capture-of-listing]` and
 `[capture-of-own-page]`.

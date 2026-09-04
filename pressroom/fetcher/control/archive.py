@@ -29,7 +29,7 @@ from pressroom.database.control import connection
 from pressroom.fetcher.entity import page
 from pressroom.fetcher.control import address
 from pressroom.fetcher.control.politeness import HEADERS, SLEEP as CONTENT_SLEEP
-from pressroom.reporting.entity import selection
+from pressroom.reporting.control import selection
 
 CDX_URL = "https://web.archive.org/cdx/search/cdx"
 
@@ -316,21 +316,14 @@ def fetch_snapshot(
     except Exception:
         pass
 
-    conn.execute(
-        "INSERT OR IGNORE INTO page_cache (url, content, id_content_type, "
-        "fw_guessed_charset, bs4_encoding, content_sha256, fetched_at) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (
-            url,
-            content,
-            id_content_type,
-            fw_guessed_charset,
-            bs4_encoding,
-            page.content_hash(content),
-            time.time(),
-        ),
+    page.store(
+        conn,
+        url,
+        content,
+        content_type=id_content_type,
+        bs4_encoding=bs4_encoding,
+        fw_guessed_charset=fw_guessed_charset,
     )
-    conn.commit()
     time.sleep(CONTENT_SLEEP)
     return content
 

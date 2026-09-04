@@ -30,7 +30,7 @@ from pressroom.fetcher.control import address
 from pressroom.fetcher.control import archive
 from pressroom.fetcher.control import politeness
 from pressroom.release.control import storage
-from pressroom.reporting.entity import outcome
+from pressroom.reporting.control import outcome
 from pressroom.scraper.entity.parse import Detail, Entry
 
 

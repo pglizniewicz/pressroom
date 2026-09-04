@@ -113,22 +113,13 @@ class DbCase(unittest.TestCase):
         return self._urls
 
     def cache(self, key: str, content: bytes):
-        """Put bytes in page_cache under a capture address.
-
-        Raw SQL, unlike seed(): `page_cache` has no single writer to go through.
-        Its two INSERT sites live in politeness.fetch_cached and
-        archive.fetch_snapshot, both of which need `requests` - so a test cannot
-        reuse either, and the entity layer that owns the table exposes only its
-        DDL and the hash.
-        """
+        """Put bytes in page_cache under a capture address, through the table's
+        one writer - `page.store` - so a test seeds what the fetchers write,
+        hash and time included. `replace=True` because a test re-seeding a key
+        means it."""
         from pressroom.fetcher.entity import page
 
-        self.conn.execute(
-            "INSERT OR REPLACE INTO page_cache (url, content, content_sha256)"
-            " VALUES (?,?,?)",
-            (key, content, page.content_hash(content)),
-        )
-        self.conn.commit()
+        page.store(self.conn, key, content, replace=True)
 
     def row(self, url: str) -> dict:
         cur = self.conn.execute(

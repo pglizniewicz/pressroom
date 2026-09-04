@@ -70,3 +70,34 @@ class CaptureKeyTest(unittest.TestCase):
         """`id_` asks archive.org for the original bytes with no toolbar
         injected; the browser strips it for a link meant for a human."""
         self.assertIn("id_/", address.snapshot_url("20030421210545", "http://x/y.pdf"))
+
+
+ROW = "http://www.midiman.net/images/press/BX5_PR.pdf"
+OWN = "https://web.archive.org/web/20030212170800id_/" + ROW
+MIRROR = (
+    "https://web.archive.org/web/20030421210545id_/"
+    "http://www.m-audio.com/images/press/BX5_PR.pdf"
+)
+
+
+class TimestampOfTest(unittest.TestCase):
+    def test_the_link_is_labelled_with_the_capture_the_link_opens(self):
+        """#4984's detail_id is the listing's 20030212170800, its capture is
+        20030421210545. Labelling the link with the row's detail_id names a
+        capture the href does not go to."""
+        self.assertEqual(address.timestamp_of(MIRROR), "20030421210545")
+        self.assertIsNone(address.timestamp_of(None))
+        self.assertIsNone(address.timestamp_of("https://example.test/no-capture"))
+
+
+class ViewerUrlTest(unittest.TestCase):
+    def test_a_row_with_no_capture_gets_no_link(self):
+        """No link, the live sources included: their detail_id is their
+        platform's own id and never named a capture."""
+        self.assertIsNone(address.viewer_url(None))
+
+    def test_the_link_drops_the_raw_bytes_marker(self):
+        """`id_` is page_cache's variant; a human wants the ordinary viewer."""
+        self.assertEqual(
+            address.viewer_url(OWN), "https://web.archive.org/web/20030212170800/" + ROW
+        )

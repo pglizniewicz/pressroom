@@ -72,8 +72,8 @@ def fetch_cached(
 
     An article can change after publication, rarely, and `refetch=True` is how
     that is caught up with: the lookup is skipped, the page is fetched again and
-    the row replaced - the write is `INSERT OR REPLACE` for this call's sake,
-    where `OR IGNORE` would fetch the new bytes and keep the old. A scraper
+    the row replaced (`page.store(replace=True)`, where the archive's `IGNORE`
+    would fetch the new bytes and keep the old). A scraper
     exposes it as `--refetch`, on request; nothing here decides on its own that
     a cached article has gone stale.
 
@@ -108,19 +108,13 @@ def fetch_cached(
     except Exception:
         pass
 
-    conn.execute(
-        "INSERT OR REPLACE INTO page_cache "
-        "(url, content, id_content_type, bs4_encoding, content_sha256, fetched_at) "
-        "VALUES (?, ?, ?, ?, ?, ?)",
-        (
-            url,
-            content,
-            r.headers.get("Content-Type"),
-            bs4_encoding,
-            page.content_hash(content),
-            time.time(),
-        ),
+    page.store(
+        conn,
+        url,
+        content,
+        content_type=r.headers.get("Content-Type"),
+        bs4_encoding=bs4_encoding,
+        replace=refetch,
     )
-    conn.commit()
     time.sleep(SLEEP if sleep is None else sleep)
     return content

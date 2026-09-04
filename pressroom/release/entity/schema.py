@@ -1,4 +1,5 @@
-"""The `releases` table, its full-text index, and the SQL shapes over both.
+"""The `releases` table, its full-text index, the three statements that change
+them, and the SQL shapes the readers share.
 
 Three invariants hold over what is declared here, and each fails *silently* when
 broken: the `fts5(title, body)` column order is a positional ordinal in every
@@ -99,6 +100,46 @@ UPGRADE_SQL = """
            grade     = COALESCE(?, grade)
      WHERE url = ?
 """
+
+REBUILD_FTS_SQL = "INSERT INTO releases_fts(releases_fts) VALUES('rebuild')"
+
+
+def insert(
+    conn, *, source, detail_id, title, date, url, body, body_html, grade
+) -> bool:
+    """INSERT OR IGNORE one row. True if it came into being, False if `url` was
+    already there and nothing was written. No commit: the caller owns the
+    transaction, because a body and its provenance are one write."""
+    cur = conn.execute(
+        INSERT_SQL, (source, detail_id, title, date, url, body, body_html, grade)
+    )
+    return cur.rowcount > 0
+
+
+def upgrade(
+    conn,
+    url,
+    *,
+    detail_id=None,
+    title=None,
+    date=None,
+    body=None,
+    body_html=None,
+    grade=None,
+) -> bool:
+    """UPDATE the row for `url`; None leaves that column alone. True if a row
+    matched. No commit, for the same reason as `insert`."""
+    cur = conn.execute(
+        UPGRADE_SQL, (detail_id, title, date, body, body_html, grade, url)
+    )
+    return cur.rowcount > 0
+
+
+def rebuild_fts(conn) -> None:
+    """Reindex releases_fts from `releases`, from scratch. `control/index.py`
+    says when this is the right move and why it cannot wait."""
+    conn.execute(REBUILD_FTS_SQL)
+    conn.commit()
 
 
 # --- The query shapes both readers share (control/query.py) ----------------

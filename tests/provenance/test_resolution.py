@@ -5,6 +5,8 @@ whole-page parser cost 64 rows, so "is this a capture of the row's own url" is
 not an inline comparison anywhere.
 """
 
+import unittest
+
 from pressroom.fetcher.control import address
 from pressroom.provenance.control import resolution
 from pressroom.provenance.entity import origin
@@ -74,3 +76,45 @@ class ClearTest(support.DbCase):
 
     def test_clearing_a_url_with_no_entry_is_a_no_op(self):
         origin.clear(self.conn, "http://never/seen")
+
+
+PDF_ROW = "http://www.midiman.net/images/press/BX5_PR.pdf"
+PDF_OWN = "https://web.archive.org/web/20030212170800id_/" + PDF_ROW
+PDF_MIRROR = (
+    "https://web.archive.org/web/20030421210545id_/"
+    "http://www.m-audio.com/images/press/BX5_PR.pdf"
+)
+LISTING_CAPTURE = (
+    "https://web.archive.org/web/20111011173713id_/http://www.terratec.de/presse.html"
+)
+
+
+class CaptureAnnotationTest(unittest.TestCase):
+    """The two strings the browser renders next to a capture link, derived
+    here because they are provenance: each test names the incident that shaped
+    it."""
+
+    def test_the_common_case_stays_unannotated(self):
+        """1605 of the 1763 rows with a capture are captures of their own page,
+        and the first cut of this marked every one of them."""
+        self.assertIsNone(resolution.capture_page(PDF_OWN, PDF_ROW))
+        self.assertIsNone(
+            resolution.capture_kind(resolution.capture_page(PDF_OWN, PDF_ROW), PDF_ROW)
+        )
+
+    def test_a_listing_capture_is_named_in_plain_text(self):
+        """#4414: built from the row's own url the link is a capture archive.org
+        does not have, while `web/<ts>/…/presse.html` holds that release's full
+        text, character for character."""
+        row = "http://www.terratec.de/September_2011.html"
+        page = resolution.capture_page(LISTING_CAPTURE, row)
+        self.assertEqual(page, "http://www.terratec.de/presse.html")
+        self.assertEqual(resolution.capture_kind(page, row), "other")
+
+    def test_the_same_file_on_a_sibling_domain_is_not_a_listing(self):
+        """Calling it one stopped 209 attachment rows from being written for a
+        day: "z listingu" for midiman.net/.../BX5_PR.pdf read off
+        m-audio.com/.../BX5_PR.pdf is simply false, and both hosts are start
+        urls of the same scraper."""
+        page = resolution.capture_page(PDF_MIRROR, PDF_ROW)
+        self.assertEqual(resolution.capture_kind(page, PDF_ROW), "mirror")

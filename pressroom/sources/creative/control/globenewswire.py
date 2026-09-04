@@ -24,7 +24,7 @@ from pressroom.text.control.dating import iso_date
 from pressroom.database.control import connection
 from pressroom.scraper.control import catch_up
 from pressroom.scraper.control import discovery
-from pressroom.reporting.entity.outcome import Stats
+from pressroom.reporting.control.outcome import Stats
 from pressroom.scraper.entity.parse import Detail, Entry
 
 

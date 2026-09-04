@@ -19,8 +19,6 @@ written, the row is `uncertain`, and only a confirmed absence is `dead`.
 → docs/adr/catch-up.md
 """
 
-import sys
-
 from pressroom.fetcher.control import address
 from pressroom.converter.control import conversion
 from pressroom.release.control import gate
@@ -30,7 +28,7 @@ from pressroom.text.control import richtext
 from pressroom.scraper.control import discovery, twin
 from pressroom.fetcher.control import archive
 from pressroom.fetcher.control import politeness
-from pressroom.reporting.entity.outcome import Stats
+from pressroom.reporting.control.outcome import Stats
 
 
 def pending(
@@ -492,6 +490,7 @@ def catch_up(
     attachments: bool = False,
     twins_too: bool = False,
     refetch: bool = False,
+    confirm=None,
 ) -> None:
     """Phase 2 for one source, cheapest route first. The call a scraper makes.
 
@@ -509,10 +508,11 @@ def catch_up(
     opposite special case - fetch captures for a parser redesign and parse
     nothing - so it runs alone. `refetch=True` is the live sources' `--refetch`
     and asks first the way `force` does: it rewrites every row and fetches every
-    page besides.
+    page besides. `confirm(message) -> bool` is the boundary's way of asking;
+    without one, only `yes` lets a bulk rewrite through.
     """
     if (force or refetch) and not confirm_rewrite(
-        conn, source, "--refetch" if refetch else "--force", yes=yes
+        conn, source, "--refetch" if refetch else "--force", yes=yes, ask=confirm
     ):
         return
     if only_retext:
@@ -553,84 +553,31 @@ def catch_up(
         retry_missing(conn, source, parser, session, limit=limit)
 
 
-# The flags every scraper gets, in one place so the vocabulary is identical
-# everywhere: add_flags(p) declares them, options(args) turns them into keyword
-# arguments.
-def add_flags(parser) -> None:
-    parser.add_argument(
-        "--force",
-        action="store_true",
-        help="re-extract every row of this source, not just the "
-        "ones without markup (after changing the parser)",
-    )
-    parser.add_argument(
-        "--yes",
-        action="store_true",
-        help="do not ask before a bulk rewrite (--force, --refetch)",
-    )
-    parser.add_argument(
-        "--retext",
-        action="store_true",
-        help="only re-derive body from the stored HTML (after changing to_text)",
-    )
-    parser.add_argument(
-        "--offline",
-        action="store_true",
-        help="catch up from page_cache only, no network",
-    )
-    parser.add_argument(
-        "--seed-cache",
-        action="store_true",
-        help="fetch captures into page_cache and parse nothing",
-    )
-    parser.add_argument(
-        "--no-catch-up", action="store_true", help="crawl only, skip phase 2"
-    )
-    parser.add_argument(
-        "--attachments",
-        action="store_true",
-        help="also crawl archive.org for .pdf/.doc attachments "
-        "(hours, and the last two passes yielded nothing)",
-    )
-
-
-def options(args) -> dict[str, bool]:
-    return {
-        "catch_up": not args.no_catch_up,
-        "force": args.force,
-        "yes": args.yes,
-        "offline": args.offline,
-        "only_retext": args.retext,
-        "seed": args.seed_cache,
-        # Read by attachment_crawl.catch_up, not by this module.
-        "attachments": getattr(args, "attachments", False),
-    }
-
-
-def confirm_rewrite(conn, source: str, flag: str, *, yes: bool = False) -> bool:
-    """Ask before rewriting rows that already carry markup - `--force` does,
-    and `--refetch` does and fetches every page besides.
+def confirm_rewrite(
+    conn, source: str, flag: str, *, yes: bool = False, ask=None
+) -> bool:
+    """Whether a bulk rewrite may go ahead - `--force` rewrites every row that
+    already carries markup, `--refetch` does and fetches every page besides.
 
     `--force` is the flag whose earlier equivalent overwrote full articles with
     listing teasers. The gates still hold underneath, but a bulk rewrite is
-    worth stating out loud first. Non-interactive callers pass yes=True; a pipe
-    with no tty answers no rather than blocking a cron.
+    worth stating out loud first: the statement is built here, with the numbers,
+    and `ask(message) -> bool` is the boundary's - it knows whether there is a
+    terminal to put the question to. `yes=True` is the non-interactive caller's
+    answer; no `ask` and no `yes` is a no, so a cron never blocks.
     """
     total, with_html = conn.execute(
         "SELECT count(*), sum(body_html IS NOT NULL) FROM releases WHERE source = ?",
         (source,),
     ).fetchone()
-    print(
+    message = (
         f"[{source}] {flag}: {total} wierszy, {with_html or 0} z nich ma juz "
-        f"body_html i zostanie przepisanych",
-        flush=True,
+        f"body_html i zostanie przepisanych"
     )
     if yes:
+        print(message, flush=True)
         return True
-    if not sys.stdin.isatty():
-        print("  brak terminala - przerywam. Dodaj --yes swiadomie.")
-        return False
-    return input("  kontynuowac? [y/N] ").strip().lower() in ("y", "yes", "t", "tak")
+    return ask is not None and bool(ask(message))
 
 
 def run(conn, source: str, opts: dict | None, **pieces) -> None:

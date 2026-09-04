@@ -310,7 +310,8 @@ deviation rather than claiming green.
 
 - **`body_origin` is the only place a body's capture is written down**, and it is
   its own table so absence keeps meaning "no archive link for this row".
-  **`wayback_url()` must never consult `detail_id`** when an entry exists.
+  **The archive link is built from the recorded origin (`address.viewer_url()`),
+  never from `detail_id`**, when an entry exists.
 - **`origin.record()` goes next to the body write, in the same transaction**, at
   every site that has the address in hand; a listing collector carries
   `origin_url` on each entry. `run_retext` records nothing.

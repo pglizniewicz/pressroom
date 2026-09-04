@@ -55,3 +55,37 @@ def page_of(key: str) -> str:
     """The page a capture key is a capture of, falling back to the key itself so
     a report stays readable when an address carries no `id_/` marker."""
     return origin.page_of(key) or key
+
+
+def capture_page(origin_url, row_url):
+    """The page a `body_origin.origin_url` is a capture of - but only when that
+    is *not* the row's own url, since that is the only case a reader has
+    anything to say about.
+
+    The split itself is origin.page_of. What belongs here is the comparison:
+    body_origin covers every Wayback row rather than only the discrepant ones,
+    so this is what keeps the badge off a row whose capture is of its own page.
+    """
+    page = origin.page_of(origin_url)
+    return page if page and page != row_url else None
+
+
+def capture_kind(page, row_url):
+    """How the capture's page relates to the row's own url: 'mirror' | 'other'.
+
+    A copy of the *same file* on a sibling domain is not a listing, and a badge
+    saying "z listingu" for `midiman.net/.../BX5_PR.pdf` read off
+    `m-audio.com/.../BX5_PR.pdf` is simply false. Both addresses are start urls
+    of one scraper, so the label is "a copy from another domain".
+
+    The file name decides, and only here: this is a *label*, never an identity
+    test. Identity is established by the bytes and by the extracted text, because
+    matching on the name alone once paired a row with a different release.
+    """
+    if not page or not row_url:
+        return None
+    return (
+        "mirror"
+        if page.rsplit("/", 1)[-1].lower() == row_url.rsplit("/", 1)[-1].lower()
+        else "other"
+    )

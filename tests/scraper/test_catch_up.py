@@ -400,33 +400,26 @@ class FlagTest(support.DbCase):
             with self.subTest(opts=opts):
                 self.assertEqual(catch_up.no_crawl(opts), want)
 
-    def test_a_bulk_rewrite_is_refused_when_there_is_no_terminal(self):
+    def test_a_bulk_rewrite_needs_a_yes_or_an_answer(self):
         """--force is the flag whose earlier equivalent overwrote the 122 articles
-        above, so a bulk rewrite is stated out loud first - and a pipe with no tty
-        answers no rather than blocking a cron. --refetch rewrites every row too,
-        and fetches every page besides, so it goes through the same question."""
+        above, so a bulk rewrite is stated out loud first. The asking is the
+        boundary's (`command.ask_on_tty`); what this decides is that no `yes` and
+        nobody to ask is a no, so a cron never blocks, and that the statement
+        names the flag and the numbers. --refetch goes through the same question."""
         self.seed("src", url="http://x/1", body="b", body_html="<p>b</p>")
+        asked = []
         for flag in ("--force", "--refetch"):
             with self.subTest(flag=flag):
-                self.assertFalse(self._confirm(flag, yes=False))
-                self.assertTrue(self._confirm(flag, yes=True))
+                self.assertFalse(self._confirm(flag, yes=False, ask=None))
+                self.assertTrue(self._confirm(flag, yes=True, ask=None))
+                self.assertFalse(self._confirm(flag, yes=False, ask=lambda m: False))
+                self.assertTrue(
+                    self._confirm(
+                        flag, yes=False, ask=lambda m: asked.append(m) or True
+                    )
+                )
+        self.assertIn("--refetch: 1 wierszy, 1 z nich ma juz body_html", asked[-1])
 
-    def _confirm(self, flag, *, yes):
+    def _confirm(self, flag, *, yes, ask):
         with contextlib.redirect_stdout(io.StringIO()):
-            return catch_up.confirm_rewrite(self.conn, "src", flag, yes=yes)
-
-    def test_options_maps_the_flags_to_the_keywords_catch_up_takes(self):
-        class Args:
-            no_catch_up = False
-            force = True
-            yes = False
-            retext = False
-            offline = True
-            seed_cache = False
-            attachments = False
-
-        got = catch_up.options(Args())
-        self.assertEqual(got["force"], True)
-        self.assertEqual(got["offline"], True)
-        self.assertEqual(got["only_retext"], False)
-        self.assertEqual(got["catch_up"], True)
+            return catch_up.confirm_rewrite(self.conn, "src", flag, yes=yes, ask=ask)

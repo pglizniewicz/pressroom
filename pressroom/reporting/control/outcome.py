@@ -21,7 +21,7 @@ import time
 
 from pressroom.text.control import decoding
 from pressroom.release.control import storage
-from pressroom.reporting.entity import selection
+from pressroom.reporting.control import selection
 
 # Not an outcome: printed once per historical capture fetched, which happens
 # before any row is stored. Not '+', so the two phases stay

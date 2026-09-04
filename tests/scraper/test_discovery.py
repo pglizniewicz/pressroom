@@ -13,8 +13,8 @@ from unittest import mock
 
 from pressroom.fetcher.control import archive
 
-from pressroom.reporting.entity import selection
-from pressroom.reporting.entity.outcome import Stats
+from pressroom.reporting.control import selection
+from pressroom.reporting.control.outcome import Stats
 from pressroom.scraper.control import discovery
 from tests import support
 

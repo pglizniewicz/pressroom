@@ -11,6 +11,7 @@ a bug.
 """
 
 import hashlib
+import time
 
 SCHEMA_SQL = """
     -- Column order is the order the file on disk has; see release/entity.
@@ -40,9 +41,49 @@ SCHEMA_SQL = """
 
 
 def content_hash(content: bytes) -> str:
-    """sha256 of a cached page's bytes, hex. One implementation for both write
-    sites - the live fetch path and the archive fetch path."""
+    """sha256 of a cached page's bytes, hex."""
     return hashlib.sha256(content).hexdigest()
+
+
+_STORE_SQL = (
+    "INSERT OR {verb} INTO page_cache (url, content, id_content_type, "
+    "fw_guessed_charset, bs4_encoding, content_sha256, fetched_at) "
+    "VALUES (?, ?, ?, ?, ?, ?, ?)"
+)
+
+
+def store(
+    conn,
+    url: str,
+    content: bytes,
+    *,
+    content_type=None,
+    bs4_encoding=None,
+    fw_guessed_charset=None,
+    replace: bool = False,
+) -> None:
+    """Keep one page's bytes, with what the response claimed about them.
+
+    The one write to this table, so the hash and the time cannot be forgotten
+    by a caller. `replace=False` is the archive's case: a capture never changes,
+    and a row that exists is left as it is. `replace=True` is a live article
+    fetched again on request (`politeness.fetch_cached(refetch=True)`), where
+    the new bytes are the point. Commits: a page is kept the moment it arrives,
+    which is what makes an interrupted crawl resume for free.
+    """
+    with conn:
+        conn.execute(
+            _STORE_SQL.format(verb="REPLACE" if replace else "IGNORE"),
+            (
+                url,
+                content,
+                content_type,
+                fw_guessed_charset,
+                bs4_encoding,
+                content_hash(content),
+                time.time(),
+            ),
+        )
 
 
 def same_bytes(conn, url: str) -> list[str]:

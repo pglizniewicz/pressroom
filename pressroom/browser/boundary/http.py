@@ -34,7 +34,8 @@ from urllib.parse import parse_qs, urlsplit
 
 from pressroom.taxonomy.entity import company
 from pressroom.database.control import connection
-from pressroom.provenance.entity import origin
+from pressroom.provenance.control import resolution
+from pressroom.fetcher.control import address
 from pressroom.release.control import query
 
 STATIC_DIR = Path(__file__).parent / "static"
@@ -53,66 +54,6 @@ VALID_FLAGS = ("teaser", "short", "nodate", "mojibake", "plain")
 
 class BadRequest(Exception):
     """A malformed query parameter - answered as 400 JSON, not a traceback."""
-
-
-def capture_ts(origin_url):
-    """The timestamp of the capture a row's body came from, or None.
-
-    Taken from the recorded capture, never from `releases.detail_id`: for a row
-    whose bytes came off a sibling domain the two differ, and labelling the link
-    with the wrong one is the misreading body_origin exists to end.
-    """
-    if not origin_url:
-        return None
-    m = re.search(r"/web/(\d{14})", origin_url)
-    return m.group(1) if m else None
-
-
-def capture_kind(page, row_url):
-    """How the capture's page relates to the row's own url: 'mirror' | 'other'.
-
-    A copy of the *same file* on a sibling domain is not a listing, and a badge
-    saying "z listingu" for `midiman.net/.../BX5_PR.pdf` read off
-    `m-audio.com/.../BX5_PR.pdf` is simply false. Both addresses are start urls
-    of one scraper, so the label is "a copy from another domain".
-
-    The file name decides, and only here: this is a *label*, never an identity
-    test. Identity is established by the bytes and by the extracted text, because
-    matching on the name alone once paired a row with a different release.
-    """
-    if not page or not row_url:
-        return None
-    return (
-        "mirror"
-        if page.rsplit("/", 1)[-1].lower() == row_url.rsplit("/", 1)[-1].lower()
-        else "other"
-    )
-
-
-def capture_page(origin_url, row_url):
-    """The page a `body_origin.origin_url` is a capture of - but only when
-    that is *not* the row's own url, since that is the only case the reader has
-    anything to say about.
-
-    The split itself is origin.page_of. What belongs here is the comparison:
-    body_origin covers every Wayback row rather than only the discrepant ones,
-    so this is what keeps the badge off a row whose capture is of its own
-    page."""
-    page = origin.page_of(origin_url)
-    return page if page and page != row_url else None
-
-
-def wayback_url(origin_url):
-    """The archive link for a row, or None if it has no capture.
-
-    Reads `body_origin` and nothing else - never `detail_id`, whose *shape* is
-    not a statement about what it refers to. A row with no recorded capture gets
-    no link, the live sources included.
-
-    Stored minus the `id_` marker, so the reader lands on the ordinary viewer
-    page rather than page_cache's raw-bytes variant.
-    """
-    return origin_url.replace("id_/", "/", 1) if origin_url else None
 
 
 def _one(params, key, default=None):
@@ -200,12 +141,12 @@ def handle_search(conn, params) -> dict[str, Any]:
     except (ValueError, sqlite3.OperationalError) as e:
         raise BadRequest(str(e))
     for row in payload["results"]:
-        row["wayback_url"] = wayback_url(row.get("origin_url"))
+        row["wayback_url"] = address.viewer_url(row.get("origin_url"))
         cap = row.pop("origin_url", None)
-        page = capture_page(cap, row["url"])
+        page = resolution.capture_page(cap, row["url"])
         row["capture_page"] = page
-        row["capture_kind"] = capture_kind(page, row["url"])
-        row["capture_ts"] = capture_ts(cap)
+        row["capture_kind"] = resolution.capture_kind(page, row["url"])
+        row["capture_ts"] = address.timestamp_of(cap)
         row["company"] = company.label(company.company_of(row["source"]))
     return payload
 
@@ -214,12 +155,12 @@ def handle_release(conn, rid: int):
     row = query.get_release(conn, rid)
     if row is None:
         return None
-    row["wayback_url"] = wayback_url(row.get("origin_url"))
+    row["wayback_url"] = address.viewer_url(row.get("origin_url"))
     cap = row.pop("origin_url", None)
-    page = capture_page(cap, row["url"])
+    page = resolution.capture_page(cap, row["url"])
     row["capture_page"] = page
-    row["capture_kind"] = capture_kind(page, row["url"])
-    row["capture_ts"] = capture_ts(cap)
+    row["capture_kind"] = resolution.capture_kind(page, row["url"])
+    row["capture_ts"] = address.timestamp_of(cap)
     row["body_len"] = len(row["body"])
     row["company_slug"] = company.company_of(row["source"])
     row["company"] = company.label(row["company_slug"])

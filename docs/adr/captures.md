@@ -107,7 +107,7 @@ in hand when captures of the url exist and not one of them scored;
 for both and quietly turned every such release into a dead end.
 
 **A probe that wins is reported, and a probe that could not be fetched is
-reported too.** `reporting/entity/selection.py` collects one record per url —
+reported too.** `reporting/control/selection.py` collects one record per url —
 which capture was taken, which was passed over, both scores, and why — and
 `Stats.summary()` drains it after the counts. Same mechanism and same reason as
 `decoding.REPAIRS` above: the walk is the only place that knows, and a separate

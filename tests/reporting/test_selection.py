@@ -10,8 +10,8 @@ import io
 import contextlib
 import unittest
 
-from pressroom.reporting.entity import selection
-from pressroom.reporting.entity.outcome import Stats
+from pressroom.reporting.control import selection
+from pressroom.reporting.control.outcome import Stats
 
 
 def summary(source="src"):

@@ -8,30 +8,9 @@ Usage:
   pressroom-amd --refetch                    # fetch every stored article again
 """
 
-from pressroom.q4.control import platform
 from pressroom.scraper.boundary import command
-
-SOURCE = "amd"
-LIST_URL = "https://ir.amd.com/news-events/press-releases"
-
-# AMD's Q4 instance uses the Bootstrap media classes where Intel's uses the
-# platform default, which is the only difference between the two sources.
-CONTAINER_SEL = "div.media-body"
-TITLE_LINK_SEL = "div.media-heading a"
-
-
-def crawl(*, pages, start, refetch, catch):
-    platform.scrape(
-        source=SOURCE,
-        list_url=LIST_URL,
-        pages=pages,
-        start=start,
-        refetch=refetch,
-        catch=catch,
-        container_sel=CONTAINER_SEL,
-        title_link_sel=TITLE_LINK_SEL,
-    )
+from pressroom.sources.amd.control import q4
 
 
 def main():
-    command.run(crawl, __doc__, command.PAGES, command.START, command.REFETCH)
+    command.run(q4.scrape, __doc__, command.PAGES, command.START, command.REFETCH)

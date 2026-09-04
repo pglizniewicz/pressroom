@@ -49,3 +49,28 @@ def capture_key(detail_id, url: str) -> str:
     url - prefer provenance's origin_key(), which asks the database first.
     """
     return snapshot_url(detail_id, url) if is_timestamp(detail_id) else ""
+
+
+_TIMESTAMP_IN_ADDRESS_RE = re.compile(r"/web/(\d{14})")
+
+
+def timestamp_of(capture_address) -> str | None:
+    """The 14-digit timestamp inside a capture address, or None.
+
+    Read off the address itself, never off `releases.detail_id`: for a row whose
+    bytes came off a sibling domain the two differ, and labelling the link with
+    the wrong one is the misreading body_origin exists to end.
+    """
+    if not capture_address:
+        return None
+    m = _TIMESTAMP_IN_ADDRESS_RE.search(capture_address)
+    return m.group(1) if m else None
+
+
+def viewer_url(capture_address) -> str | None:
+    """The address a person opens: the `id_` marker dropped, so the reader lands
+    on archive.org's ordinary viewer page rather than page_cache's raw-bytes
+    variant. None for None - a row with no recorded capture gets no link, the
+    live sources included.
+    """
+    return capture_address.replace("id_/", "/", 1) if capture_address else None

@@ -24,7 +24,7 @@ from pressroom.release.control import storage
 from pressroom.scraper.control import catch_up
 from pressroom.scraper.control import discovery
 from pressroom.text.control import richtext
-from pressroom.reporting.entity.outcome import Stats
+from pressroom.reporting.control.outcome import Stats
 from pressroom.fetcher.control import archive
 from pressroom.text.control.decoding import decode_html
 from pressroom.scraper.entity.parse import Detail, Entry

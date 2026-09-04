@@ -16,10 +16,8 @@ class below names the rule it asserts. `ImportGraphTest` is the precondition for
 the rest: a graph that silently lost its edges would make every other class pass
 by matching nothing.
 
-Two things it does not check. `entity/` importing `control/` is not
-forbidden by the rulebook, and inventing that rule here is not this file's job.
-Import cycles are not checked because `pressroom-verify-names` really does
-import every module, so a cycle already takes it down.
+One thing it does not check: import cycles, because `pressroom-verify-names`
+really does import every module, so a cycle already takes it down.
 """
 
 import ast
@@ -519,14 +517,48 @@ class SourceIsolationTest(unittest.TestCase):
 
 
 class LayerDirectionTest(unittest.TestCase):
-    """The boundary is what an outside actor reaches - nothing below it.
+    """The boundary is what an outside actor reaches, and the layers point one
+    way: nothing below a boundary reaches back into one, and an entity reaches
+    no control. The second half was recorded rather than asserted while
+    `reporting/entity/outcome.py` broke it in its summary line - procedural
+    reporting misfiled as an entity, `reporting/control/` now.
 
-    Only the outward half is asserted. `entity/` importing `control/` happens
-    twice, both out of `reporting/entity/outcome.py` and both in the summary
-    line it renders; the rulebook says an entity owns a table, never that it may
-    not call control, so that stays recorded rather than enforced - the way
-    `docs/adr/layout-and-naming.md` records its two BCE deviations.
+    A boundary reaching another component's boundary has exactly one sanctioned
+    target, `scraper/boundary/command.py`, the command line every scraper
+    assembles through; a second one would be a facade nobody outside calls.
     """
+
+    COMMAND_LINE = "pressroom.scraper.boundary.command"
+
+    def test_no_entity_module_imports_control(self):
+        for module, targets in sorted(_graph().edges.items()):
+            if _layer(module) != "entity":
+                continue
+            for target in sorted(targets):
+                if _layer(target) != "control":
+                    continue
+                with self.subTest(module=module, target=target):
+                    self.fail(
+                        f"{_rel(module)} imports {_rel(target)}; an entity is a "
+                        f"table's state and the statements that change it, and "
+                        f"what needs control is control"
+                    )
+
+    def test_a_boundary_reaches_another_boundary_only_for_the_command_line(self):
+        for module, targets in sorted(_graph().edges.items()):
+            if _layer(module) != "boundary":
+                continue
+            for target in sorted(targets):
+                if _layer(target) != "boundary" or target == self.COMMAND_LINE:
+                    continue
+                if _component(target) == _component(module):
+                    continue
+                with self.subTest(module=module, target=target):
+                    self.fail(
+                        f"{_rel(module)} imports {_rel(target)}; a boundary is "
+                        f"what an outside actor reaches, and the only one built "
+                        f"for other boundaries is {_rel(self.COMMAND_LINE)}"
+                    )
 
     def test_no_control_or_entity_module_imports_a_boundary(self):
         for module, targets in sorted(_graph().edges.items()):
