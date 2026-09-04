@@ -30,7 +30,7 @@ def search(
 
     with contextlib.closing(connect_ro()) as conn:
         try:
-            rows = query.cli_search(conn, q, sources, limit)
+            rows = query.top_matches(conn, q, sources, limit)
         except sqlite3.OperationalError as e:
             print(f"Query error: {e}")
             if "no such table" in str(e):

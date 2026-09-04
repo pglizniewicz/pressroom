@@ -259,6 +259,26 @@ work, not a decision.
   its summary was filed as an entity once, and it owns no table. The pattern
   allows it: a responsibility that is procedural, or a table, or an entry
   point, needs no more than its own layer.
+- **`pressroom-search` is `release`'s boundary; `pressroom-serve` is its own
+  component.** The two readers look like one kind of thing filed in two ways,
+  and the question was raised (2026-09-04): make a `reader` component, or fold
+  the browser into `release`. What decided it was what each one composes. The
+  CLI imports `release` and `database` and nothing else: the corpus reached
+  from a terminal is a boundary of the corpus. The browser composes `release`,
+  `provenance`, `taxonomy`, `fetcher.address` and `database`, and owns a page
+  with its own spec and `checks.md`; filed under `release`, the corpus would
+  import the second axis and the capture facts, the wrong direction. A `reader`
+  component would hold a docstring: what the two share is the corpus's
+  answers, owned by `release/control/query.py`, and `connect_ro()`, owned by
+  `database`. The pattern allows the asymmetry — control may be called by
+  another component directly, the boundary is not a gate — and the one debt it
+  left was in `query.py`, which described itself as "the query shapes both
+  readers share" and named the browser in its comments: the corpus knowing who
+  reads it. That module now states what the corpus answers, in its own words,
+  and `cli_search` became `top_matches`, named for the answer, not the caller.
+  The cost kept: the browser has no control layer of its own, so a query only
+  the page needs still goes into `release`, phrased as a question about the
+  corpus.
 - **Control prints, and does not ask on its own.** The marker stream and the
   summary line are the product of a run, and `reporting` owns their vocabulary;
   routing them through the boundary would be an event bus for a command-line

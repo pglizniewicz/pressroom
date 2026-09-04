@@ -1,10 +1,12 @@
-"""Reading the corpus: the query shapes both readers share.
+"""Reading the corpus: every statement that answers a question about it.
 
-The CLI and the browser own no SQL of their own - the browser owns HTTP and
-nothing else, the CLI owns argument parsing and printing - so every statement
-they need is here, once. Read-only by construction: none of these changes a
-row, and connect_ro() hands out a connection SQLite itself refuses to write
-through.
+What the corpus can answer - one page of releases, browsed or matched by full
+text; one release; its neighbours in the same source; the sources and the gap
+counters - is here, once, in the corpus's own words. Who asks is not this
+module's business: a caller gets a page and a cursor, a row and its facts, and
+decides for itself what to print or send. Read-only by construction: none of
+these changes a row, and connect_ro() hands out a connection SQLite itself
+refuses to write through.
 
 snippet()'s ordinal 1 is `body`, positional per the fts5(title, body)
 declaration in entity/schema.py.
@@ -17,7 +19,7 @@ from pressroom.release.entity.schema import FLAG_SQL, MOJIBAKE_SQL
 
 # Cursors are opaque to the caller: FTS pages by offset (bm25 cannot be
 # keyset-paginated), browsing pages by (date, id) keyset. Both come back as one
-# string so the browser and its frontend never have to know which mode they're in.
+# string so a caller never has to know which mode it is in.
 _MAX_OFFSET = 1000
 
 # `c.origin_url` is selected on every list row for the same reason get_release
@@ -168,8 +170,8 @@ def get_release(conn: sqlite3.Connection, rid: int):
 
     `origin_url` is the capture the body was read out of, and it is present
     only when that capture is *not* one of the row's own url - i.e. only for
-    the rows whose text came off a listing. the browser turns it into the link and
-    names the page; without it a reader can only guess from the timestamp, and
+    the rows whose text came off a listing. A caller turns it into the link and
+    names the page; without it a caller can only guess from the timestamp, and
     for these rows that guess is a page that never existed."""
     row = conn.execute(
         f"""SELECT r.id, r.source, r.detail_id, r.grade, r.title, r.date, r.url,
@@ -226,7 +228,7 @@ def neighbours(conn: sqlite3.Connection, rid: int) -> dict[str, dict[str, Any] |
 
 
 def quality_counts(conn: sqlite3.Connection) -> dict[str, int]:
-    """Corpus-wide gap counters for the audit view: how much of the corpus is
+    """Corpus-wide gap counters: how much of the corpus is
     teaser-grade, dateless, suspiciously short or encoding-damaged. A short body
     counts independently of detail_id, because pressdb and media_pr rows carry
     the *listing* capture's timestamp even when the body is just its blurb.
@@ -237,8 +239,7 @@ def quality_counts(conn: sqlite3.Connection) -> dict[str, int]:
 
     'wayback' counts rows with a recorded capture, 'platform_id' the rows that
     carry a reference but no capture: the live sources storing their platform's
-    own id, plus the attachment rows whose bytes were never cached. The browser
-    labels the second "bez capture", which is what it measures. Neither is
+    own id, plus the attachment rows whose bytes were never cached. Neither is
     derived from the *shape* of detail_id - that rule was re-implemented in
     seven places and silently decided what a new source could store."""
     row = conn.execute(f"""
@@ -262,8 +263,8 @@ def quality_counts(conn: sqlite3.Connection) -> dict[str, int]:
 
 
 def list_sources(conn: sqlite3.Connection) -> list[dict[str, Any]]:
-    """Every source with its size, date span and gap counts - one GROUP BY for
-    both the browse sidebar and the audit table's per-source breakdown."""
+    """Every source with its size, date span and gap counts, biggest first -
+    one GROUP BY answers both the list of sources and the per-source gaps."""
     rows = conn.execute(f"""
         SELECT r.source, count(*),
                min(NULLIF(r.date, '')), max(NULLIF(r.date, '')),
@@ -293,9 +294,9 @@ def list_sources(conn: sqlite3.Connection) -> list[dict[str, Any]]:
     ]
 
 
-# --- The CLI reader's one query --------------------------------------------
+# --- Ranked matches, body included, no paging -------------------------------
 
-_CLI_SQL = """
+_TOP_MATCHES_SQL = """
     SELECT r.source, r.date, r.title, r.url, r.body,
            snippet(releases_fts, 1, '>>>', '<<<', '…', 24) AS excerpt
     FROM releases_fts
@@ -307,20 +308,21 @@ _CLI_SQL = """
 """
 
 
-def cli_search(conn, query: str, sources=None, limit: int = 8) -> list[tuple]:
-    """Ranked rows for the terminal reader: (source, date, title, url, body,
-    excerpt). Its own shape rather than search_releases(): the CLI needs five
-    named columns and a snippet, not the browser's row dict with a cursor.
+def top_matches(conn, query: str, sources=None, limit: int = 8) -> list[tuple]:
+    """The best-ranked rows for a query: (source, date, title, url, body,
+    excerpt). Its own shape rather than search_releases(): the body comes
+    along and there is no cursor, for a caller that takes the whole answer at
+    once.
 
     Raises sqlite3.OperationalError through, so the caller can tell "no index
     yet" from "unparseable FTS query" and say which.
     """
     if sources:
-        sql = _CLI_SQL.format(
+        sql = _TOP_MATCHES_SQL.format(
             source_clause=f"AND r.source IN ({','.join('?' * len(sources))})"
         )
         params = [query] + list(sources) + [limit]
     else:
-        sql = _CLI_SQL.format(source_clause="")
+        sql = _TOP_MATCHES_SQL.format(source_clause="")
         params = [query, limit]
     return conn.execute(sql, params).fetchall()
