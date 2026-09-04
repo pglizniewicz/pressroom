@@ -27,6 +27,7 @@ class OptionTest(unittest.TestCase):
         self.assertEqual(command.LIMIT.dest, "limit")
         self.assertEqual(command.PAGES.dest, "pages")
         self.assertEqual(command.START.dest, "start")
+        self.assertEqual(command.REFETCH.dest, "refetch")
 
 
 class SummaryTest(unittest.TestCase):

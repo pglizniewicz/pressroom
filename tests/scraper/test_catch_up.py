@@ -265,6 +265,102 @@ class ListingsTest(support.DbCase):
         self.assertIn("the real article", self.row("http://x/known")["body"])
 
 
+LIVE_URL = "https://live.example/press/1"
+PUBLISHED = ("the article as first published " * 8).strip()
+
+
+def live_parse(content: bytes):
+    """A parser for the live tests: the page's bytes are the article's text."""
+    text = content.decode()
+    return {"body": text, "body_html": f"<p>{text}</p>"}
+
+
+class FromLiveTest(support.DbCase):
+    """Phase 2 against a site that is still up. The cache is the article's, so
+    a cached page costs no request; `refetch` is how a changed article is
+    caught up with, and the gates hold under it as under everything else."""
+
+    def cached(self):
+        return self.conn.execute(
+            "SELECT content FROM page_cache WHERE url = ?", (LIVE_URL,)
+        ).fetchone()[0]
+
+    def test_a_cached_page_is_read_without_a_request(self):
+        self.seed("src", url=LIVE_URL, body="blurb")
+        self.cache(LIVE_URL, PUBLISHED.encode())
+        quiet(
+            catch_up.from_live,
+            self.conn,
+            "src",
+            live_parse,
+            support.Refusing(),
+            sleep=0,
+        )
+        self.assertEqual(self.row(LIVE_URL)["body_html"], f"<p>{PUBLISHED}</p>")
+
+    def test_refetch_fetches_a_finished_row_again_and_keeps_the_correction(self):
+        self.seed("src", url=LIVE_URL, body=PUBLISHED, body_html=f"<p>{PUBLISHED}</p>")
+        self.cache(LIVE_URL, PUBLISHED.encode())
+        corrected = PUBLISHED + " Corrected: the price was misprinted."
+        session = support.Serving(corrected.encode())
+        quiet(
+            catch_up.from_live,
+            self.conn,
+            "src",
+            live_parse,
+            session,
+            sleep=0,
+            refetch=True,
+        )
+        self.assertEqual(session.urls, [LIVE_URL])
+        self.assertEqual(self.row(LIVE_URL)["body"], corrected)
+        self.assertEqual(self.cached(), corrected.encode())
+
+    def test_refetch_of_an_unchanged_article_is_skipped_not_upgraded(self):
+        """`upgrade_release` only says a row matched, so the unchanged case is
+        told apart here - the summary of a --refetch has to count the articles
+        that did change, not the pages that were fetched."""
+        self.seed("src", url=LIVE_URL, body=PUBLISHED, body_html=f"<p>{PUBLISHED}</p>")
+        self.cache(LIVE_URL, PUBLISHED.encode())
+        session = support.Serving(PUBLISHED.encode())
+        out = quiet(
+            catch_up.from_live,
+            self.conn,
+            "src",
+            live_parse,
+            session,
+            sleep=0,
+            refetch=True,
+        )
+        self.assertEqual(session.urls, [LIVE_URL])
+        self.assertIn("1 skipped", out)
+        self.assertNotIn("upgraded", out)
+
+    def test_refetch_does_not_let_a_cut_down_article_through_the_gate(self):
+        """`not_shorter` under everything, refetch included: a publisher who
+        trimmed the article does not trim the corpus."""
+        self.seed("src", url=LIVE_URL, body=PUBLISHED, body_html=f"<p>{PUBLISHED}</p>")
+        self.cache(LIVE_URL, PUBLISHED.encode())
+        session = support.Serving(b"the article as first published")
+        quiet(
+            catch_up.from_live,
+            self.conn,
+            "src",
+            live_parse,
+            session,
+            sleep=0,
+            refetch=True,
+        )
+        self.assertEqual(session.urls, [LIVE_URL])
+        self.assertEqual(self.row(LIVE_URL)["body"], PUBLISHED)
+
+    def test_without_refetch_a_finished_row_is_not_in_the_cursor(self):
+        self.seed("src", url=LIVE_URL, body=PUBLISHED, body_html=f"<p>{PUBLISHED}</p>")
+        session = support.Serving(b"never asked")
+        quiet(catch_up.from_live, self.conn, "src", live_parse, session, sleep=0)
+        self.assertEqual(session.urls, [])
+
+
 class RetextTest(support.DbCase):
     def test_body_is_re_derived_from_the_stored_markup(self):
         url = self.seed(
@@ -304,17 +400,20 @@ class FlagTest(support.DbCase):
             with self.subTest(opts=opts):
                 self.assertEqual(catch_up.no_crawl(opts), want)
 
-    def test_confirm_force_refuses_when_there_is_no_terminal(self):
+    def test_a_bulk_rewrite_is_refused_when_there_is_no_terminal(self):
         """--force is the flag whose earlier equivalent overwrote the 122 articles
         above, so a bulk rewrite is stated out loud first - and a pipe with no tty
-        answers no rather than blocking a cron."""
+        answers no rather than blocking a cron. --refetch rewrites every row too,
+        and fetches every page besides, so it goes through the same question."""
         self.seed("src", url="http://x/1", body="b", body_html="<p>b</p>")
-        self.assertFalse(self._confirm(yes=False))
-        self.assertTrue(self._confirm(yes=True))
+        for flag in ("--force", "--refetch"):
+            with self.subTest(flag=flag):
+                self.assertFalse(self._confirm(flag, yes=False))
+                self.assertTrue(self._confirm(flag, yes=True))
 
-    def _confirm(self, *, yes):
+    def _confirm(self, flag, *, yes):
         with contextlib.redirect_stdout(io.StringIO()):
-            return catch_up.confirm_force(self.conn, "src", yes=yes)
+            return catch_up.confirm_rewrite(self.conn, "src", flag, yes=yes)
 
     def test_options_maps_the_flags_to_the_keywords_catch_up_takes(self):
         class Args:

@@ -12,7 +12,7 @@ import requests
 from bs4 import BeautifulSoup
 
 from pressroom.text.control.decoding import decode_html
-from pressroom.fetcher.control.politeness import HEADERS, SLEEP
+from pressroom.fetcher.control.politeness import SLEEP, fetch
 from pressroom.text.control import richtext
 from pressroom.database.control import connection
 from pressroom.scraper.control import catch_up
@@ -26,13 +26,13 @@ SOURCE = "creative"
 FIRST_YEAR = 1999
 
 
-def parse_list_page(session: requests.Session, year: int) -> list[Entry]:
-    r = session.get(LIST_URL, headers=HEADERS, params={"year": year}, timeout=15)
-    r.raise_for_status()
-    # decode_html(r.content), never r.text: this page claims UTF-8, but requests
+def parse_listing(content: bytes) -> list[Entry]:
+    """One year's listing -> the releases on it. Bytes in and no fetch: the
+    crawler brings the page through `politeness.fetch` and keeps none of it."""
+    # decode_html(content), never r.text: this page claims UTF-8, but requests
     # falls back to ISO-8859-1 when the header omits the charset, which stored a
     # page's worth of bullet characters as C1 controls.
-    soup = BeautifulSoup(decode_html(r.content), "html.parser")
+    soup = BeautifulSoup(decode_html(content), "html.parser")
 
     items = []
     for li in soup.select("ul.prListing li"):
@@ -70,7 +70,10 @@ def parse_detail(content: bytes) -> Detail:
 
 
 def scrape(
-    from_year: int = FIRST_YEAR, to_year: int | None = None, catch: dict | None = None
+    from_year: int = FIRST_YEAR,
+    to_year: int | None = None,
+    refetch: bool = False,
+    catch: dict | None = None,
 ) -> None:
     current_year = to_year or int(time.strftime("%Y"))
 
@@ -89,12 +92,11 @@ def scrape(
     for year in years:
         print(f"  Year {year}", end="  ", flush=True)
         try:
-            items = parse_list_page(session, year)
+            items = parse_listing(fetch(session, f"{LIST_URL}?year={year}"))
         except Exception as e:
             print(f"ERROR fetching list: {e}")
             time.sleep(SLEEP * 2)
             continue
-        time.sleep(SLEEP)
 
         discovery.from_items(
             conn, session, SOURCE, items, parse=parse_detail, stats=stats
@@ -106,5 +108,12 @@ def scrape(
     # The live pass fetches through fetch_cached, so a page already in
     # page_cache costs nothing: this is both the offline reparse and the live
     # retry.
-    catch_up.run(conn, SOURCE, catch, live_parser=parse_detail, session=session)
+    catch_up.run(
+        conn,
+        SOURCE,
+        catch,
+        live_parser=parse_detail,
+        session=session,
+        refetch=refetch,
+    )
     conn.close()

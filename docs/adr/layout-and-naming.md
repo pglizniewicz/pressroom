@@ -76,7 +76,10 @@ named the leaks:
   `politeness.fetch_cached` themselves and hand the bytes over, with the site's
   Crawl-delay passed as a value. The five live fixtures are detail fixtures,
   byte-identical under a new name, and the proof that a parser cannot fetch is
-  its signature.
+  its signature. The listing parsers of the same four followed one commit
+  later: `parse_listing(content)`, with the crawler fetching through
+  `politeness.fetch` — the uncached path, because a live listing is never kept
+  ([captures.md](captures.md)).
 - **The fetcher's module called a parser.** `archive.sample_all_captures` walked
   a listing's captures and parsed each; `archive.fetch_detail_snapshot` chose
   the best capture and parsed it. Both are a fetch composed with a parse —

@@ -10,6 +10,9 @@ Three things every file here needs and exactly one of them is subtle:
               fixture that arrived decoded would test something else.
   no_network()  a context manager that makes any outbound request raise.
 
+Two fake sessions sit next to the third, `Refusing` and `Serving`: what a test
+hands to code that takes a session, to say what the network would have said.
+
 The subtle one is the third. It raises a **BaseException**, not an Exception,
 because several fetch sites in this tree wrap their call in `except Exception`
 and degrade gracefully, so a probe raising an Exception is swallowed and the
@@ -171,3 +174,45 @@ def no_network():
     finally:
         for obj, name, original in saved:
             setattr(obj, name, original)
+
+
+class Refusing:
+    """A session whose every request fails, the way a dead network does.
+
+    The hermetic contract's other half: a page is either in page_cache already
+    or the session refuses, so seeding the cache and passing this proves the
+    code under test never reached for the network. The default error is an
+    Exception, because that is what the fetch sites catch; pass
+    `NetworkTouched` to make a fetch fail the test instead of being handled.
+    """
+
+    def __init__(self, error=None):
+        self.error = error or OSError("connection reset by peer")
+
+    def get(self, *a, **kw):
+        raise self.error
+
+
+class Served:
+    """What `Serving.get` hands back: the three things politeness reads off a
+    response."""
+
+    def __init__(self, content: bytes):
+        self.content = content
+        self.headers = {"Content-Type": "text/html"}
+
+    def raise_for_status(self):
+        pass
+
+
+class Serving:
+    """A session that answers every request with the same bytes and remembers
+    what it was asked for - the proof that a fetch happened, and of what."""
+
+    def __init__(self, content: bytes):
+        self.content = content
+        self.urls = []
+
+    def get(self, url, *a, **kw):
+        self.urls.append(url)
+        return Served(self.content)

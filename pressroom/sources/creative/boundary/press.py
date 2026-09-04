@@ -4,6 +4,7 @@ Usage:
   pressroom-creative                                  # all years, 1999-current
   pressroom-creative --from-year 2020                 # 2020 onward
   pressroom-creative --from-year 2020 --to-year 2022
+  pressroom-creative --refetch                        # fetch every stored article again
 """
 
 from pressroom.sources.creative.control import press
@@ -23,4 +24,5 @@ def main():
         command.Option(
             "--to-year", type=int, default=None, help="end year (default: current year)"
         ),
+        command.REFETCH,
     )

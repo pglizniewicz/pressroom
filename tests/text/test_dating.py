@@ -28,6 +28,21 @@ class IsoDateTest(unittest.TestCase):
             "1997-12-19",
         )
 
+    def test_a_zone_name_is_accepted_and_the_printed_day_kept(self):
+        """GlobeNewswire dates every listing entry "09:00 ET". dateutil does not
+        know that name, warned on every run and promises to raise; `tzinfos`
+        accepts it, and the date stays the day the publisher printed."""
+        import warnings
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            self.assertEqual(
+                iso_date("September 03, 2026 09:00 ET", fuzzy=True), "2026-09-03"
+            )
+            self.assertEqual(
+                iso_date("March 6, 2013 23:30 PST", fuzzy=True), "2013-03-06"
+            )
+
     def test_unparseable_returns_empty_rather_than_raising(self):
         """A release whose date cannot be read is still worth storing, which is
         why releases.date is a plain TEXT column with no format constraint."""

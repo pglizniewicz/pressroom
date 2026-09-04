@@ -106,7 +106,8 @@ keyword the crawl receives, and `run()` takes the docstring **whole**, never
 the catch-up over everything an earlier run could not get, and a rerun picks up
 exactly what the last one missed. `--offline` touches nothing on the network
 (`tests/test_offline_is_offline.py`); `--force` re-extracts every row after a
-parser change and asks first; `--retext` re-derives text after a renderer
+parser change and asks first; `--refetch`, on a live source, fetches every
+article again and asks first too; `--retext` re-derives text after a renderer
 change; `--seed-cache` fetches captures and parses nothing.
 
 **There is no `backfill_`, `repair_` or `migrate_` family, and reintroducing
@@ -283,14 +284,18 @@ deviation rather than claiming green.
 
 ### Captures
 
-- **A scraper that fetches a page any way other than `archive.fetch_snapshot()`
-  or `politeness.fetch_cached()` is a bug.** Every fetched byte lands in
+- **Three ways to fetch, chosen by what the page is, and any other way is a
+  bug**: an archive capture through `archive.fetch_snapshot()`, cached forever —
+  a snapshot never changes; a live site's **article** through
+  `politeness.fetch_cached()`, cached, and `--refetch` fetches it again — it can
+  change, rarely; a live site's **listing** through `politeness.fetch()`, **never
+  cached** — it changes with every release. Every kept byte lands in
   `page_cache`, so a parser fix costs no refetch.
 - **Ask archive.org through `archive._cdx()`** — never `__wb/sparkline` or
   `__wb/calendarcaptures`.
 - **Query `wayback_calls` before tuning a timeout or a sleep constant.**
-- **A live source's `Crawl-delay` is honoured**, through
-  `fetch_cached(sleep=...)`.
+- **A live source's `Crawl-delay` is honoured**, through `sleep=...` on both
+  live fetches.
 - **A per-item capture is chosen by `archive.fetch_best_matching_snapshot()`,
   never `get_latest_working_snapshot()`** — the newest HTTP-200 capture of a
   dead article url is the rebuilt site's shell page. Captures are scored by the

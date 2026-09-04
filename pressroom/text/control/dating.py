@@ -23,10 +23,23 @@ def iso_date(
     otherwise read 06.05.2002 as June 5th). fuzzy=True to let dateutil skip
     surrounding prose. fmt="%Y-%m" for sources that only carry month
     precision - a few TerraTec articles are dated just "June 2007".
+
+    A zone name dateutil does not know ("09:00 ET" on every GlobeNewswire
+    listing) is accepted through `tzinfos` and never converted: a release's
+    date is the calendar day the publisher printed. Without it dateutil warns
+    today and promises to raise.
     """
     if not value:
         return ""
     try:
-        return du.parse(value, dayfirst=dayfirst, fuzzy=fuzzy).strftime(fmt)
+        return du.parse(
+            value, dayfirst=dayfirst, fuzzy=fuzzy, tzinfos=_any_zone
+        ).strftime(fmt)
     except Exception:
         return ""
+
+
+def _any_zone(_name: str, offset) -> int:
+    """Every zone name is a zone: the offset dateutil parsed if it gave one,
+    else none. The date is read as written either way."""
+    return offset or 0

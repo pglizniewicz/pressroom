@@ -13,7 +13,7 @@ Encoding: these are the only *live* sites here, and that is exactly where
 `r.text` is tempting and wrong. Q4's pages are UTF-8 but the response header does
 not always say so, and requests then falls back to ISO-8859-1, which stored a
 page's worth of trademark signs as raw C1 control characters. Every parse below
-goes through decode_html(r.content).
+goes through decode_html(content), on bytes the fetcher hands over.
 """
 
 import re
@@ -28,16 +28,17 @@ from pressroom.scraper.control import catch_up
 from pressroom.scraper.control import discovery
 from pressroom.reporting.entity.outcome import Stats
 from pressroom.text.control.decoding import decode_html
-from pressroom.fetcher.control.politeness import HEADERS, SLEEP
+from pressroom.fetcher.control.politeness import SLEEP, fetch
 from pressroom.text.control import richtext
 from pressroom.scraper.entity.parse import Detail, Entry
 
 
-def get_total_pages(session: requests.Session, list_url: str) -> int:
-    r = session.get(list_url, headers=HEADERS, timeout=15)
-    r.raise_for_status()
-    # decode_html(r.content), never r.text - see the module docstring.
-    soup = BeautifulSoup(decode_html(r.content), "html.parser")
+def total_pages(content: bytes) -> int:
+    """The last page the listing's pagination names, 1 when it names none.
+    Bytes in and no fetch: the crawler brings the listing through
+    `politeness.fetch` and keeps none of it."""
+    # decode_html(content), never r.text - see the module docstring.
+    soup = BeautifulSoup(decode_html(content), "html.parser")
     last = 1
     for a in soup.select("ul.pagination li a"):
         m = re.search(r"(\d+)$", a.get_text(strip=True))
@@ -59,18 +60,15 @@ def _parse_date(time_el) -> str:
     return iso_date(text) or text
 
 
-def parse_list_page(
-    session: requests.Session,
-    list_url: str,
-    page: int,
+def parse_listing(
+    content: bytes,
     base_url: str,
     container_sel: str = "article.media-container",
     title_link_sel: str = "div.media-title a",
 ) -> list[Entry]:
-    url = f"{list_url}?page={page}"
-    r = session.get(url, headers=HEADERS, timeout=15)
-    r.raise_for_status()
-    soup = BeautifulSoup(decode_html(r.content), "html.parser")
+    """One listing page -> the releases on it, with the listing's own title,
+    date and Q4 detail id. Bytes in and no fetch, like `total_pages`."""
+    soup = BeautifulSoup(decode_html(content), "html.parser")
 
     items = []
     for container in soup.select(container_sel):
@@ -115,6 +113,7 @@ def scrape(
     start: int = 1,
     container_sel: str = "article.media-container",
     title_link_sel: str = "div.media-title a",
+    refetch: bool = False,
     catch: dict | None = None,
 ) -> None:
     base_url = re.match(r"(https?://[^/]+)", list_url).group(1)
@@ -125,8 +124,7 @@ def scrape(
     total = 0
     if not catch_up.no_crawl(catch):
         print("Detecting total page count...", flush=True)
-        total = get_total_pages(session, list_url)
-        time.sleep(SLEEP)
+        total = total_pages(fetch(session, list_url))
 
     end_page = start + pages - 1 if pages else total
     end_page = min(end_page, total)
@@ -138,14 +136,16 @@ def scrape(
     for page in range(start, end_page + 1):
         print(f"  Page {page}/{end_page}", end="  ", flush=True)
         try:
-            items = parse_list_page(
-                session, list_url, page, base_url, container_sel, title_link_sel
+            items = parse_listing(
+                fetch(session, f"{list_url}?page={page}"),
+                base_url,
+                container_sel,
+                title_link_sel,
             )
         except Exception as e:
             print(f"ERROR fetching list: {e}")
             time.sleep(SLEEP * 2)
             continue
-        time.sleep(SLEEP)
 
         discovery.from_items(
             conn, session, source, items, parse=parse_detail, stats=stats
@@ -155,5 +155,12 @@ def scrape(
 
     stats.summary(conn)
     # Phase 2 for the tag this run owns.
-    catch_up.run(conn, source, catch, live_parser=parse_detail, session=session)
+    catch_up.run(
+        conn,
+        source,
+        catch,
+        live_parser=parse_detail,
+        session=session,
+        refetch=refetch,
+    )
     conn.close()

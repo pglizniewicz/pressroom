@@ -5,6 +5,7 @@ Usage:
   pressroom-amd --pages 3                    # first 3 pages (verification)
   pressroom-amd --start 10                   # start from page 10
   pressroom-amd --start 10 --pages 20        # pages 10-29
+  pressroom-amd --refetch                    # fetch every stored article again
 """
 
 from pressroom.q4.control import platform
@@ -19,12 +20,13 @@ CONTAINER_SEL = "div.media-body"
 TITLE_LINK_SEL = "div.media-heading a"
 
 
-def crawl(*, pages, start, catch):
+def crawl(*, pages, start, refetch, catch):
     platform.scrape(
         source=SOURCE,
         list_url=LIST_URL,
         pages=pages,
         start=start,
+        refetch=refetch,
         catch=catch,
         container_sel=CONTAINER_SEL,
         title_link_sel=TITLE_LINK_SEL,
@@ -32,4 +34,4 @@ def crawl(*, pages, start, catch):
 
 
 def main():
-    command.run(crawl, __doc__, command.PAGES, command.START)
+    command.run(crawl, __doc__, command.PAGES, command.START, command.REFETCH)

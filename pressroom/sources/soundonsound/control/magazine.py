@@ -38,9 +38,12 @@ MARKUP (Drupal 7, views + facetapi)
 
 ROBOTS.TXT
 
-  Crawl-delay: 30, honoured through fetch_cached(sleep=CRAWL_DELAY), which makes
-  a full run several hours. It is resumable and everything lands in page_cache,
-  so the cost is paid once.
+  Crawl-delay: 30, honoured on every fetch in this module (sleep=CRAWL_DELAY),
+  which makes a full run several hours. The articles land in page_cache, so
+  that part is paid once and an interrupted run resumes free. The listings are
+  fetched on every run and kept nowhere: a rerun exists to see the articles
+  that were not there last time, and a cached listing never shows one -
+  `--pages` bounds that walk.
 
   The *listing* urls match `Disallow: /*?*f[0]=`; the articles do not. That rule
   guards against faceted-search crawl traps - the combinatorial explosion of
@@ -56,7 +59,7 @@ from bs4 import BeautifulSoup
 
 from pressroom.text.control.dating import iso_date
 from pressroom.text.control.decoding import decode_html
-from pressroom.fetcher.control.politeness import fetch_cached
+from pressroom.fetcher.control.politeness import fetch
 from pressroom.database.control import connection
 from pressroom.scraper.control import catch_up
 from pressroom.scraper.control import discovery
@@ -136,11 +139,13 @@ def parse_detail(content: bytes) -> Detail:
     return {"body": body, "body_html": body_html}
 
 
-def candidates(conn, session, pages: int | None = None) -> dict[str, Entry]:
+def candidates(session, pages: int | None = None) -> dict[str, Entry]:
     """The crawler: walk both facets -> {url: item}. Deduped across facets by
     url, which is also the DB's key, so the two lists cannot produce two rows.
     Not a collector - that word is phase 2's, for a listing parser run over
-    cached captures - and this one fetches live pages to find the pool."""
+    cached captures - and this one fetches live pages to find the pool, and
+    keeps none of them: a listing changes with every article the magazine
+    publishes, and the one crawl that cached them never saw a newer one."""
     found = {}
     for facet in FACETS:
         print(f"[{SOURCE}] facet {facet['subject']} ({facet['label']})", flush=True)
@@ -149,11 +154,8 @@ def candidates(conn, session, pages: int | None = None) -> dict[str, Entry]:
             if pages and page >= pages:
                 break
             try:
-                content = fetch_cached(
-                    conn,
-                    session,
-                    listing_url(facet["subject"], page),
-                    sleep=CRAWL_DELAY,
+                content = fetch(
+                    session, listing_url(facet["subject"], page), sleep=CRAWL_DELAY
                 )
             except Exception as e:
                 print(f"\n  ERROR listing page {page}: {e}")
@@ -175,6 +177,7 @@ def scrape(
     limit: int | None = None,
     pages: int | None = None,
     list_only: bool = False,
+    refetch: bool = False,
     catch: dict | None = None,
 ) -> None:
     conn = connection.connect()
@@ -182,7 +185,7 @@ def scrape(
 
     # A dict, not a list: candidates() returns {url: item} and the next line asks
     # for .values() - an empty *list* here is an AttributeError.
-    found = {} if catch_up.no_crawl(catch) else candidates(conn, session, pages)
+    found = {} if catch_up.no_crawl(catch) else candidates(session, pages)
     print(f"\n[{SOURCE}] {len(found)} unikalnych artykułów w obu listach", flush=True)
     if list_only:
         conn.close()
@@ -209,5 +212,6 @@ def scrape(
         live_parser=parse_detail,
         sleep=CRAWL_DELAY,
         session=session,
+        refetch=refetch,
     )
     conn.close()

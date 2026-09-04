@@ -37,16 +37,6 @@ def item(url="http://x/one", **kw):
     }
 
 
-class Refusing:
-    """A session whose every request fails, the way a dead network does."""
-
-    def __init__(self, error=None):
-        self.error = error or OSError("connection reset by peer")
-
-    def get(self, *a, **kw):
-        raise self.error
-
-
 def article(content):
     return {"body": ARTICLE, "body_html": f"<p>{ARTICLE}</p>"}
 
@@ -59,7 +49,7 @@ class FromItemsTest(support.DbCase):
         quiet(
             discovery.from_items,
             self.conn,
-            session or Refusing(),
+            session or support.Refusing(),
             "src",
             items,
             parse=parse,
@@ -136,7 +126,9 @@ class FromItemsTest(support.DbCase):
         counts = self.run_items(
             [item()],
             refuse,
-            session=Refusing(AssertionError("fetched an item that was already stored")),
+            session=support.Refusing(
+                AssertionError("fetched an item that was already stored")
+            ),
         )
         self.assertEqual(counts["skipped"], 1)
 
@@ -177,7 +169,7 @@ class FromItemsTest(support.DbCase):
         counts = self.run_items(
             [item("http://x/one"), item("http://x/two"), item("http://x/three")],
             article,
-            session=Refusing(OSError("timed out")),
+            session=support.Refusing(OSError("timed out")),
         )
         self.assertEqual((counts["added"], counts["uncertain"]), (2, 1))
         self.assertEqual(

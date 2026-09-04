@@ -11,6 +11,26 @@ turned out to be wrong they all had to be crawled again from scratch.
 `politeness.fetch_cached()` closed that hole. **A new scraper that fetches a page
 any other way is a bug.**
 
+**A live listing is never cached; a live article is, and `--refetch` fetches it
+again.** The cache was built for archive.org, where a capture never changes, and
+the rule above was written there. A live site differs in kind: its listing
+changes with every release it publishes, and a rerun exists to see exactly that.
+soundonsound's crawler fetched its listings through `fetch_cached`, so every
+rerun after the first read the same page 0 and no article published since was
+ever found. The Q4 and Creative crawlers had gone around the cache with a bare
+`session.get` — the right behaviour in the wrong place: headers, timeout and
+sleep copied into each, and a listing parser that fetched. `politeness.fetch()`
+is the listing's path now, with no connection in its signature, so it cannot
+keep anything; `fetch_cached()` stays the article's, and `refetch=True` replaces
+the cached row when an article did change upstream. That is a person's call
+(`--refetch`), not a clock's: an expiry on cached listings was considered and
+rejected, because a listing has no single true version to be fresh *against*,
+and an article rarely changes at all. `fetch_cached` writes `INSERT OR REPLACE`
+for the refetch's sake; `archive.fetch_snapshot` keeps `OR IGNORE`, a capture
+being immutable. The cost sits on the live listings and is paid on every run:
+at soundonsound's 30-second Crawl-delay the walk of both facets is the slow part
+of a rerun, and `--pages` is its bound.
+
 **Ask archive.org through `archive._cdx()`** — the public CDX API. Not
 `__wb/sparkline` or `__wb/calendarcaptures`: internal endpoints needing a forged
 `Referer`, and 3 requests where CDX takes 1.

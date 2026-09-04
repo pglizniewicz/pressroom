@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 """Shared HTTP client policy: how we identify ourselves, how fast we hammer
-other people's servers, and how we avoid asking twice.
+other people's servers, and which pages we keep.
+
+Three ways to fetch, chosen by what the page is. An archive.org capture goes
+through `archive.fetch_snapshot` and is cached forever: a snapshot never
+changes. A live site's article goes through `fetch_cached` and is cached too,
+with `refetch=True` to fetch it again when it did change. A live site's listing
+goes through `fetch` and is never cached: it changes with every release the site
+publishes, so a copy would say what the site said once.
 """
 
 import sqlite3
@@ -20,18 +27,55 @@ HEADERS = {
 SLEEP = 1.5
 
 
+def _get(session: requests.Session, url: str, timeout: int):
+    """The one GET: our headers, and an HTTP error is an exception."""
+    r = session.get(url, headers=HEADERS, timeout=timeout)
+    r.raise_for_status()
+    return r
+
+
+def fetch(
+    session: requests.Session,
+    url: str,
+    timeout: int = 20,
+    sleep: float | None = None,
+) -> bytes:
+    """A live page's bytes, kept nowhere.
+
+    For what a crawler reads off a live site - its listings. A listing changes
+    every time the site publishes a release, and a rerun exists to see exactly
+    that, so a cached copy would be a lie about the site: soundonsound's crawler
+    cached its listings once and no rerun ever saw a newer article. No `conn`
+    in the signature is the proof - this cannot write to page_cache.
+
+    Every call is a fetch, so every call sleeps: `sleep` is the site's
+    Crawl-delay where it publishes one, SLEEP otherwise.
+    """
+    content = _get(session, url, timeout).content
+    time.sleep(SLEEP if sleep is None else sleep)
+    return content
+
+
 def fetch_cached(
     conn: sqlite3.Connection,
     session: requests.Session,
     url: str,
     timeout: int = 20,
     sleep: float | None = None,
+    refetch: bool = False,
 ) -> bytes:
-    """Fetch a live page's raw bytes, caching them in page_cache on first hit.
+    """A live article's bytes, kept in page_cache from the first fetch on.
 
     The live-site counterpart to archive.fetch_snapshot, and it exists for the
     same reason: a parser fix must not cost a refetch. Most of this corpus was
     crawled twice because the live sources went straight through `session.get`.
+
+    An article can change after publication, rarely, and `refetch=True` is how
+    that is caught up with: the lookup is skipped, the page is fetched again and
+    the row replaced - the write is `INSERT OR REPLACE` for this call's sake,
+    where `OR IGNORE` would fetch the new bytes and keep the old. A scraper
+    exposes it as `--refetch`, on request; nothing here decides on its own that
+    a cached article has gone stale.
 
     Deliberately *not* merged with archive.fetch_snapshot. That one logs every
     attempt to wayback_calls and probes the capture's `fw_` variant for
@@ -47,14 +91,14 @@ def fetch_cached(
     other scraper to a crawl. Only a real fetch sleeps - a cache hit stays
     free, which makes an interrupted run cheap to resume.
     """
-    row = conn.execute(
-        "SELECT content FROM page_cache WHERE url = ?", (url,)
-    ).fetchone()
-    if row:
-        return row[0]
+    if not refetch:
+        row = conn.execute(
+            "SELECT content FROM page_cache WHERE url = ?", (url,)
+        ).fetchone()
+        if row:
+            return row[0]
 
-    r = session.get(url, headers=HEADERS, timeout=timeout)
-    r.raise_for_status()
+    r = _get(session, url, timeout)
     content = r.content
 
     bs4_encoding = None
@@ -65,7 +109,7 @@ def fetch_cached(
         pass
 
     conn.execute(
-        "INSERT OR IGNORE INTO page_cache "
+        "INSERT OR REPLACE INTO page_cache "
         "(url, content, id_content_type, bs4_encoding, content_sha256, fetched_at) "
         "VALUES (?, ?, ?, ?, ?, ?)",
         (

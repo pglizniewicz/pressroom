@@ -250,6 +250,7 @@ def from_live(
     force: bool = False,
     offline: bool = False,
     limit=None,
+    refetch: bool = False,
 ) -> None:
     """Re-fetch a row from a site that is still up.
 
@@ -259,16 +260,24 @@ def from_live(
     offline strategy for the live scrapers: with `offline=True`, a row whose
     page is not in page_cache is skipped rather than fetched.
 
+    `refetch=True` is `--refetch`: every row of the source, its page fetched
+    again whether cached or not and the cached bytes replaced - how an article
+    that changed on a live site is caught up with. A page that came back with
+    the text already stored is `skipped`, so the summary counts the articles
+    that did change; the gates hold as always, so an article its publisher cut
+    down is reported held, not written.
+
     No provenance is recorded: a live page is not an archive capture, and a row
     with no body_origin entry is exactly how the browser knows not to offer an
     archive link.
     """
-    rows = pending(conn, source, force=force, limit=limit)
+    rows = pending(conn, source, force=force or refetch, limit=limit)
     stored = _stored(conn, source)
     stats = Stats(source, total=len(rows))
     print(
         f"[{source}] faza 2 z zywej strony: {len(rows)} wierszy"
-        f"{' (tylko cache)' if offline else ''}",
+        f"{' (tylko cache)' if offline else ''}"
+        f"{' (refetch: wszystkie, bez cache)' if refetch else ''}",
         flush=True,
     )
 
@@ -283,7 +292,9 @@ def from_live(
             stats.skipped()
             continue
         try:
-            content = politeness.fetch_cached(conn, session, url, sleep=sleep)
+            content = politeness.fetch_cached(
+                conn, session, url, sleep=sleep, refetch=refetch
+            )
             parsed = parse(content)
         except Exception as e:
             print(f"\n    {url}: {e}")
@@ -295,6 +306,9 @@ def from_live(
             # change or a redirect to a landing page. Not a network problem,
             # but not something to overwrite a good body with either.
             stats.dead()
+            continue
+        if refetch and body == stored.get(url, ""):
+            stats.skipped()  # fetched again, and the article had not changed
             continue
         for check in (gate.not_shorter, gate.safe_to_write):
             ok, why = check(stored.get(url, ""), body)
@@ -477,6 +491,7 @@ def catch_up(
     limit=None,
     attachments: bool = False,
     twins_too: bool = False,
+    refetch: bool = False,
 ) -> None:
     """Phase 2 for one source, cheapest route first. The call a scraper makes.
 
@@ -492,9 +507,13 @@ def catch_up(
     `offline=True` means "touch nothing on the network": the
     free strategies run and the two that fetch are skipped. `seed=True` is the
     opposite special case - fetch captures for a parser redesign and parse
-    nothing - so it runs alone.
+    nothing - so it runs alone. `refetch=True` is the live sources' `--refetch`
+    and asks first the way `force` does: it rewrites every row and fetches every
+    page besides.
     """
-    if force and not confirm_force(conn, source, yes=yes):
+    if (force or refetch) and not confirm_rewrite(
+        conn, source, "--refetch" if refetch else "--force", yes=yes
+    ):
         return
     if only_retext:
         retext(conn, source, limit=limit)
@@ -521,13 +540,20 @@ def catch_up(
         return
     if live_parser is not None:
         from_live(
-            conn, source, live_parser, session, sleep=sleep, force=force, limit=limit
+            conn,
+            source,
+            live_parser,
+            session,
+            sleep=sleep,
+            force=force,
+            limit=limit,
+            refetch=refetch,
         )
     if parser is not None:
         retry_missing(conn, source, parser, session, limit=limit)
 
 
-# The five flags every scraper gets, in one place so the vocabulary is identical
+# The flags every scraper gets, in one place so the vocabulary is identical
 # everywhere: add_flags(p) declares them, options(args) turns them into keyword
 # arguments.
 def add_flags(parser) -> None:
@@ -538,7 +564,9 @@ def add_flags(parser) -> None:
         "ones without markup (after changing the parser)",
     )
     parser.add_argument(
-        "--yes", action="store_true", help="do not ask before a --force rewrite"
+        "--yes",
+        action="store_true",
+        help="do not ask before a bulk rewrite (--force, --refetch)",
     )
     parser.add_argument(
         "--retext",
@@ -579,10 +607,11 @@ def options(args) -> dict[str, bool]:
     }
 
 
-def confirm_force(conn, source: str, *, yes: bool = False) -> bool:
-    """Ask before rewriting rows that already carry markup.
+def confirm_rewrite(conn, source: str, flag: str, *, yes: bool = False) -> bool:
+    """Ask before rewriting rows that already carry markup - `--force` does,
+    and `--refetch` does and fetches every page besides.
 
-    This is the flag whose earlier equivalent overwrote full articles with
+    `--force` is the flag whose earlier equivalent overwrote full articles with
     listing teasers. The gates still hold underneath, but a bulk rewrite is
     worth stating out loud first. Non-interactive callers pass yes=True; a pipe
     with no tty answers no rather than blocking a cron.
@@ -592,7 +621,7 @@ def confirm_force(conn, source: str, *, yes: bool = False) -> bool:
         (source,),
     ).fetchone()
     print(
-        f"[{source}] --force: {total} wierszy, {with_html or 0} z nich ma juz "
+        f"[{source}] {flag}: {total} wierszy, {with_html or 0} z nich ma juz "
         f"body_html i zostanie przepisanych",
         flush=True,
     )

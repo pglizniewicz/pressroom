@@ -57,6 +57,14 @@ PAGES = Option(
 )
 START = Option("--start", type=int, default=1, help="start from this page number")
 
+#: The live sources' one: an article on a site that is still up can change.
+REFETCH = Option(
+    "--refetch",
+    action="store_true",
+    help="fetch every stored article of this source again, cached or not, "
+    "and re-extract it (asks first, like --force)",
+)
+
 
 def _summary(doc: str | None) -> str:
     """A module docstring's first paragraph, as one line.

@@ -15,11 +15,10 @@ to query both together.
 import re
 import time
 
-import requests
 from bs4 import BeautifulSoup
 
 from pressroom.text.control.decoding import decode_html
-from pressroom.fetcher.control.politeness import HEADERS, SLEEP
+from pressroom.fetcher.control.politeness import SLEEP, fetch
 from pressroom.text.control import richtext
 from pressroom.text.control.dating import iso_date
 from pressroom.database.control import connection
@@ -40,7 +39,7 @@ def make_session():
 
     curl_cffi is libcurl with browser fingerprints (the maintained
     lexiforest/curl-impersonate fork), and its Session is API-compatible with
-    requests.Session for everything fetch_cached and this module use. Imported
+    requests.Session for everything `politeness` and this module use. Imported
     here rather than at module level so a missing curl_cffi breaks exactly this
     one scraper with a plain ImportError, instead of every module in the tree.
 
@@ -58,10 +57,10 @@ LIST_URL = f"{BASE_URL}/en/search/organization/Creative%2520Labs%CE%B4%2520Inc%C
 SOURCE = "creative_gnw"
 
 
-def parse_list_page(session: requests.Session, page: int) -> list[Entry]:
-    r = session.get(LIST_URL, headers=HEADERS, params={"page": page}, timeout=15)
-    r.raise_for_status()
-    soup = BeautifulSoup(decode_html(r.content), "html.parser")
+def parse_listing(content: bytes) -> list[Entry]:
+    """One search page -> the releases on it. Bytes in and no fetch: the
+    crawler brings the page through `politeness.fetch` and keeps none of it."""
+    soup = BeautifulSoup(decode_html(content), "html.parser")
 
     items = []
     for li in soup.select("li.row"):
@@ -102,7 +101,9 @@ def parse_detail(content: bytes) -> Detail:
     return {"body": body, "body_html": body_html}
 
 
-def scrape(pages: int | None = None, catch: dict | None = None) -> None:
+def scrape(
+    pages: int | None = None, refetch: bool = False, catch: dict | None = None
+) -> None:
     conn = connection.connect()
     session = make_session()
 
@@ -117,12 +118,11 @@ def scrape(pages: int | None = None, catch: dict | None = None) -> None:
             break
         print(f"  Page {page}", end="  ", flush=True)
         try:
-            items = parse_list_page(session, page)
+            items = parse_listing(fetch(session, f"{LIST_URL}?page={page}"))
         except Exception as e:
             print(f"ERROR fetching list: {e}")
             time.sleep(SLEEP * 2)
             break
-        time.sleep(SLEEP)
 
         if not items:
             print("(empty, stopping)")
@@ -136,5 +136,12 @@ def scrape(pages: int | None = None, catch: dict | None = None) -> None:
         page += 1
 
     stats.summary(conn)
-    catch_up.run(conn, SOURCE, catch, live_parser=parse_detail, session=session)
+    catch_up.run(
+        conn,
+        SOURCE,
+        catch,
+        live_parser=parse_detail,
+        session=session,
+        refetch=refetch,
+    )
     conn.close()

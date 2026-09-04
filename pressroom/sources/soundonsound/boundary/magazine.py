@@ -1,12 +1,14 @@
 """Scraper for soundonsound.com's audio-interface coverage.
 
 A full run is several hours: this site's robots.txt asks for a 30-second crawl
-delay and that is honoured. Everything lands in page_cache, so the cost is paid
-once and an interrupted run resumes free.
+delay and that is honoured. The articles land in page_cache, so that cost is
+paid once and an interrupted run resumes free; the listings are walked on every
+run, because that is where a new article shows up.
 
 Usage:
   pressroom-soundonsound --limit 3                    # dry run, 3 articles
   pressroom-soundonsound --list-only                  # walk listings, store nothing
+  pressroom-soundonsound --refetch                    # fetch every stored article again
   pressroom-soundonsound
 """
 
@@ -30,4 +32,5 @@ def main():
             action="store_true",
             help="walk the listings and report the count, store nothing",
         ),
+        command.REFETCH,
     )

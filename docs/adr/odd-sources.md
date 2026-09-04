@@ -12,7 +12,7 @@ immediate RST_STREAM after ~30 ms. Browser-shaped headers change nothing — the
 block is on the TLS/HTTP2 fingerprint, not the User-Agent. `curl_cffi` (bindings
 to the maintained lexiforest/curl-impersonate fork) gets 200 on the first try
 with any profile, and its `Session` is API-compatible with `requests.Session` for
-everything `fetch_cached` uses, so `politeness.py` needed no change.
+everything `politeness.py` uses, so it needed no change.
 
 Two things to keep true: the import stays **inside**
 `globenewswire.make_session()`, so a missing `curl_cffi` breaks exactly one
@@ -28,9 +28,11 @@ source is one company announcing its own products; this is a magazine writing
 
 - **It gets its own `COMPANIES` entry** even though the axis is labelled "firmy":
   an unmapped source 400s in the panel (`taxonomy/entity/company.py`).
-- **`Crawl-delay: 30`**, honoured via `fetch_cached(sleep=CRAWL_DELAY)` — the
-  reason that parameter exists. ~820 requests is a ~7 hour run, but everything
-  lands in `page_cache`, so it is one-time and an interrupted run resumes free.
+- **`Crawl-delay: 30`**, honoured via `sleep=CRAWL_DELAY` on every fetch — the
+  reason that parameter exists. ~820 requests is a ~7 hour run; the articles
+  land in `page_cache`, so that part is one-time and an interrupted run resumes
+  free, while the listings are walked afresh on every run and `--pages` bounds
+  them ([captures.md](captures.md)).
 - **The listing URLs match `Disallow: /*?*f[0]=`; the articles do not.** That rule
   guards against faceted-search crawl traps, not content. Two named facets at one
   page per 30s is the call, recorded in the scraper's docstring.
