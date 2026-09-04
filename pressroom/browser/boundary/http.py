@@ -27,6 +27,7 @@ import contextlib
 import json
 import re
 import sqlite3
+import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
@@ -37,6 +38,9 @@ from pressroom.database.control import connection
 from pressroom.provenance.control import resolution
 from pressroom.fetcher.control import address
 from pressroom.release.control import query
+
+# The only address the server ever binds: there is no remote listener (R1.1).
+HOST = "127.0.0.1"
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -122,7 +126,10 @@ def handle_search(conn, params) -> dict[str, Any]:
         raise BadRequest("order must be 'rank' or 'date'")
     after = _one(params, "after")
     if after and not re.match(r"^[od]:", after):
-        raise BadRequest("malformed cursor")
+        raise BadRequest(
+            f"malformed cursor {after!r}: after must be the 'next' value of an "
+            "earlier answer"
+        )
     sources = _sources(params)
     if sources is None:
         return dict(EMPTY_PAGE)
@@ -141,29 +148,32 @@ def handle_search(conn, params) -> dict[str, Any]:
     except (ValueError, sqlite3.OperationalError) as e:
         raise BadRequest(str(e))
     for row in payload["results"]:
-        row["wayback_url"] = address.viewer_url(row.get("origin_url"))
-        cap = row.pop("origin_url", None)
-        page = resolution.capture_page(cap, row["url"])
-        row["capture_page"] = page
-        row["capture_kind"] = resolution.capture_kind(page, row["url"])
-        row["capture_ts"] = address.timestamp_of(cap)
-        row["company"] = company.label(company.company_of(row["source"]))
+        _annotate(row)
     return payload
+
+
+def _annotate(row) -> None:
+    """The capture facts and the company a list row and the detail share
+    (R3.8, R4.1): the viewer link and timestamp off the recorded origin, the
+    capture's page and its kind only when that page is not the row's own, and
+    the raw origin address dropped - the reader gets the strings it renders and
+    no third representation to keep in agreement."""
+    cap = row.pop("origin_url", None)
+    row["wayback_url"] = address.viewer_url(cap)
+    page = resolution.capture_page(cap, row["url"])
+    row["capture_page"] = page
+    row["capture_kind"] = resolution.capture_kind(page, row["url"])
+    row["capture_ts"] = address.timestamp_of(cap)
+    row["company_slug"] = company.company_of(row["source"])
+    row["company"] = company.label(row["company_slug"])
 
 
 def handle_release(conn, rid: int):
     row = query.get_release(conn, rid)
     if row is None:
         return None
-    row["wayback_url"] = address.viewer_url(row.get("origin_url"))
-    cap = row.pop("origin_url", None)
-    page = resolution.capture_page(cap, row["url"])
-    row["capture_page"] = page
-    row["capture_kind"] = resolution.capture_kind(page, row["url"])
-    row["capture_ts"] = address.timestamp_of(cap)
+    _annotate(row)
     row["body_len"] = len(row["body"])
-    row["company_slug"] = company.company_of(row["source"])
-    row["company"] = company.label(row["company_slug"])
     row["neighbours"] = query.neighbours(conn, rid)
     return row
 
@@ -246,32 +256,44 @@ class Handler(BaseHTTPRequestHandler):
         )
 
 
-def main() -> None:
+def listen(db_path: Path, port: int) -> ThreadingHTTPServer:
+    """Bind on the local machine only, over one database file, and serve
+    nothing yet: the caller runs the loop. Raises OSError when the port is
+    taken."""
+    Handler.db_path = db_path
+    return ThreadingHTTPServer((HOST, port), Handler)
+
+
+def main(argv=None) -> int:
+    """The exit status is returned, not raised: the console script wrapper
+    passes it to sys.exit, and a test can call this and read it."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--db", default=None, help="alternate database path")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     path = Path(args.db) if args.db else connection.DB_PATH
     if not path.exists():
-        print(f"Database not found at {path}. Run a scraper first.")
-        return
+        print(f"Database not found at {path}. Run a scraper first.", file=sys.stderr)
+        return 1
 
-    Handler.db_path = path
     try:
-        server = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
+        server = listen(path, args.port)
     except OSError as e:
         # Almost always an instance left running from a previous session; a
         # traceback here says nothing a one-line answer doesn't.
-        print(f"Cannot listen on 127.0.0.1:{args.port}: {e}")
+        print(f"Cannot listen on {HOST}:{args.port}: {e}", file=sys.stderr)
         print(
             "Another pressroom browser is probably still running "
-            "(pgrep -af '[p]ressroom-serve'), or pass --port."
+            "(pgrep -af '[p]ressroom-serve'), or pass --port.",
+            file=sys.stderr,
         )
-        return
-    print(f"pressroom browser: http://127.0.0.1:{args.port}  ({path})", flush=True)
+        return 1
+    print(f"pressroom browser: http://{HOST}:{args.port}  ({path})", flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         print("\nbye")
-        server.shutdown()
+    finally:
+        server.server_close()
+    return 0
