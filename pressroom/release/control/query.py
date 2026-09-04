@@ -2,7 +2,7 @@
 
 The CLI and the browser own no SQL of their own - the browser owns HTTP and
 nothing else, the CLI owns argument parsing and printing - so every statement
-they need lives here, once. Read-only by construction: none of these changes a
+they need is here, once. Read-only by construction: none of these changes a
 row, and connect_ro() hands out a connection SQLite itself refuses to write
 through.
 
@@ -20,7 +20,7 @@ from pressroom.release.entity.schema import FLAG_SQL, MOJIBAKE_SQL
 # string so the browser and its frontend never have to know which mode they're in.
 _MAX_OFFSET = 1000
 
-# `c.origin_url` rides along on every list row for the same reason get_release
+# `c.origin_url` is selected on every list row for the same reason get_release
 # joins it: a row's detail_id timestamp does not always name a capture of that
 # row's own url, so a reader cannot build the capture link from the timestamp
 # alone. NULL is the common case and means it can.
@@ -48,8 +48,8 @@ def _row_dict(row) -> dict[str, Any]:
         "detail_id": row["detail_id"],
         "grade": row["grade"],
         "body_len": row["body_len"],
-        # Judged over the whole body in SQL, not client-side over the excerpt:
-        # most damage sits past the 240 characters a listing row ever shows.
+        # Measured over the whole body in SQL, not client-side over the excerpt:
+        # most damage is past the 240 characters a listing row ever shows.
         "damaged": bool(row["damaged"]),
         "origin_url": row["origin_url"],
         "excerpt": row["excerpt"] or "",
@@ -78,7 +78,7 @@ def _fts_match(conn, sql, params):
     """Run an FTS query, retrying once with the whole query as a literal phrase.
 
     FTS5 barewords are alphanumeric, so 'M-Audio' - the single most likely
-    thing to type at this corpus - is a syntax error, as is a stray quote or
+    thing to type into this search - is a syntax error, as is a stray quote or
     a trailing AND. Trying the raw string first keeps AND/OR/NOT, "phrases"
     and prefix* working for anyone who means them; the retry means everyone
     else gets results instead of a 500.
@@ -309,7 +309,7 @@ _CLI_SQL = """
 
 def cli_search(conn, query: str, sources=None, limit: int = 8) -> list[tuple]:
     """Ranked rows for the terminal reader: (source, date, title, url, body,
-    excerpt). Its own shape rather than search_releases(): the CLI wants five
+    excerpt). Its own shape rather than search_releases(): the CLI needs five
     named columns and a snippet, not the browser's row dict with a cursor.
 
     Raises sqlite3.OperationalError through, so the caller can tell "no index

@@ -1,4 +1,4 @@
-"""pressdb's own phase-1 loop, and the verdict its upgrade branch has to state.
+"""pressdb's own phase-1 loop, and the grade its upgrade branch has to state.
 
 This scraper keeps its own loop, for the reason its module docstring records:
 entries are deduped by (title, date) across every historical re-dump of one PHP
@@ -7,8 +7,8 @@ a write that replaces a teaser body with the real article passes `grade="full"`.
 
 pressdb writes `full` at insert time even when the body is a listing blurb,
 which is why this loop's cursor is `stored_body_length` rather than the grade.
-What the verdict buys is the row that arrives graded truthfully leaving that
-way.
+What the grade achieves is that a row which arrives correctly graded leaves
+that way.
 """
 
 import contextlib
@@ -85,7 +85,7 @@ class VerdictTest(support.DbCase):
         self.assertEqual(row["grade"], "full")
 
     def test_a_row_already_recovered_is_not_fetched_at_all(self):
-        """The other half: the cursor has to sieve, or the verdict above is
+        """The other half: the cursor has to filter, or the grade above is
         being stamped on every rerun over text nothing looked at."""
 
         def refuse(*a, **kw):

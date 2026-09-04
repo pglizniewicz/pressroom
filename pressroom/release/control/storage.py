@@ -1,9 +1,9 @@
-"""Writing a release, and the four questions a scraper asks before it does.
+"""Writing a release, and the four checks a scraper makes before it does.
 
 Every change to a `releases` row goes through here, and exactly once; the
 statements themselves are `entity/schema.py`'s, run by `schema.insert` and
 `schema.upgrade`. What this module decides is what goes into them - the text
-repair, the grade verdict, the provenance written in the same transaction.
+repair, the grade, the provenance written in the same transaction.
 Not an ORM: plain sqlite3, plain SQL, one function per statement shape.
 
 Commit per row by default, because these are hour-long crawls against a flaky
@@ -25,7 +25,7 @@ def _transaction(conn, commit: bool):
     `with conn:` rather than a bare conn.commit() because it **rolls back on an
     exception**, which makes a row and its body_origin entry one write:
     a raising origin write once left the INSERT in an open transaction for the
-    next commit on that connection to adopt.
+    next commit on that connection to include.
     """
     return conn if commit else contextlib.nullcontext()
 
@@ -77,7 +77,7 @@ def store_release(
             body_html=body_html,
             grade=str(grade),
         )
-        # Provenance only when the row actually came into being. A url the
+        # Provenance only when the row was actually inserted. A url the
         # UNIQUE constraint made this a no-op for holds a body some other pass
         # wrote, and claiming our capture as its origin would be a false
         # statement about text we did not store.
@@ -112,8 +112,8 @@ def upgrade_release(
             detail page is authoritative for all of them.
 
     A pass that replaces a teaser body with the real article must say so with
-    grade="full" - otherwise the row keeps a verdict that stopped being true,
-    and `stored_grade()` will hand it to the next run as still-upgradable.
+    grade="full" - otherwise the row keeps a grade that stopped being true,
+    and `stored_grade()` will report it to the next run as still-upgradable.
 
     Returns True if a row matched `url`.
     """
@@ -138,8 +138,8 @@ def upgrade_release(
 
 def already_stored(conn, url: str) -> bool:
     """Whether any row exists for `url`. The right question for a loop that
-    only skips what it has already seen; a loop that wants to know whether the
-    row is worth upgrading asks stored_grade()."""
+    only skips what it has already seen; a loop that needs to know whether the
+    row is worth upgrading uses stored_grade()."""
     return (
         conn.execute("SELECT 1 FROM releases WHERE url = ?", (url,)).fetchone()
         is not None

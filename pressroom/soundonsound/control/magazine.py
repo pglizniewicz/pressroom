@@ -31,7 +31,7 @@ MARKUP (Drupal 7, views + facetapi)
                               "Published March 2000"           month only
             The second needs iso_date(..., fmt="%Y-%m"); without it dateutil
             fills the day in from *today's* date and March 2000 becomes
-            2000-03-21. Same trap as terratec/control/portal.py.
+            2000-03-21. Same mistake as in terratec/control/portal.py.
   body      `div.node__content`, stable on both the 2000 and the 2026
             template. No paywall on this material: the oldest review returns
             its full text.
@@ -39,10 +39,10 @@ MARKUP (Drupal 7, views + facetapi)
 ROBOTS.TXT
 
   Crawl-delay: 30, honoured on every fetch in this module (sleep=CRAWL_DELAY),
-  which makes a full run several hours. The articles land in page_cache, so
-  that part is paid once and an interrupted run resumes free. The listings are
-  fetched on every run and kept nowhere: a rerun exists to see the articles
-  that were not there last time, and a cached listing never shows one -
+  which makes a full run several hours. The articles are stored in page_cache,
+  so that part is fetched once and an interrupted run refetches nothing. The
+  listings are fetched on every run and kept nowhere: a rerun exists to see the
+  articles that were not there last time, and a cached listing never shows one -
   `--pages` bounds that walk.
 
   The *listing* urls match `Disallow: /*?*f[0]=`; the articles do not. That rule

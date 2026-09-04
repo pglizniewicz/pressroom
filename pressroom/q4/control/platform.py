@@ -10,7 +10,7 @@ Nothing else in this repo uses this: every other source is a one-of-a-kind dead
 site with its own bespoke parser.
 
 Encoding: these are the only *live* sites here, and that is exactly where
-`r.text` is tempting and wrong. Q4's pages are UTF-8 but the response header does
+`r.text` looks right and is wrong. Q4's pages are UTF-8 but the response header does
 not always say so, and requests then falls back to ISO-8859-1, which stored a
 page's worth of trademark signs as raw C1 control characters. Every parse below
 goes through decode_html(content), on bytes the fetcher hands over.
@@ -56,7 +56,7 @@ def _parse_date(time_el) -> str:
         return dt_attr[:10]
     text = time_el.get_text(strip=True)
     # Falls back to the raw text, not "" - a Q4 page always has *something*
-    # here and keeping it beats discarding it.
+    # here and keeping it is better than discarding it.
     return iso_date(text) or text
 
 

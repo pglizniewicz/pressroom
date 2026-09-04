@@ -6,7 +6,7 @@
 
 Never `soup.get_text(" ", strip=True)` for a body: it replaces every block
 boundary with one space, so a 4000-character release comes out as an unbroken
-blob, and the newlines that do survive are the source file's line wrapping
+blob, and the newlines that do remain are the source file's line wrapping
 rendered verbatim by `white-space: pre-wrap`.
 
 `to_text()` derives the text **from the cleaned HTML**, never from the source
@@ -92,13 +92,13 @@ _ALLOWED = {
 
 # Per-tag attribute allowlist. Everything not listed - class, style, id, and
 # every on* handler - is dropped. colspan/rowspan stay because a TerraTec spec
-# sheet is a real table and collapses into nonsense without them.
+# sheet is a real table and loses its layout without them.
 _ATTRS = {
     "a": {"href"},
     # <img> is preserved as-is. These sites are dead, so most of
     # these src values resolve to nothing today - but they are the only record
     # of which image belonged where, and rewriting or dropping them would
-    # throw that away for good. Only the scheme is filtered.
+    # discard that record. Only the scheme is filtered.
     "img": {"src", "alt", "title", "width", "height"},
     "th": {"colspan", "rowspan"},
     "td": {"colspan", "rowspan"},
@@ -106,7 +106,7 @@ _ATTRS = {
 
 _SAFE_SCHEMES = ("http:", "https:", "mailto:", "ftp:")
 
-# Block-level tags that are not in the allowlist. Plain unwrapping glued
+# Block-level tags that are not in the allowlist. Plain unwrapping joined
 # neighbouring paragraphs together with no separator at all, so one that holds
 # nothing but inline content becomes a <p> instead; one that wraps other
 # blocks is unwrapped as before.
@@ -221,7 +221,7 @@ def _demote_layout_tables(soup) -> bool:
 def _unwrap_disallowed(soup) -> None:
     """Bottom-up, so unwrapping a <div> inside a <div> cannot skip its parent.
     A block-level tag holding only inline content becomes a <p> rather than
-    dissolving into its neighbour; everything else loses the element and keeps
+    merging into its neighbour; everything else loses the element and keeps
     its children."""
     for tag in reversed(soup.find_all(True)):
         if tag.decomposed:
@@ -274,7 +274,7 @@ def _paragraphize(root) -> None:
 
     # Indexed over a snapshot rather than walked with find_next_sibling():
     # that method skips NavigableStrings, so "A<br>x<br>y<br>B" looked like one
-    # run of three <br> and every break in the document got eaten at once.
+    # run of three <br> and every break in the document was removed at once.
     kids = list(root.children)
     i = 0
     while i < len(kids):
@@ -310,7 +310,7 @@ def _paragraphize(root) -> None:
 
 
 def _trim_edges(tag) -> None:
-    """Drop the whitespace that sat against the <br> we just consumed. Read
+    """Drop the whitespace that was next to the <br> we just consumed. Read
     back through .contents each time: replace_with detaches the node, so a
     cached reference to the last child goes stale after the first call."""
     if tag.contents and isinstance(tag.contents[0], NavigableString):
@@ -374,7 +374,7 @@ def cut_from(soup, pattern) -> bool:
     handle the case that broke the naive version: the marker is usually not in
     a tidy leaf element. "Infos bei:" on midiman.de sits in a bare text node
     between two <br>, so a scan over leaf *elements* finds nothing and the
-    contact footer survives into the body.
+    contact footer stays in the body.
 
     So: find the text node, truncate it at the marker, then remove every node
     that follows it in document order. `pattern` is a compiled regex.
@@ -396,7 +396,7 @@ def densest(soup, name: str, **attrs):
     """The element of this kind carrying the most text, or None.
 
     Locating the article is the first half of turning a page into a body, so
-    it lives next to the half that converts it. Every caller hands the result
+    it is next to the half that converts it. Every caller hands the result
     straight to extract().
 
     Why "the biggest one" rather than a CSS selector: these are 1998-2005
@@ -462,7 +462,7 @@ def clean(node) -> str:
     _paragraphize(soup)
     _prune_empty(soup)
 
-    # One top-level block per line: storage does not care, but every
+    # One top-level block per line: storage is unaffected, but every
     # inspection of this column happens in a terminal.
     return "\n".join(str(c) for c in soup.children if str(c).strip())
 

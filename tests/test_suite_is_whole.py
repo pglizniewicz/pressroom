@@ -3,7 +3,7 @@
 Discovery skips a directory that is not a package, and does it silently:
 `unittest`'s `_find_test_path` returns `None` for a directory with no
 `__init__.py` rather than raising, so the run still ends in `OK`. The namespace
-branch does not save it either - `discover -s tests` with no `-t` leaves
+branch does not help either - `discover -s tests` with no `-t` leaves
 `start_dir == top_level_dir`, so `is_namespace` stays False and every
 subdirectory has to be a package for real.
 

@@ -89,8 +89,8 @@ class BodyInvariantTest(CorpusCase):
 class EncodingTest(CorpusCase):
     def test_nothing_stored_is_repairable(self):
         """`pressroom-verify-encoding`'s headline: 0 repairable. The repair
-        lives in the write path now, so a row that arrives damaged is repaired
-        on the way in - and anything left is something the repair refuses by
+        is in the write path now, so a row that arrives damaged is repaired
+        as it is written - and anything left is something the repair refuses by
         design (#4978's three 0x81 bytes, which cp1252 does not define)."""
         repairable = [
             rid
@@ -136,7 +136,7 @@ class SearchIndexTest(CorpusCase):
 
     def test_a_token_probe_finds_what_a_scan_finds(self):
         """The real invariant behind the five token counts this repo re-checks by
-        hand after every change. A count would rot; agreement does not."""
+        hand after every change. A count would go out of date; agreement does not."""
         for token in PROBES:
             with self.subTest(token=token):
                 fts = {
@@ -176,7 +176,7 @@ class SearchIndexTest(CorpusCase):
 class ProvenanceTest(CorpusCase):
     def test_every_recorded_origin_is_a_capture_address(self):
         """The guard at the write site, checked from the other end: a Q4 numeric
-        id or a bare row url in this column would mint a dead link."""
+        id or a bare row url in this column would create a dead link."""
         bad = [
             u
             for (u,) in self.conn.execute("SELECT origin_url FROM body_origin")
@@ -257,7 +257,7 @@ class AttachmentTest(CorpusCase):
     def test_the_plain_flag_never_counts_an_attachment_row(self):
         """Counting them made the audit overstate the remaining formatting work
         by 358 rows of 1706, and the point of that view is that its numbers are
-        not a lie."""
+        correct."""
         counted = [
             u
             for (u,) in self.conn.execute(

@@ -36,7 +36,7 @@ from pressroom.terratec.control import cms, portal, pressemit
 # source -> parser, for the sources whose reproduction is a plain whole-page
 # parse. The re-extraction library takes its parser from the caller, so this is
 # the one place left that has to dispatch by tag without being a scraper - which
-# is the right place for it: a verifier that reproduces bodies must know each
+# is the right place for it: a verifier that reproduces bodies must have each
 # source's parser. Declared next to candidate_bodies, which handles the sources
 # whose reproduction needs more than one call.
 CACHED_PARSERS = {

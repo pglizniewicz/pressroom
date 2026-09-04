@@ -8,7 +8,7 @@ the review page.
 It answers two questions, because one of them cannot be answered by numbers:
 
   1. **Metrics**, printed. How many documents convert, how much of the text
-     survives, and how often each known defect fires.
+     is kept, and how often each known defect fires.
   2. **Full texts**, written to an HTML page. Four versions of each document
      side by side: what the database holds now, the text-only extraction, the
      structured conversion rendered, and its `body_html` source. The metric

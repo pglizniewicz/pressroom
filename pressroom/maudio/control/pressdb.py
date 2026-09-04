@@ -20,7 +20,7 @@ via CDX. Entries are deduped by (title, date) rather than by resolved target
 url: the template retargeted the same release's title link from its own
 presstemp.php detail page in early captures straight to the PDF in later ones,
 so url-based dedup would store it twice. Where both a detail page and a PDF are
-seen for one (title, date), the detail page wins - both are recoverable, but the
+seen for one (title, date), the detail page is preferred - both are recoverable, but the
 HTML gives clean text where whole-document PDF extraction interleaves the
 running header mid-body. Then the longest teaser.
 
@@ -68,8 +68,8 @@ ABS_URL_RE = re.compile(r"https?://")
 # dependency. Same corpus, same rationale - change both together.
 RECOVERED_LENGTH = 900
 
-# Attachments are somebody else's job (attachment_crawl); this
-# scraper only follows its own HTML detail pages.
+# Attachments belong to attachment_crawl; this scraper only follows its own
+# HTML detail pages.
 ATTACHMENT_EXTS = (".pdf", ".doc")
 
 
@@ -80,7 +80,7 @@ def is_html_detail(url: str) -> bool:
 def parse_detail(html: bytes) -> Detail:
     """Full text of a presstemp.php / news/php/<name>.php detail page.
 
-    Takes the whole document's text rather than hunting for a container: these
+    Takes the whole document's text rather than looking for a container: these
     pages are bare templated or Word-exported documents with no site navigation
     at all (measured: 12-70 characters of chrome against 2.2-7.8 KB of release),
     and the Word ones vary between MsoBodyText, MsoBlockText and span.normal
@@ -120,7 +120,7 @@ def extract_entries(
         tr = bold_td.find_parent("tr")
         date_td = tr.find("td", class_="normal-italic") if tr else None
         if date_td is None and tr:
-            # Older template variant: date lives in its own td.normal-bold
+            # Older template variant: date is in its own td.normal-bold
             # (same class as the title cell) instead of a td.normal-italic.
             for candidate in tr.find_all("td", class_="normal-bold"):
                 if candidate is bold_td:
@@ -245,7 +245,7 @@ def scrape_domain(
             # produced a longer one. `stored_grade()` cannot say so here - this
             # scraper writes `full` at insert time even over a blurb, which is
             # why the cursor is `length(body)` - so a row that arrives graded
-            # correctly is the one this verdict keeps that way.
+            # correctly is the one this grade keeps that way.
             storage.upgrade_release(
                 conn,
                 url,
@@ -267,7 +267,7 @@ def scrape_domain(
     catch_up.run(
         conn, source, catch, parser=parse_detail, session=session, twins_too=True
     )
-    # Both shapes live under this tag: HTML detail pages, and rows whose url is
+    # Both shapes are under this tag: HTML detail pages, and rows whose url is
     # a .pdf the listing only teased.
     attachment_crawl.catch_up(
         conn, [source], network=bool((catch or {}).get("attachments"))

@@ -1,4 +1,4 @@
-"""Where an article lives in a page: the smallest element whose text covers a
+"""Where an article is in a page: the smallest element whose text covers a
 stored body, and a name for that element a selector could key on.
 
 A parser needs a selector, and picking one from a single capture is how you get

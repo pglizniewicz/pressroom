@@ -9,7 +9,7 @@ an accidental write is an OperationalError rather than a quietly corrupted
 index; and 127.0.0.1 only, so there is no auth because there is no remote
 listener.
 
-A connection lives exactly as long as the request that needs one and closes with
+A connection lasts exactly as long as the request that needs one and closes with
 it - ThreadingHTTPServer joins none of its threads, so anything held past the
 end of do_GET is a descriptor nothing will close.
 
@@ -83,7 +83,7 @@ def _sources(params) -> list[str] | None:
     """The source filter, from `source=`, `company=`, or both.
 
     A company IS a list of sources (company.sources_for), so nothing here
-    reaches for new SQL. Given both, the answer is their intersection - picking
+    needs new SQL. Given both, the answer is their intersection - picking
     a company and then one of its mirrors narrows, it does not widen. Returns
     None when that intersection is empty (company=amd&source=intel): a filter
     nothing can match, which is a legitimate empty result, not a bad request,
@@ -113,7 +113,7 @@ def handle_search(conn, params) -> dict[str, Any]:
     unknown = [f for f in flags if f not in VALID_FLAGS]
     if unknown:
         # Dropping a typo silently would report a full corpus as if it were the
-        # filtered slice - the one lie an audit view must not tell.
+        # filtered slice - the one wrong answer an audit view must not give.
         raise BadRequest(
             f"unknown flag(s): {', '.join(unknown)}; valid: {', '.join(VALID_FLAGS)}"
         )

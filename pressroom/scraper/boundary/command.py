@@ -1,8 +1,8 @@
 """The command line every scraper has, assembled once.
 
 What a boundary module owes `run()`: a crawl callable, its own `__doc__`, and
-zero or more Options. What it gets back: the catch-up flags for free, and no
-argparse of its own. The per-scraper differences - a year range, a language, a
+zero or more Options. What it gets back: the catch-up flags without declaring
+them, and no argparse of its own. The per-scraper differences - a year range, a language, a
 discovery channel that can be switched off - are declared here as values rather
 than re-implemented as argparse calls.
 
@@ -19,7 +19,7 @@ class Option:
     """One per-scraper command-line option, as a value rather than a call.
 
     Everything argparse accepts is passed straight through, so a scraper that
-    needs something unusual declares it here rather than reaching for its own
+    needs something unusual declares it here rather than declaring its own
     parser.
     """
 
@@ -67,8 +67,8 @@ REFETCH = Option(
 
 def catch_up_flags(parser) -> None:
     """The flags every scraper gets, so the vocabulary is identical everywhere.
-    Declared here, with the per-scraper Options, because this is the one place
-    a command line is assembled; `catch_up.no_crawl` reads the result."""
+    Declared here, with the per-scraper Options, because this is where every
+    command line is built; `catch_up.no_crawl` reads the result."""
     parser.add_argument(
         "--force",
         action="store_true",

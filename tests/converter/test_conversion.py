@@ -51,7 +51,7 @@ class MagicByteTest(unittest.TestCase):
 
     def test_a_soft_404_under_a_pdf_name_is_not_an_attachment(self):
         """It is HTTP 200, it is longer than the teaser it would replace, and it
-        would pass a length-based guard. Only the bytes say no."""
+        would pass a length-based guard. Only its bytes show what it is."""
         self.assertFalse(conversion.is_attachment(SOFT_404))
         self.assertTrue(conversion.is_attachment_url("http://x/BX5_PR.pdf"))
 
@@ -106,7 +106,7 @@ class ExtractorGoldenTest(unittest.TestCase):
         self.assertTrue(html.strip().startswith("<"))
 
         # The gate the 73 converted rows passed: a multiset of word characters,
-        # blind to the two things a converter may change and to nothing else.
+        # ignoring the two things a converter may change and nothing else.
         from pressroom.release.control import gate
 
         ok, why = gate.same_words(

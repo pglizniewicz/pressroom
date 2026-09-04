@@ -17,7 +17,7 @@ The subtle one is the third. It raises a **BaseException**, not an Exception,
 because several fetch sites in this tree wrap their call in `except Exception`
 and degrade gracefully, so a probe raising an Exception is swallowed and the
 source under test reports clean. The first version of this probe did exactly
-that and pronounced five network-crawling sources offline.
+that and reported five network-crawling sources as offline.
 """
 
 import contextlib
@@ -57,7 +57,7 @@ def fixture(name: str) -> bytes:
 
     Via the manifest's `file`, because several fixtures share one capture: the
     three media_pr domains mirror the same listing, and so do the two pressdb
-    ones. Sharing the blob keeps the mirror from being paid for three times.
+    ones. Sharing the blob keeps the same bytes from being committed three times.
     """
     stem = manifest().get(name, {}).get("file", name)
     return gzip.decompress((CAPTURES / f"{stem}.gz").read_bytes())
@@ -144,7 +144,7 @@ def no_network():
 
     Three layers, because one is not enough: requests' Session (what every
     scraper uses), the module-level shortcuts, and socket.connect underneath
-    both - which also catches anything that reaches for urllib or http.client
+    both - which also catches anything that uses urllib or http.client
     directly.
     """
 

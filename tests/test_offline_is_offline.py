@@ -6,7 +6,7 @@ restructuring introduced were the same mistake - a `no_crawl` guard applied to a
 scraper's *first* discovery channel and not its second - and three of the four
 were findable only this way.
 
-Two things make it work, and both were learned the hard way:
+Two things make it work, and both were learned from a failure:
 
   - the probe raises a **BaseException** - `support.no_network`, which says why.
   - the guard belongs on the **candidate list**, not on the fetch. An empty

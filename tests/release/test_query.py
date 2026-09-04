@@ -85,7 +85,7 @@ class FlagTest(support.DbCase):
         """A .pdf/.doc release was extracted with pdftotext/antiword and has no
         HTML behind it. Counting them made the audit overstate the remaining
         work by 358 rows of 1706, and the whole point of that view is that its
-        numbers are not a lie."""
+        numbers are correct."""
         self.assertEqual(self._flagged("plain"), {self.rows["plain"]})
 
     def test_an_unknown_flag_is_ignored_rather_than_narrowing_the_search(self):
@@ -148,7 +148,7 @@ class FilterTest(support.DbCase):
 
     def test_a_hyphenated_query_falls_back_to_a_literal_phrase(self):
         """FTS5 barewords are alphanumeric, so 'M-Audio' - the single most
-        likely thing to type at this corpus - is a syntax error."""
+        likely thing to type into this search - is a syntax error."""
         got = query.search_releases(self.conn, "M-Audio")
         self.assertEqual(got["query_mode"], "literal")
 
@@ -191,7 +191,7 @@ class NeighbourTest(support.DbCase):
 
 class SourceListTest(support.DbCase):
     def test_a_source_with_no_dated_row_carries_an_empty_span(self):
-        """`""` would otherwise beat 1996 in the panel's chronological sort, so
+        """`""` would otherwise sort before 1996 in the panel's chronological sort, so
         midiman_net - whose single row has no date - has to sort last rather
         than first."""
         storage.store_release(

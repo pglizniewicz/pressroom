@@ -91,7 +91,7 @@ class EntryPointTest(unittest.TestCase):
 class InstalledTest(unittest.TestCase):
     def test_the_installed_metadata_matches_pyproject(self):
         """After a rename or a new boundary, `uv pip install -e ".[globenewswire]"`
-        has to be re-run or the script will not exist. This is what notices -
+        has to be re-run or the script will not exist. This is the check that fails -
         the editable install's entry points against the file they came from."""
         from importlib import metadata
 

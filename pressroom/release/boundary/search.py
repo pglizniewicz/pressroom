@@ -1,9 +1,9 @@
 """Search the corpus from a terminal.
 
-Owns argument parsing and printing, and no SQL: the query lives in
+Owns argument parsing and printing, and no SQL: the query is in
 control/query.py next to the fts5 declaration whose column order it depends on.
 
-Read-only: goes through connect_ro(), so it creates nothing and cannot touch a
+Read-only: goes through connect_ro(), so it creates nothing and cannot change a
 row or the index.
 
 Usage:

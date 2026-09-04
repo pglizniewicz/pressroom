@@ -2,7 +2,7 @@
 
 Three of these tests are about things `richtext.py` does that are *decisions*
 rather than cleanup, and the rest are about the shapes 1998-2005 markup actually
-takes. The invariant at the top is the one everything else in the repo leans on.
+takes. The invariant at the top is the one everything else in the repo depends on.
 """
 
 import re
@@ -56,7 +56,7 @@ class ExtractInvariantTest(unittest.TestCase):
         """extract(None) returns ("", "") so a parser keeps its "no body found"
         branch - a handful of these captures are 290-byte "page moved" stubs
         with no table in them at all, and a blanked body would be data loss
-        dressed as a successful parse."""
+        that looks like a successful parse."""
         self.assertEqual(richtext.extract(None), ("", ""))
 
 
@@ -80,7 +80,7 @@ class ParagraphTest(unittest.TestCase):
     def test_every_break_in_a_run_is_seen(self):
         """Walked over a snapshot rather than with find_next_sibling(), which
         skips NavigableStrings - so "A<br>x<br>y<br>B" looked like one run of
-        three <br> and every break in the document got eaten at once."""
+        three <br> and every break in the document was removed at once."""
         _body, html = richtext.extract(
             container("<td>A<br><br>x<br><br>y<br><br>B</td>")
         )
@@ -221,7 +221,7 @@ class CutFromTest(unittest.TestCase):
 
 class DensestTest(unittest.TestCase):
     def test_returns_the_biggest_not_the_first(self):
-        """Why "the biggest one" beats a CSS selector here: the only thing
+        """Why "the biggest one" is used rather than a CSS selector here: the only thing
         distinguishing the article's table from the navigation's is a
         width="535" that changes between captures of the same site. Measured,
         width selectors missed 36 of 186 portal captures."""

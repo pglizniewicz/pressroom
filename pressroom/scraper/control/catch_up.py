@@ -13,7 +13,7 @@ Three rules hold in every strategy, in one copy here so a scraper cannot get
 them wrong: the cursor is `body_html IS NULL`, and `force=True` widens it and
 says so first; `gate.not_shorter` applies under every other gate, `force`
 included; and the gate is chosen by the address rather than by a flag, through
-`resolution.own_page()`. A network error is never a verdict - nothing is
+`resolution.own_page()`. A network error never confirms an absence - nothing is
 written, the row is `uncertain`, and only a confirmed absence is `dead`.
 
 → docs/adr/catch-up.md
@@ -87,11 +87,11 @@ def _fill_title(conn, url: str, parsed: dict):
 def _write(
     conn, url, body, body_html, *, origin_url=None, detail_id=None, title=None
 ) -> None:
-    """One write per row: text, markup, verdict and provenance in one call.
+    """One write per row: text, markup, grade and provenance in one call.
 
     `grade="full"` is not optional here - this is the pass that replaces a
-    teaser body with the real article, and a row keeping a verdict that stopped
-    being true gets handed to the next run as still-upgradable.
+    teaser body with the real article, and a row keeping a grade that stopped
+    being true is reported to the next run as still-upgradable.
     """
     storage.upgrade_release(
         conn,
@@ -187,7 +187,7 @@ def from_listings(
     """Re-walk cached listing captures and match what they hold back to rows.
 
     Two strategies need this. midiman_de's inline releases only ever existed
-    *inside* a listing page, so the scraper mints `/press/{slug}-{date}` for
+    *inside* a listing page, so the scraper builds `/press/{slug}-{date}` for
     them and no capture of that url can exist. terratec_new_de/_en are the
     opposite: real article urls archive.org simply never captured, whose text
     came off the listing because that is where it was.
@@ -196,7 +196,7 @@ def from_listings(
     caller's, because finding releases inside a listing is per-CMS knowledge.
 
     Only ever an UPDATE: an entry matching no stored url is dropped, never
-    inserted, so a re-extraction cannot mint rows under urls nobody has seen.
+    inserted, so a re-extraction cannot create rows under urls nobody has seen.
     """
     stored = _stored(conn, source)
     pending_urls = {u for u, _ in pending(conn, source)}
@@ -366,9 +366,10 @@ def retry_missing(conn, source: str, parser, session, *, limit=None) -> None:
                 conn, session, url, guarded
             )
             if not parsed:
-                # confirmed=False is a network hiccup, not a verdict: write
-                # nothing so a rerun retries. confirmed=True means CDX has no
-                # capture of this url at all - record it and stop retrying.
+                # confirmed=False is a transient network failure, not a confirmed
+                # absence: write nothing so a rerun retries. confirmed=True means
+                # CDX has no capture of this url at all - record it and stop
+                # retrying.
                 stats.dead() if confirmed else stats.uncertain()
                 continue
             new_detail_id = parsed.get("detail_id")
@@ -406,7 +407,7 @@ def seed_cache(conn, source: str, session, *, force: bool = False, limit=None) -
     upgrade_release. The point is to turn "redesigning this parser needs another
     crawl" into "redesigning this parser is free", once.
 
-    A source whose row urls were minted by its scraper has nothing to seed - the
+    A source whose row urls were built by its scraper has nothing to seed - the
     address would be a page that never existed - so the scraper simply does not
     call this.
     """
@@ -447,8 +448,8 @@ def retext(conn, source: str, *, limit=None) -> None:
 
     One of the two writes in this tree that pass no `grade`, and for the plainer
     of the two reasons: nothing arrives that the row did not already hold. The
-    markup is what its verdict was awarded for, so re-deriving the text from it
-    establishes no new one, and `grade="full"` here would be a claim about a
+    markup is what the row was graded on, so re-deriving the text from it
+    establishes nothing new, and `grade="full"` here would be a claim about a
     body nobody just recovered.
     """
     sql = (
@@ -503,7 +504,7 @@ def catch_up(
     `attachments` is accepted and ignored here: it belongs to the other
     contract (attachment_crawl), and the scrapers pass one options dict to both.
 
-    `offline=True` means "touch nothing on the network": the
+    `offline=True` means "make no network request": the
     free strategies run and the two that fetch are skipped. `seed=True` is the
     opposite special case - fetch captures for a parser redesign and parse
     nothing - so it runs alone. `refetch=True` is the live sources' `--refetch`
@@ -561,7 +562,7 @@ def confirm_rewrite(
 
     `--force` is the flag whose earlier equivalent overwrote full articles with
     listing teasers. The gates still hold underneath, but a bulk rewrite is
-    worth stating out loud first: the statement is built here, with the numbers,
+    announced first: the statement is built here, with the numbers,
     and `ask(message) -> bool` is the boundary's - it knows whether there is a
     terminal to put the question to. `yes=True` is the non-interactive caller's
     answer; no `ask` and no `yes` is a no, so a cron never blocks.
@@ -593,7 +594,7 @@ def run(conn, source: str, opts: dict | None, **pieces) -> None:
 def no_crawl(opts: dict | None) -> bool:
     """Whether the scraper's own discovery phase should be skipped entirely.
 
-    True for the flags that mean "do not touch the network": --offline, --retext
+    True for the flags that mean "make no network request": --offline, --retext
     and --seed-cache. Applied by each scraper to its *candidate list* rather
     than around its loop - a discovery call that returns nothing leaves the loop
     body untouched, which is how this stays a one-line change per scraper.

@@ -11,16 +11,16 @@ declared once.
 One tag, `terratec`, because a tag identifies a scraper - a CMS generation -
 and not a domain. The language is a property of a row, legible in its url
 (`.de/presse/` against `.net/press/`), and it is not deduped: the
-same release exists in both and the "prefer the English version" call is made by
-hand. What that costs is stated plainly: no reader can ask for the German half
+same release exists in both and the "prefer the English version" decision is
+made by hand. What that costs is stated plainly: no reader can ask for the German half
 any more.
 
-The rule the two tags used to buy was `twin.py`'s refusal to pair across tags,
-and here it bought nothing. Measured over the corpus: two (collapsed title,
+What the two tags used to provide was `twin.py`'s refusal to pair across tags,
+and here it provided nothing. Measured over the corpus: two (collapsed title,
 exact date) groups span the two hosts, and every row in them is over 1300
 characters, so `twin.find_pairs` - which only touches a row under `SHORT` -
-rejects both. `pressemit` passes no `twins_too` either. It stays a latent trap
-rather than a live one, and the distinction that makes it safe is in
+rejects both. `pressemit` passes no `twins_too` either. It stays a possible
+mistake rather than an actual one, and the distinction that makes it safe is in
 `docs/adr/sources-and-tags.md`: across *languages* the titles differ, across
 *mirrors* they do not.
 
@@ -50,8 +50,8 @@ already-stored check here is by filename rather than by url.
 generation exist under both, so the already-stored check is keyed by *site and
 filename*, and `site_of()` is what supplies the first half. Keyed by filename
 alone - which is what it was when each host had its own tag - it would drop 58
-German releases from the work list as "already stored", silently and with no
-error. That is the one thing collapsing the two tags actually broke.
+German releases from the work list as "already stored", with no error. That is
+the one thing collapsing the two tags actually broke.
 """
 
 import re
@@ -126,7 +126,7 @@ DATE_RE = re.compile(
 )
 
 # The bold dateline the headline follows, in both languages. Substrings, not
-# MARKER_RE - parse_page's docstring says why widening this further is a trap,
+# MARKER_RE - parse_page's docstring says why widening this further is wrong,
 # and this is exactly as wide as the .de pages already needed. The four French
 # `*_fr.htm` pages are the ones that rule protects, and they are in the corpus
 # with cached bytes, so the measurement above covers them.
@@ -147,9 +147,8 @@ _HEADINGS = ("h1", "h2", "h3", "h4")
 # with the release's first sentence instead.
 _HEADLINE_ENDS = {"p", "h1", "h2", "h3", "h4", "table", "ul", "ol", "div", "blockquote"}
 
-# A bare-text headline longer than this is prose that slipped past the rule
-# above, not a headline. The longest real one across both sources is 119
-# characters.
+# A bare-text headline longer than this is prose the rule above did not stop,
+# not a headline. The longest real one across both sources is 119 characters.
 MAX_HEADLINE = 250
 
 
@@ -164,7 +163,7 @@ def find_headline(soup) -> str:
     headline is not marked up the same way in all of it:
 
       1. the first non-empty bold after the dateline that is not itself a
-         dateline. Both halves matter. Taking `bold_tags[i + 1]` blindly stored
+         dateline. Both halves matter. Taking `bold_tags[i + 1]` unchecked stored
          "" whenever a capture put an empty <b> between the two (3 rows); and on
          the French pages the very next bold is the "Communiqué de Presse"
          download-link label, which would otherwise become the title of all
@@ -230,7 +229,7 @@ def parse_page(content: bytes, date_re: re.Pattern, markers: tuple[str, ...]) ->
     dateline the headline follows.
 
     `markers` is not MARKER_RE, which covers all three languages
-    and would be wrong here. The rule below takes `bold_tags[i + 1]` blindly, so
+    and would be wrong here. The rule below takes `bold_tags[i + 1]` unchecked, so
     on the French pages a "communiqué de presse" match would title all four of
     them with the download-link label that follows it. Today nothing matches
     there, the title stays empty, and find_headline - which *does* skip a bold
@@ -249,7 +248,7 @@ def parse_page(content: bytes, date_re: re.Pattern, markers: tuple[str, ...]) ->
     text = soup.get_text(" ", strip=True)
     # Body from the DOM, date from the flat text. These pages are one big
     # layout table, and the article's table is the one carrying the most text -
-    # see richtext.densest for why that beats a width= selector here. The flat
+    # see richtext.densest for why that works where a width= selector does not. The flat
     # text stays for `date_re`, which scans the whole page including the
     # header where the date actually sits.
     body, body_html = richtext.extract(richtext.densest(soup, "table", border="0"))
@@ -323,8 +322,8 @@ def _under(prefix: str, url: str) -> bool:
     that gets two things wrong for this purpose. It ignores a `www.`, so the .de
     listing carries both spellings of the host; and it does not stop at a path
     segment, so the listing for `/presse/pressemit/` also carries
-    `/presse/pressemit.htm` - the index page itself, which `is_html_page` is
-    happy with and which would be stored as a release.
+    `/presse/pressemit.htm` - the index page itself, which `is_html_page`
+    accepts and which would be stored as a release.
     """
     return urlsplit(url).path.startswith(urlsplit(prefix).path)
 
@@ -370,8 +369,8 @@ def from_prefix(site: str, prefix: str) -> dict[str, Entry]:
     """Every article page CDX lists under this site's folder.
 
     Keyed by filename, and carrying no metadata: a url is all this channel
-    knows, which makes a confirmed absence here a `dead` rather than
-    the stub an index entry earns.
+    has, which makes a confirmed absence here a `dead` rather than
+    the stub an index entry justifies.
 
     `or_exit` rather than the degrading form golive.py uses, even though there
     is a second channel to fall back on: nearly every row of this generation
@@ -379,7 +378,7 @@ def from_prefix(site: str, prefix: str) -> dict[str, Entry]:
     under-discover and print a small candidate count that reads as success. It
     does mean a CDX outage on one host ends the run before the other host and
     before phase 2 - which is what a rerun is for, and portal.py's two portals
-    already make the same call.
+    already make the same choice.
     """
     print(f"[{SOURCE}/{site}] Listing archived pages under {prefix}", flush=True)
     return {
@@ -407,8 +406,8 @@ def candidates(conn, session, site: str, *, offline: bool, limit=None) -> list[E
     """One site's whole work list: both channels, merged and filtered.
 
     Merged by filename for the reason the module docstring gives. Where both
-    channels have a file, the index entry's metadata wins - it is the only
-    metadata there is - and the CDX spelling of the url wins, because that is
+    channels have a file, the index entry's metadata is used - it is the only
+    metadata there is - and the CDX spelling of the url is used, because that is
     what archive.org itself reports and what the stored rows of this generation
     already carry.
 

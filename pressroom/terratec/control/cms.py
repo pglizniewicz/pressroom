@@ -9,7 +9,7 @@ Two complementary techniques, since neither alone is complete:
      entries over time - a single "latest" snapshot misses most of it.
 
 No automated English/German dedup - stored separately, one source per
-language, and the preference between them is a call made by hand.
+language, and the preference between them is decided by hand.
 """
 
 import re
@@ -80,7 +80,7 @@ ARTICLE_COLUMN = "span-8"
 
 
 def article_area(soup):
-    """The column a release lives in, or None on a capture that predates this
+    """The column a release is in, or None on a capture that predates this
     CMS (the 2003-era terratec.net/press/ pages, which other scrapers own)."""
     content = soup.find("div", id=CONTENT_ID)
     return content.find("div", class_=ARTICLE_COLUMN) if content else None
@@ -272,7 +272,7 @@ def scrape_lang(lang: str, limit: int | None = None, catch: dict | None = None) 
     print(f"\n[{source}] Listing archived articles under {cfg['prefix']}", flush=True)
     # Not fatal, unlike the single-phase scrapers: step 1 already collected
     # entries that step 3 stores, so losing the prefix crawl must not discard
-    # them - degrade to prefix-crawl-free and keep going.
+    # them - carry on without the prefix crawl.
     #
     # Guarded like step 1. The bare except below is why a miss here goes
     # unnoticed - it swallows anything a probe raises, which is why the check

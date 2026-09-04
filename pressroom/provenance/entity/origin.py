@@ -38,7 +38,7 @@ def record(conn, url: str, origin_url: str, commit: bool = True) -> None:
 
 
 def clear(conn, url: str, commit: bool = True) -> None:
-    """Forget the recorded capture for `url`.
+    """Delete the recorded capture for `url`.
 
     Called by any pass that rewrites a body from somewhere other than the
     recorded capture: the entry then no longer describes where the text came
@@ -55,7 +55,7 @@ def page_of(origin_url: str):
     """The page an `origin_url` is a capture of, or None.
 
     One split on the `id_/` marker every page_cache key carries - which is why
-    the column stores the whole address and the page is derived. Lives here
+    the column stores the whole address and the page is derived. It is here
     rather than with the archive client because the browser needs it and must
     not import requests.
     """

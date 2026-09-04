@@ -1,9 +1,9 @@
 """Scraper for soundonsound.com's audio-interface coverage.
 
 A full run is several hours: this site's robots.txt asks for a 30-second crawl
-delay and that is honoured. The articles land in page_cache, so that cost is
-paid once and an interrupted run resumes free; the listings are walked on every
-run, because that is where a new article shows up.
+delay and that is honoured. The articles are stored in page_cache, so that cost
+is paid once and an interrupted run refetches nothing; the listings are walked
+on every run, because that is where a new article shows up.
 
 Usage:
   pressroom-soundonsound --limit 3                    # dry run, 3 articles

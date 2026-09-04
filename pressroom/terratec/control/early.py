@@ -44,7 +44,7 @@ PAGES = [
 
 # The longest a first paragraph may be and still be read as the headline. Every
 # one of the 21 headlines on these two pages is 16-56 characters; the shortest
-# opening paragraph of an actual release is 264. Nothing lands in between, so
+# opening paragraph of an actual release is 264. Nothing falls in between, so
 # the cut is nowhere near either population.
 MAX_TITLE = 200
 

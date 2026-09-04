@@ -5,17 +5,17 @@ A second contract beside catch_up.py: no HTML parser (the extractor *is* the
 parser), bytes addressed through body_origin or a mirror domain rather than the
 row's own detail_id, and gates of strict_same_text for a re-extraction and
 same_words for the text-to-markup conversion. Rows are UPDATEd in place, since
-the fuller content lives at the url already stored.
+the fuller content is at the url already stored.
 
 Two CMS generations link out this way and neither scraper follows the link, so
 both store only the listing-page teaser:
   - pressdb.php    (midiman_com_pressdb, midiman_net_pressdb) - .pdf only
   - media.media_pr (midiman_com/net/maudio_com_media_pr)      - .doc and .pdf
 
-Called by those two scrapers, never run on its own. Everything free happens by
-default; the network crawl is opt-in (`--attachments`), the one exception
-to "a plain rerun gets everything" - nothing records "CDX has no
-capture of this url, ever", so a full pass re-buys every confirmed absence.
+Called by those two scrapers, never run on its own. Everything that costs no
+request happens by default; the network crawl is opt-in (`--attachments`), the
+one exception to "a plain rerun gets everything" - nothing records "CDX has no
+capture of this url, ever", so a full pass re-requests every confirmed absence.
 
 Fetching goes through archive.fetch_best_matching_snapshot, never
 get_latest_working_snapshot: `statuscode:200` proves archive.org answered, not
@@ -75,9 +75,9 @@ def attachment_score(content: bytes) -> int:
     The same measure the write below decides on (`len(text) <= len(old_body)` is
     a `skipped`), so the walk cannot pick a copy its own gate will then refuse.
     A bare `is_attachment` bool would not do: with a binary score every capture
-    ties, the earliest always wins, and the two probes buy nothing - which is
-    how an earlier, thinner revision of a PDF would start beating the fuller
-    later one this crawl exists to find.
+    ties, the earliest is always picked, and the two probes gain nothing - which
+    is how an earlier, thinner revision of a PDF would start scoring above the
+    fuller later one this crawl exists to find.
     """
     if not conversion.is_attachment(content):
         return 0
@@ -126,8 +126,8 @@ def cursor_rows(conn, sql: str, sources: list | None, limit: int | None) -> list
 
     `limit` is a slice rather than a SQL LIMIT because that is what it has
     always been: both queries are ordered, so the two agree today, and swapping
-    one for the other in passing would be a behaviour change hiding inside a
-    deduplication.
+    one for the other in passing would be a behaviour change inside what looks
+    like a deduplication.
     """
     where, params = "", ()
     if sources:
@@ -146,9 +146,10 @@ def reextract_from_cache(limit: int | None = None, sources: list | None = None) 
     what a row stored before normalize() kept its line breaks needs.
 
     It is also the one write here that passes no `grade`. The gate admits
-    nothing but a body that already *is* this extraction, so there is no verdict
-    for this pass to establish, and claiming one would be the same lie in the
-    other direction. The two writes that can replace a teaser say `grade="full"`.
+    nothing but a body that already *is* this extraction, so there is no grade
+    for this pass to establish, and claiming one would be the same false
+    statement in the other direction. The two writes that can replace a teaser
+    say `grade="full"`.
     """
     with contextlib.closing(connection.connect()) as conn:
         rows = cursor_rows(conn, CACHED_ATTACHMENT_SQL, sources, limit)
@@ -366,7 +367,7 @@ def catch_up_network_source(
         if only_short:
             full = [r for r in rows if len(r[1] or "") >= RECOVERED_LENGTH]
             rows = [r for r in rows if len(r[1] or "") < RECOVERED_LENGTH]
-            # Say what was dropped, or the count reads as work having vanished.
+            # Say what was dropped, or the count reads as if rows had been lost.
             print(
                 f"[{source}] --only-short: skipping {len(full)} rows that already "
                 f"hold >{RECOVERED_LENGTH} characters",
@@ -409,7 +410,7 @@ def catch_up_network_source(
                 text, kind = conversion.plain_text(content)
                 if not text:
                     # is_attachment already confirmed a real pdf/doc, so a failure
-                    # here is the extractor choking on it - a parser gap worth
+                    # here is the extractor failing on it - a parser gap worth
                     # another try, not a verified absence.
                     print(f"\n  {kind} extractor produced no text for {candidate}")
                     uncertain = True
@@ -477,7 +478,7 @@ def catch_up_network(
 def catch_up(
     conn, sources: list, *, network: bool = False, limit: int | None = None
 ) -> None:
-    """Phase 2 for attachment rows of `sources`. Free work first, always.
+    """Phase 2 for attachment rows of `sources`. Offline work first, always.
 
     Offline: re-extract the bytes page_cache already holds (layout included),
     then convert every cached PDF to our HTML subset. Both are gated, both are

@@ -5,8 +5,8 @@ that change it, and nothing else creates that table." That was prose until
 `page_cache` turned out to have both of its INSERTs in `fetcher/control/` and
 `releases_fts` its rebuild in `release/control/` - the rule held for two tables
 of four and nothing said so. So: every SQL string in the package that creates or
-changes a table sits in `entity/` of the component `creation.py` names as that
-table's owner. Reads are free; they measure coupling, not ownership.
+changes a table is in `entity/` of the component `creation.py` names as that
+table's owner. Reads are unrestricted; they measure coupling, not ownership.
 
 Docstrings are skipped, because prose about an UPDATE is not one.
 """

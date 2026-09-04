@@ -1,4 +1,4 @@
-"""The one place a scraper's command line is assembled.
+"""Where every scraper's command line is built.
 
 `boundary/command.py` replaced sixteen hand-written `__main__`s
 (`docs/adr/layout-and-naming.md`). What is worth asserting about the replacement

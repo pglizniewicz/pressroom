@@ -16,9 +16,9 @@ Non-destructive. Nothing is deleted and nothing is merged:
 stay. Only the short row's `body` is replaced, and its `detail_id` becomes the
 twin's capture timestamp - which is where that text actually came from.
 
-Pairing is within one source only. Across sources the same release lives on
+Pairing is within one source only. Across sources the same release is on
 several mirrors under unrelated url schemes by design, and their bodies are
-genuinely different documents, so merging those would invent a fact.
+genuinely different documents, so merging those would record something false.
 
 `fill(conn, source)` is the last step of phase 2 for the scrapers whose CMS did
 this. It is here rather than in catch_up.py because the text comes from another
@@ -32,12 +32,12 @@ from pressroom.fetcher.control import address
 from pressroom.provenance.entity import origin
 from pressroom.release.control import storage
 
-# A row counts as needing help below this; the repo's audit view uses the same
+# A row counts as short below this; the repo's audit view uses the same
 # 300 characters to call a body teaser-grade.
 SHORT = 300
 
 # The twin has to be substantially better, not merely different: a 142-character
-# blurb replaced by a 200-character blurb is churn, not recovery.
+# blurb replaced by a 200-character blurb is a needless rewrite, not a recovery.
 MIN_GAIN = 3
 
 _ROWS_SQL = """
@@ -102,7 +102,7 @@ def find_pairs(conn, source=None):
 def fill(conn, source: str | None = None, *, dry_run: bool = False) -> int:
     """Fill every teaser in `source` that has a better twin. Returns rows written.
 
-    Called at the end of a scraper's run, so a fresh crawl that lands one url
+    Called at the end of a scraper's run, so a fresh crawl that stores one url
     scheme before the other needs no follow-up pass. Idempotent: once the short
     row holds the twin's text there is no gap left to find, and a rerun reports
     nothing to do.

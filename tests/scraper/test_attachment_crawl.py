@@ -4,9 +4,9 @@
 `body_origin` entry were two separately committed statements. In the two offline
 passes that was invisible - `origin_url` comes out of a JOIN on `body_origin`,
 so the second write only ever restated the value the first had just read - which
-is why the shape survived everywhere else being fixed. The network path is where
-it bit: there the address is new, and a crash between the two commits leaves the
-row holding a PDF's text and advertising the capture it had before.
+is why the shape was left when everything else was fixed. The network path is
+where it showed: there the address is new, and a crash between the two commits
+leaves the row holding a PDF's text and still naming the capture it had before.
 """
 
 import re
@@ -112,7 +112,7 @@ class RichtextCursorTest(support.DbCase):
         self.assertEqual(self.row(self.PDF)["body_html"], self.HAND_WRITTEN)
 
     def test_a_row_without_markup_still_gets_it(self):
-        """The filter has to sieve, not empty the cursor."""
+        """The filter has to narrow the cursor, not empty it."""
         self.seed(source="midiman_com_pressdb", url=self.PDF, body="zajawka")
         self.hold(self.PDF, self.PDF_CAPTURE)
         attachment_crawl.write_richtext()
@@ -133,10 +133,10 @@ class VerdictTest(support.DbCase):
       - the network crawl writes exactly when the fetched text is longer than
         the stored one, which is the replacement itself.
       - `reextract_from_cache` writes only what its gate proved is already
-        stored character for character, so there is no verdict there to change.
+        stored character for character, so there is no grade there to change.
 
     Every row of these sources is graded `full` today, blurb or not, so what
-    this pins is the row that arrives graded truthfully leaving that way.
+    this pins is that a row which arrives correctly graded leaves that way.
     """
 
     PDF = "http://www.midiman.com/news/pdf/PR07022002C.pdf"

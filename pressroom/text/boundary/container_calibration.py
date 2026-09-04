@@ -1,15 +1,15 @@
-"""Find the DOM container each Wayback source's article lives in.
+"""Find the DOM container each Wayback source's article is in.
 
 A parser needs a selector, and picking one from a single capture is how you get
 a parser that works on the page you looked at and silently stores navigation
-for the rest. This is the pass that redesigned the six text-surgery parsers,
-and it stays because the next selector wants the same evidence.
+for the rest. This is the pass that redesigned the six string-slicing parsers,
+and it stays because the next selector needs the same evidence.
 
 So: walk every capture of a source that page_cache already holds, and for each
 one find the smallest element whose text covers that row's stored body. Report
-the distribution. A selector worth encoding is one that wins on most captures;
-if no shape dominates, say so and leave that parser alone - flat text beats a
-sidebar stored as a press release.
+the distribution. A selector worth encoding is one that fits most captures; if
+no shape dominates, say so and leave that parser alone - flat text is better
+than a sidebar stored as a press release.
 
 Read-only. Prints, writes nothing. The measure is `control/containers.py`'s;
 this is the walk over the cache and the report.

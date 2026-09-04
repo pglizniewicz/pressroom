@@ -1,4 +1,4 @@
-"""Every write over `releases`, and the four questions a scraper asks first.
+"""Every write over `releases`, and the four checks a scraper makes first.
 
 Two of these are documented invariants whose breakage is silent: the phantom
 "new" counter, and provenance claimed for a body somebody else wrote.
@@ -32,7 +32,7 @@ class OriginTest(support.DbCase):
     def test_a_platform_id_cannot_reach_this_write(self):
         """The guard `tests/fetcher/test_address.py` is about, at the write site:
         a Q4 numeric id or a bare row url raises here rather than silently
-        minting a dead link."""
+        writing a dead link."""
         for bad in ("970", "node-4935591", "http://www.terratec.de/presse.html"):
             with self.subTest(value=bad):
                 with self.assertRaises(ValueError):
@@ -45,10 +45,10 @@ class OriginTest(support.DbCase):
 
         Without `with conn:` in storage, the INSERT that ran before the raise
         stayed in an open transaction: not written, but not gone either, and
-        the next commit() from anywhere on that connection adopted it. The row
+        the next commit() from anywhere on that connection committed it too. The row
         then existed with no body_origin - exactly the false statement the
-        guard had just refused to make. A bare conn.commit() cannot express
-        this; only a rollback can.
+        guard had just refused to make. A bare conn.commit() cannot do this;
+        only a rollback can.
         """
         with self.assertRaises(ValueError):
             storage.store_release(
@@ -131,7 +131,7 @@ class RepairAtTheWriteTest(support.DbCase):
 
 class GradeTest(support.DbCase):
     def test_stored_grade_is_the_question_an_upgradable_row_needs(self):
-        """`already_stored()` alone would wedge teaser rows permanently: the
+        """`already_stored()` alone would leave teaser rows stuck permanently: the
         scrapers' condition is `grade is not None and grade != "teaser"`."""
         storage.store_release(self.conn, "src", "http://x/1", grade=Grade.TEASER)
         self.assertTrue(storage.already_stored(self.conn, "http://x/1"))
@@ -139,7 +139,7 @@ class GradeTest(support.DbCase):
         self.assertIsNone(storage.stored_grade(self.conn, "http://x/never"))
 
     def test_an_upgrade_must_say_the_verdict_changed(self):
-        """Otherwise the row keeps a verdict that stopped being true and the
+        """Otherwise the row keeps a grade that stopped being true and the
         next run is handed it as still-upgradable."""
         storage.store_release(
             self.conn, "src", "http://x/1", body="blurb", grade=Grade.TEASER

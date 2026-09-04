@@ -25,7 +25,7 @@ www. And they are the only releases here with an address of their own,
 their rows have been keyed by the synthetic url below from the start, and
 re-keying them is a separate decision.
 
-Each release lives in an HTML-comment-delimited block, and the vocabulary is
+Each release is in an HTML-comment-delimited block, and the vocabulary is
 wider than it first looked: "<!-- start -->...<!-- stop -->", product-name
 tagged ("<!-- Radium start -->"), tagged with no verb at all ("<!-- ozone -->
 ...<!-- ozone stop -->"), closed with "ende" or "end" rather than "stop", and
@@ -45,19 +45,19 @@ short product name + a "Ort, DD.MM.YYYY" dateline + body <p> + a contact footer,
 which is cut. The footer has two forms: "Infos bei:" and a postal address on the
 two listings, and on messe03.htm nothing but the arrow-link list ("weitere
 Produkt-Infos FireWire 410"). The link form is matched anchored at the start of
-a text node, and that anchoring is the point rather than tidiness: calibrated
-over every cached capture it hits link texts and no prose, while "Weitere Infos
-erhalten Sie bei Sinec" is a sentence in the middle of a release on
-oldpress.htm, and cutting there would drop the rest of its body. Verified
-against a live sample that those links go to product marketing pages, not to
-richer versions of the release, so they are correctly left unfetched - the block
-already *is* the complete release.
+a text node, and that anchoring is the point: calibrated over every cached
+capture it hits link texts and no prose, while "Weitere Infos erhalten Sie bei
+Sinec" is a sentence in the middle of a release on oldpress.htm, and cutting
+there would drop the rest of its body. Verified against a live sample that
+those links go to product marketing pages, not to richer versions of the
+release, so they are correctly left unfetched - the block already *is* the
+complete release.
 
 Dates come in two formats: numeric "DD.MM.YYYY" for most, and spelled-out German
 months ("15. Januar 1999") for the oldest entries. _extract_date() tries numeric
 first and requires an unambiguous 4-digit year, because a block's trailing
-credit stamp repeats the date with two digits and would otherwise win over the
-real dateline. An English "Month DD, YYYY" is read too, but only once both
+credit stamp repeats the date with two digits and would otherwise be picked over
+the real dateline. An English "Month DD, YYYY" is read too, but only once both
 German forms have found nothing - _english_date().
 
 No <a name> is dependable on the two listings, so an inline release there has no
@@ -98,10 +98,10 @@ PAGES = [
 ROUNDUP_PAGES = {"messe03.htm": "2003-02-27"}
 
 COMMENT_RE = re.compile(r"<!--(.*?)-->", re.DOTALL)
-# No word boundary in front of the verb, and it is load-bearing for exactly
-# one comment in the whole archive: "<!-- PCI 22stop -->", whose release is
-# the Power Mac G5 one. With \\bstop that comment reads as an opener, which
-# both swallows the release before it and pairs the wrong two comments.
+# No word boundary in front of the verb; exactly one comment in the whole
+# archive depends on that: "<!-- PCI 22stop -->", whose release is the Power
+# Mac G5 one. With \\bstop that comment reads as an opener, which both drops
+# the release before it and pairs the wrong two comments.
 CLOSER_RE = re.compile(r"(stop|ende|end)\b", re.IGNORECASE)
 INFOS_BEI_RE = re.compile(r"Infos bei\s*:", re.IGNORECASE)
 FOOTER_LINK_RE = re.compile(r"^\s*(weitere|mehr)\s+(Produkt-)?Infos\b", re.IGNORECASE)
@@ -123,7 +123,7 @@ GERMAN_MONTHS = {
 
 # Numeric "DD.MM.YYYY" and spelled-out-month "DD. Month[,] YYYY" as one
 # alternation, so the FIRST (leftmost) date-shaped substring in the text
-# wins regardless of format - some blocks' trailing credit-stamp footer
+# is picked regardless of format - some blocks' trailing credit-stamp footer
 # repeats the date in the other format, sometimes off by a day, so always
 # preferring one format over the other (rather than document position)
 # risks picking the footer's date instead of the real dateline.
@@ -177,7 +177,7 @@ def _english_date(text: str) -> str:
     these pages, so the numeric rule dates them; the Avid acquisition
     announcement does not, and its only date is "Tewksbury, MA - August 20,
     2004". Asked after both German formats have found nothing, so a body that
-    quotes an English date cannot outvote its own dateline.
+    quotes an English date cannot override its own dateline.
     """
     m = ENGLISH_DATE_RE.search(text)
     if not m:
@@ -250,7 +250,7 @@ def _anchor_url(soup, page_url: str) -> str | None:
     """`messe03.htm#radium` for a section of the roundup page, else None.
 
     Asked of the roundup alone: an `<a name>` turns up here and there on the two
-    listings too, and honouring it there would re-key rows that have been under
+    listings too, and using it there would re-key rows that have been under
     their synthetic url since the first crawl.
     """
     if not roundup_date(page_url):
@@ -337,7 +337,7 @@ def parse_page(
     text = content.decode("cp1252", errors="replace")
     inherited = roundup_date(base_url)
     # Stamped here rather than by each caller: this is where both halves of the
-    # address are in hand, and both the crawl and the collector need it - the
+    # address are available, and both the crawl and the collector need it - the
     # crawl to record provenance in the same transaction as the body, the
     # collector because `from_listings` reads it off the entry.
     origin_url = address.snapshot_url(timestamp, base_url) if timestamp else None
@@ -424,7 +424,7 @@ def scrape(limit: int | None = None, catch: dict | None = None) -> None:
     stats.summary(conn)
     # One shape only: releases that exist inside a listing and nowhere else, so
     # a collector and no detail parser - a per-row fetch here is a guaranteed
-    # 404 against a url this scraper minted.
+    # 404 against a url this scraper built.
     catch_up.run(conn, SOURCE, catch, collect=cached_entries, session=session)
     conn.close()
 
@@ -435,7 +435,7 @@ def cached_entries(conn) -> dict[str, Entry]:
     Here rather than in the re-extraction library because finding the releases
     inside these pages is this CMS's own knowledge - blocks(), the footer forms,
     and the fact that a release's url has to be *rebuilt* the same way the crawl
-    minted it. A copy of that in a shared module is the kind of duplicate that
+    built it. A copy of that in a shared module is the kind of duplicate that
     goes stale silently.
 
     Entries carry `origin_url`: the capture they were parsed out of, so the write

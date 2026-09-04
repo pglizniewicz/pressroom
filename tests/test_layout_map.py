@@ -1,16 +1,16 @@
 """`docs/layout.md`'s table still describes the tree that exists.
 
 The table is a lookup - one row per business component, naming the file inside
-it that owns each job - and it used to sit in `CLAUDE.md`, which is read into
+it that owns each job - and it used to be in `CLAUDE.md`, which is read into
 every session. Moving it into `docs/layout.md` made it accurate in one way and
 fragile in another: nothing loads it any more, so a rename that misses it is
 silent, and a stale map is read as current rather than as a leftover. It is the
 most rename-sensitive prose in the repo, so it gets the check.
 
-Three claims about the table, because it can be wrong in three directions: a component
-with no row (the map has a hole), a row naming a component that is gone (the map
-points nowhere), and a row naming a file that has moved inside its component
-(the map is subtly wrong, which is worse than either).
+Three claims about the table, because it can be wrong in three directions: a
+component with no row, a row naming a component that is gone, and a row naming a
+file that has moved inside its component (the map is subtly wrong, which is worse
+than either).
 
 The last assertion is the convention itself, which `CLAUDE.md` states and
 nothing enforced: a component holds only the three layers.

@@ -39,7 +39,7 @@ CDX_URL = "https://web.archive.org/cdx/search/cdx"
 #
 # Raising this was tried and measurably made things worse: these 503s are the
 # service being globally overloaded, not per-client rate limiting keyed to our
-# cadence, so waiting longer between our own requests buys no goodwill and only
+# cadence, so waiting longer between our own requests gains nothing and only
 # keeps us inside the bad window longer. Query `wayback_calls` before touching
 # it.
 SLEEP = 1.0
@@ -52,19 +52,20 @@ RETRY_BACKOFF = 5.0
 
 # HTTP 503 is not "retry me", it is "the service is overloaded" - and since the
 # overload is global, the next row would hit it too. So a 503 arms one cooldown
-# shared by the whole run instead of each row serving its own multi-minute
-# sentence: the first caller announces and waits it out, and any caller that
-# arrives during it waits only the remainder.
+# shared by the whole run instead of each row waiting out its own multi-minute
+# cooldown: the first caller prints a notice and waits it out, and any caller
+# that arrives during it waits only the remainder.
 SERVICE_COOLDOWN = 120.0
 _cooldown_until = 0.0
 
 # Request timeouts, split because a single-row probe and a several-hundred-row
 # prefix query are not the same request; the bulk budget is the gain here.
 #
-# The probe timeout is not a useful lever, and that was measured rather than
-# guessed: lowering it turned slow successes into failures, because CDX's
-# latency for one query shape swings by an order of magnitude within minutes
-# with no value separating "doomed" from "slow but fine".
+# The probe timeout is not a parameter worth varying, and that was measured
+# rather than guessed: lowering it turned slow successes into failures, because
+# CDX's latency for one query shape swings by an order of magnitude within
+# minutes, with no value separating a request that will fail from one that is
+# slow but fine.
 CDX_TIMEOUT = 30
 CDX_BULK_TIMEOUT = 60
 
@@ -73,7 +74,7 @@ CDX_BULK_TIMEOUT = 60
 # confirmed - fetch_best_matching_snapshot checks for it.
 CDX_ROW_LIMIT = 1000
 
-# How far past the earliest usable capture to look for a second opinion, in
+# How far past the earliest usable capture to look for a second sample, in
 # whole years. A press release is not edited after publication, so the earliest
 # capture is normally the article itself; what it can be instead is a crawl that
 # arrived before the page had settled. A year is far enough that it has, and
@@ -176,7 +177,7 @@ def _cdx(
                 if waited_out_service:
                     raise
                 waited_out_service = True
-                # Announced, not silent: a multi-minute stall with no
+                # Printed, not silent: a multi-minute stall with no
                 # explanation is what the heartbeat exists to prevent.
                 print(
                     f"\n  CDX returned {status}; pausing {SERVICE_COOLDOWN:.0f}s "
@@ -259,8 +260,8 @@ def fetch_snapshot(
 
     A real fetch also stores three encoding signals for later analysis - the
     `id_` response's own Content-Type, the `fw_` variant's
-    `x-archive-guessed-charset`, and what BeautifulSoup's sniffing would land
-    on. Diagnostics only: best-effort, swallowed on failure, and read by nothing
+    `x-archive-guessed-charset`, and what BeautifulSoup's sniffing would
+    choose. Diagnostics only: best-effort, swallowed on failure, and read by nothing
     on the parse path.
     """
     row = conn.execute(
@@ -332,7 +333,7 @@ def _rate(
     conn, session, url: str, ts: str, score, timeout: int
 ) -> tuple[bytes | None, int]:
     """(content, points) for one capture; content is None when it could not be
-    fetched at all. `points` of 0 with bytes in hand means they came back and are
+    fetched at all. `points` of 0 with bytes returned means they came back and are
     not what the caller is looking for, which is a different answer from not
     having them - so it is `content`, never the score, that says which."""
     snap_url = address.snapshot_url(ts, url)
@@ -371,10 +372,10 @@ def _year_after(timestamps, earliest: str) -> str | None:
     """The first capture at least LATER_PROBE_YEARS past `earliest`, or None.
 
     On the four-digit year prefix, not on a date arithmetic: pure string work,
-    no `datetime`, no timezone and no leap question - the same instinct
-    `fetcher/control/address.py` states about addresses. It also cannot pick a
-    capture from the winner's own year, which is where a second opinion buys
-    least.
+    no `datetime`, no timezone and no leap question - the same choice
+    `fetcher/control/address.py` makes for addresses. It also cannot pick a
+    capture from the earliest usable capture's own year, which is where a
+    second sample adds least.
     """
     after = int(earliest[:4]) + LATER_PROBE_YEARS
     return next((t for t in timestamps if int(t[:4]) >= after), None)
@@ -396,25 +397,25 @@ def fetch_best_matching_snapshot(
     `statuscode:200` is necessary but not sufficient - see this module's
     docstring - so the answer cannot be "the newest capture that answered". The
     three samples are the earliest capture that scores at all, the first one
-    LATER_PROBE_YEARS past it, and the newest one that scores. Highest score
-    wins and **a tie goes to the earlier**, so the earliest copy is the default
-    and only a real advantage moves it: a press release is not edited after
-    publication, so the earliest capture is normally the article itself and the
-    least contaminated by a later redesign. The two probes are for when it is
-    not - a crawl that arrived before the page had settled, and a correction
-    published onto a site that then died before the year was out.
+    LATER_PROBE_YEARS past it, and the newest one that scores. The highest score
+    is picked and **an equal score keeps the earlier**, so the earliest copy is
+    the default and only a real advantage moves it: a press release is not
+    edited after publication, so the earliest capture is normally the article
+    itself and the least affected by a later redesign. The two probes are for
+    when it is not - a crawl that arrived before the page had settled, and a
+    correction published onto a site that then died before the year was out.
 
-    `score(content) -> int` is caller-supplied, so this module stays ignorant of
-    what any particular caller is looking for; 0 rejects. It has to be a number
+    `score(content) -> int` is caller-supplied, so nothing here depends on what
+    any particular caller is looking for; 0 rejects. It has to be a number
     rather than a predicate because two accepted captures still have to be
-    compared, and the comparison cannot live here: the modern site's shell page
-    is the *bigger* file, so byte length is the measure backwards.
+    compared, and the comparison cannot be here: the modern site's shell page
+    is the *bigger* file, so byte length ranks them backwards.
 
-    `confirmed` says whether a non-match is a verdict. It is True only when
+    `confirmed` says whether a non-match may be treated as an absence. It is True only when
     every capture was tried, with no network error and no truncated listing;
     otherwise an untried capture might have been the real page.
 
-    **`content is None` with a `timestamp` in hand is its own answer**: captures
+    **`content is None` with a `timestamp` returned is its own answer**: captures
     of this url exist, and not one of them scored. The timestamp is the earliest
     of them, and the caller needs the difference - `from_candidates` stores that
     as a `stub`, the row phase 2 comes back to, where a url the archive never
@@ -465,8 +466,8 @@ def fetch_best_matching_snapshot(
 
     # Probe 3: the newest capture that scores at all. Only the tail past the
     # earliest usable one is walked, and the year probe is left out of it: its
-    # verdict is already in hand, so re-walking it would either re-score bytes
-    # already weighed or report the same unreachable capture twice. Between
+    # result is already known, so re-walking it would either re-score bytes
+    # already scored or report the same unreachable capture twice. Between
     # them the three probes fetch each capture at most once, even when nothing
     # on the page ever validates.
     tail = [t for t in reversed(timestamps) if t > first_ts and t != later]
@@ -491,8 +492,8 @@ def fetch_best_matching_snapshot(
         )
 
     # One record per url, and it compares what was taken against the default
-    # answer - not one per probe that won, which would report the same decision
-    # twice when both probes beat the earliest in turn.
+    # answer - not one per probe that scored higher, which would report the same
+    # decision twice when both probes score above the earliest in turn.
     if why is not None:
         selection.note(
             url,

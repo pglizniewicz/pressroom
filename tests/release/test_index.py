@@ -1,10 +1,10 @@
 """The three FTS invariants, each of which fails in total silence.
 
-`'integrity-check'` passing is not evidence of a healthy index: it checks that
+`'integrity-check'` passing is not evidence of a correct index: it checks that
 the index is internally consistent, not that it agrees with `releases`. So every
 assertion here is an orphan/missing count or a token probe, never that pragma -
 and one test asserts outright that the pragma is not enough, because a check
-that cannot fail is what this repo has been burned by before.
+that cannot fail is what has cost this repo before.
 """
 
 import sqlite3
@@ -113,8 +113,8 @@ class StaleIndexTest(unittest.TestCase):
 
     def test_integrity_check_passes_on_a_stale_index(self):
         """Asserted, not assumed: this is why none of the other tests here use
-        it. The index is internally consistent - it simply does not know the
-        content table moved underneath it."""
+        it. The index is internally consistent - it simply does not see that
+        the content table changed under it."""
         self.conn.execute(
             "INSERT INTO releases_fts(releases_fts) VALUES('integrity-check')"
         )
@@ -143,7 +143,7 @@ class SchemaCreationTest(support.DbCase):
 
 class ReadOnlyTest(support.DbCase):
     def test_connect_ro_refuses_a_write(self):
-        """A browser has no business creating anything, and ?mode=ro turns an
+        """A browser must never create anything, and ?mode=ro turns an
         accidental write into an OperationalError instead of a silently damaged
         index."""
         ro = connection.connect_ro(self.db_path)

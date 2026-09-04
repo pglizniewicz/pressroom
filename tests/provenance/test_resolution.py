@@ -96,7 +96,7 @@ class CaptureAnnotationTest(unittest.TestCase):
 
     def test_the_common_case_stays_unannotated(self):
         """1605 of the 1763 rows with a capture are captures of their own page,
-        and the first cut of this marked every one of them."""
+        and the first version of this marked every one of them."""
         self.assertIsNone(resolution.capture_page(PDF_OWN, PDF_ROW))
         self.assertIsNone(
             resolution.capture_kind(resolution.capture_page(PDF_OWN, PDF_ROW), PDF_ROW)

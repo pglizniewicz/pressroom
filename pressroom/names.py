@@ -1,13 +1,13 @@
 """Two static checks over this tree, next to the suite in `tests/`.
 
-Not a business component: it makes no claim about press releases, talks to no
-database and touches no network. It checks that the *code* still resolves, which
-is the failure mode a repo of ~110 modules importing each other by name has and
-which grep does not catch.
+Not a business component: it makes no claim about press releases, uses no
+database and makes no network request. It checks that the *code* still
+resolves, which is the failure mode a repo of ~110 modules importing each other
+by name has and which grep does not catch.
 
-The suite exercises behaviour; these two ask whether the tree's own names still
-resolve, which a test notices only for the code paths it happens to run. Their
-own blind spot, that both are static, is `tests/test_offline_is_offline.py`.
+The suite exercises behaviour; these two check whether the tree's own names
+still resolve, which a test notices only for the code paths it happens to run.
+What both miss, being static, is covered by `tests/test_offline_is_offline.py`.
 
   imports   every module imports. The half a linter cannot do at all: it runs
             the import, so `from x import y` with no `y` in `x` fails here and

@@ -3,10 +3,10 @@
 Owns no DDL: each table's CREATE belongs to the component whose responsibility
 that table is, and this module only decides *when* each runs. `_OWNERS` is
 homogeneous - a module in it supplies `SCHEMA_SQL` and nothing else - so adding
-a table is one thing to write and a missing one is a loud AttributeError at
+a table is one thing to write and a missing one is an AttributeError at
 startup rather than a silently skipped step.
 
-Two orderings are load-bearing. Every CREATE is `IF NOT EXISTS`, so a table
+Two orderings matter. Every CREATE is `IF NOT EXISTS`, so a table
 that already exists is left exactly as it is; an index therefore goes in its
 owner's own SCHEMA_SQL, after the CREATE TABLE it reads. And the FTS triggers go
 in LAST, because all three reference `releases`.
@@ -23,7 +23,7 @@ from pressroom.provenance.entity import origin
 from pressroom.release.control import index
 from pressroom.release.entity import schema
 
-# Executed as one script, so a fresh database arrives complete.
+# Executed as one script, so a fresh database is created complete.
 _OWNERS = (schema, page, call_log, origin)
 
 

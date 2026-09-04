@@ -1,6 +1,6 @@
 """Phase 2's strategies, and the three rules that hold inside every one.
 
-Each rule cost data before it was a rule, and all three now live in the library
+Each rule cost data before it was a rule, and all three are now in the library
 in one copy precisely so a scraper cannot get them wrong - which makes this the
 file that has to prove they are still there.
 """
@@ -102,7 +102,7 @@ class GateByAddressTest(support.DbCase):
         return lambda _content: {"body": body, "body_html": f"<p>{body}</p>"}
 
     def test_a_listing_capture_goes_through_the_strict_gate(self):
-        """#5012, caught the moment the address rule landed: `--from-cache`
+        """#5012, caught as soon as the address rule was added: `--from-cache`
         would have handed this row the *listing* capture its teaser came from,
         and a whole-page parse returns the whole listing - 34k characters of
         other releases' text, which `safe_to_write` reads as a teaser recovering
@@ -248,7 +248,7 @@ class TitleTest(support.DbCase):
 
 class ListingsTest(support.DbCase):
     def test_an_entry_matching_no_stored_url_is_dropped_never_inserted(self):
-        """So a re-extraction cannot mint rows under urls nobody has seen."""
+        """So a re-extraction cannot create rows under urls nobody has seen."""
         self.seed("src", url="http://x/known", body="short")
 
         def collect(_conn):
@@ -402,7 +402,7 @@ class FlagTest(support.DbCase):
 
     def test_a_bulk_rewrite_needs_a_yes_or_an_answer(self):
         """--force is the flag whose earlier equivalent overwrote the 122 articles
-        above, so a bulk rewrite is stated out loud first. The asking is the
+        above, so a bulk rewrite is announced first. The asking is the
         boundary's (`command.ask_on_tty`); what this decides is that no `yes` and
         nobody to ask is a no, so a cron never blocks, and that the statement
         names the flag and the numbers. --refetch goes through the same question."""

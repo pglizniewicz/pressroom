@@ -26,7 +26,7 @@ from pressroom.release.entity import schema
 from pressroom.text.control import decoding, richtext
 from tests import support
 
-# The browser's three files travel with the package as package data, so this is
+# The browser's three files are installed with the package as package data, so this is
 # where they are - not a path relative to the checkout.
 APP_JS = pathlib.Path(boundary.__file__).resolve().parent / "static" / "app.js"
 
@@ -43,7 +43,7 @@ def _body_writes(path: pathlib.Path) -> list[tuple[str, int, bool]]:
 
     Source text rather than imports, for the same reason `test_import_direction`
     parses instead of executing: what is being asserted is what the call site
-    says, and a call site nothing ever runs breaks the rule just as loudly.
+    says, and a call site nothing ever runs breaks the rule just the same.
     """
     out = []
 
@@ -193,7 +193,7 @@ class GradeVerdictTest(unittest.TestCase):
     The odd one out here: the second copy is not another file to compare
     against but `upgrade_release`'s own docstring, and neither copy is what
     drifts. What drifts is a call site that replaces a teaser body with the
-    real article and says nothing about the verdict, leaving the row graded
+    real article and says nothing about the grade, leaving the row graded
     `teaser` - which `stored_grade()` then hands to the next run as still
     upgradable, for the next run to find nothing to upgrade. Four of nine calls
     were doing it with the rule sitting in two places saying otherwise.
@@ -242,8 +242,8 @@ class GradeVerdictTest(unittest.TestCase):
         )
 
     def test_no_exemption_outlives_the_write_it_excuses(self):
-        """An exemption nothing uses is a hole with a name on it - and the name
-        makes it look considered."""
+        """An exemption nothing uses leaves the rule unchecked - and its name
+        makes that look deliberate."""
         gradeless = {
             f"{where}:{fn}" for where, fn, _line, grade in self._writes() if not grade
         }

@@ -5,9 +5,9 @@ takes two routes depending on whether anybody recorded it: the recorded one is
 authoritative, the derived one is a guess that is only right when the capture is
 of the row's own url.
 
-The derivation itself is pure string work and lives with the other addresses
+The derivation itself is pure string work and is with the other addresses
 (fetcher/control/address.py); what is here is everything that needs the database
-to answer. No parsing and no verdicts: this module answers "which bytes" and
+to answer. No parsing and no grading: this module answers "which bytes" and
 nothing about what they contain.
 """
 

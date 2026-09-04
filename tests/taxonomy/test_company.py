@@ -72,7 +72,7 @@ class RollUpTest(unittest.TestCase):
 
     def test_an_empty_date_never_wins_a_min(self):
         """midiman_net's single row has no date at all; `""` would otherwise
-        beat 1996 and give its company a first year of nothing."""
+        sort before 1996 and give its company a first year of nothing."""
         rows = [
             self._row("midiman_net", 1),
             self._row("midiman_com", 9, "1999-03-01", "1999-11-01"),
@@ -82,8 +82,8 @@ class RollUpTest(unittest.TestCase):
         self.assertEqual(out[0]["last"], "1999-11-01")
 
     def test_an_unmapped_source_lands_in_a_visible_bucket(self):
-        """Rather than vanishing from the counts, which would make every number
-        on the audit screen a lie."""
+        """Rather than being left out of the counts, which would make every
+        number on the audit screen wrong."""
         out = company.roll_up([self._row("brand_new_source", 3)])
         self.assertEqual(out[0]["company"], company.UNKNOWN)
         self.assertEqual(out[0]["count"], 3)

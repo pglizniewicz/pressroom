@@ -77,11 +77,11 @@ class ShapeTest(unittest.TestCase):
         because the alternative is an entry that is present and empty.
 
         There is no `url` assertion here: the three collectors
-        `from_listings` consumes mint the url in their own `cached_entries`
+        `from_listings` consumes build the url in their own `cached_entries`
         wrapper, not in the parse - midiman_de's inline releases only ever
         existed *inside* the page, so the scraper builds
         `/press/{slug}-{date}` for them and the raw parse carries url=None by
-        design. That contract is tested where it lives, in
+        design. That contract is tested where it is defined, in
         `CollectorTest` below.
         """
         for name, spec in sorted(support.manifest().items()):
@@ -97,7 +97,7 @@ class ShapeTest(unittest.TestCase):
         """The five live scrapers used to have a route of their own, `live`,
         because their extraction sat inside a fetch. It is a `parse_detail`
         taking bytes now, so they are detail fixtures like the rest - and a
-        parser that takes bytes cannot reach for the network, which the old
+        parser that takes bytes cannot use the network, which the old
         route had to prove by handing it session=None. What is left to keep is
         that the five are still here."""
         for source in parsers.LIVE_SOURCES:
@@ -111,7 +111,7 @@ class ShapeTest(unittest.TestCase):
 class CollectorTest(support.DbCase):
     """The three `cached_entries` collectors `from_listings` actually consumes.
 
-    This is the contract with teeth: the shape must be `{url: entry}` with a
+    This is the contract that is checked here: the shape must be `{url: entry}` with a
     body and an `origin_url`, because `from_listings` matches on the url and
     records the address in the same transaction as the text. The collectors used
     to parse a capture and throw its address away, which is why 149 of the 1727

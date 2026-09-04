@@ -21,7 +21,7 @@ SCHEMA_SQL = """
         id_content_type    TEXT,
         fw_guessed_charset TEXT,
         bs4_encoding       TEXT,
-        -- sha256 of `content`. Not a storage trick - the blobs stay, and
+        -- sha256 of `content`. Not a space optimisation - the blobs stay, and
         -- deduplicating them would be the thing that makes sharding this table
         -- awkward later. It is an *identity* fact: the same attachment was
         -- served from midiman.com, midiman.net and m-audio.com, and until this

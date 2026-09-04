@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Turning archived bytes into text when the page's declared charset is a lie.
+"""Turning archived bytes into text when the page's declared charset is wrong.
 
 The specific failure this exists for: a CMS serves `charset=utf-8` and is
 genuinely UTF-8 almost everywhere, but a few bytes were pasted out of Word and
@@ -7,13 +7,13 @@ never converted, so the document is not valid UTF-8. A strict decode then fails,
 BeautifulSoup falls back to chardet, and every *correct* UTF-8 sequence in the
 file comes out as mojibake - a whole listing's titles corrupted by one
 apostrophe. Decoding UTF-8 first and falling back per byte fixes both halves at
-once, and guesses nothing, which is the point: chardet's verdict on these files
+once, and guesses nothing, which is the point: chardet's answer on these files
 is on record as unreliable.
 
 This is NOT a universal decoder. Use it for pages that claim UTF-8, and keep
 `from_encoding="cp1252"` where a source is wholly pre-UTF-8 (the 2001-era GoLive
 pages, midiman.de): there, two adjacent high bytes can coincidentally form a
-valid UTF-8 sequence and would be honoured as one.
+valid UTF-8 sequence and would be decoded as one.
 
 → docs/adr/encoding.md
 """
@@ -71,7 +71,7 @@ def decode_html(content: bytes) -> str:
 C1_RE = re.compile("[" + chr(0x80) + "-" + chr(0x9F) + "]")
 
 # Mojibake: UTF-8 bytes read as some 8-bit charset. The lead byte of a UTF-8
-# sequence lands on one of these, and the continuation bytes on another high
+# sequence falls on one of these, and the continuation bytes on another high
 # character - 0xC3/0xC2 read as cp1252 give A-tilde/A-circumflex, the same byte
 # read as cp1258 gives A-breve, and 0xE2 starts the a-EUR-something family that
 # punctuation turns into.
@@ -86,7 +86,7 @@ MOJIBAKE_RE = re.compile(
 # otherwise identical A-breve, since the same rows carry U+00BC and cp1250 has no
 # byte for it. The rest are cheap to test.
 #
-# mac-roman is absent: it re-encodes this text happily, its output
+# mac-roman is absent: it re-encodes this text without error, its output
 # carries no damage markers, and the text it produces is simply wrong. The
 # codepages that remain are the Windows/ISO family, which coincide exactly on the
 # byte ranges UTF-8 uses, so where several qualify they agree character for
@@ -130,7 +130,7 @@ def undo_c1(text: str) -> str:
     U+00FF, and the rows that need this are exactly the mixed ones: 21 of
     `creative`'s 23 damaged rows hold a stray 0x95 bullet *and* correctly
     decoded typography above U+00FF, so a whole-string encode fails on the
-    whole file it is supposed to save.
+    whole file it is supposed to repair.
     """
     return text.translate(_C1_TRANSLATION)
 
@@ -140,8 +140,8 @@ def undo_mojibake(text: str):
     that as the UTF-8 it always was. Returns (fixed, codec) or None.
 
     A candidate counts only if the round trip succeeds *and* leaves no damage
-    markers behind, so a codec that merely happens to encode the string cannot
-    win. When several candidates qualify they must agree character for
+    markers behind, so a codec that merely happens to encode the string is not
+    accepted. When several candidates qualify they must agree character for
     character - they usually do, because they differ only outside the byte
     ranges UTF-8 uses - and a disagreement returns None rather than a guess.
     """
@@ -169,7 +169,7 @@ def repair_text(text: str):
     or None when there is nothing to do - or nothing safe to do.
 
     Idempotent: run it on repaired text and it reports None, which is what lets
-    this sit in the write path at all - every store and every upgrade calls it,
+    this be in the write path at all - every store and every upgrade calls it,
     and a row that was already repaired costs a regex match. Mojibake is
     undone before C1 characters because a mojibake round trip needs the string
     exactly as stored; in this corpus the two shapes never co-occur in one row
@@ -191,8 +191,8 @@ def repair_text(text: str):
 
     if not methods or out == text:
         return None
-    # Never trade damage for a lost character: a U+FFFD the input did not have
-    # means the repair itself dropped something.
+    # Never accept a lost character in exchange for undoing damage: a U+FFFD
+    # the input did not have means the repair itself dropped something.
     if out.count("�") > text.count("�"):
         return None
     return out, "+".join(methods)

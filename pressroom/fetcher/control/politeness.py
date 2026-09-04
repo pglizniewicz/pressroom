@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Shared HTTP client policy: how we identify ourselves, how fast we hammer
+"""Shared HTTP client policy: how we identify ourselves, how fast we request
 other people's servers, and which pages we keep.
 
 Three ways to fetch, chosen by what the page is. An archive.org capture goes
@@ -44,7 +44,7 @@ def fetch(
 
     For what a crawler reads off a live site - its listings. A listing changes
     every time the site publishes a release, and a rerun exists to see exactly
-    that, so a cached copy would be a lie about the site: soundonsound's crawler
+    that, so a cached copy would misstate the site: soundonsound's crawler
     cached its listings once and no rerun ever saw a newer article. No `conn`
     in the signature is the proof - this cannot write to page_cache.
 
@@ -85,10 +85,10 @@ def fetch_cached(
     Returns bytes, never str: decoding is the caller's explicit choice
     (decoding.decode_html or an explicit from_encoding), never a guess.
 
-    `sleep` overrides SLEEP for one source that asks for more patience than
+    `sleep` overrides SLEEP for one source that requires a longer delay than
     the rest: soundonsound.com publishes `Crawl-delay: 30` in its robots.txt,
     and a per-call override is the way to honour that without slowing every
-    other scraper to a crawl. Only a real fetch sleeps - a cache hit stays
+    other scraper down. Only a real fetch sleeps - a cache hit stays
     free, which makes an interrupted run cheap to resume.
     """
     if not refetch:

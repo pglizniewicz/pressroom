@@ -17,7 +17,7 @@ the rest: a graph that silently lost its edges would make every other class pass
 by matching nothing.
 
 One thing it does not check: import cycles, because `pressroom-verify-names`
-really does import every module, so a cycle already takes it down.
+really does import every module, so a cycle already makes it fail.
 """
 
 import ast
@@ -34,7 +34,7 @@ from tests import support
 ROOT = support.HERE.parent
 PACKAGE = ROOT / "pressroom"
 
-# The dependency-direction paragraph lives in both files, word for word.
+# The dependency-direction paragraph is in both files, word for word.
 RULEBOOK = (ROOT / "CLAUDE.md", ROOT / "docs" / "adr" / "layout-and-naming.md")
 DIRECTION_RE = re.compile(
     r"A source component\s+imports\s+(.+?);\s*none of those", re.S
@@ -62,7 +62,7 @@ POLITENESS = "pressroom.fetcher.control.politeness"
 # Which components are source components is a fact about the taxonomy, not a
 # list here: `taxonomy/entity/company.py` has to name every firm anyway (an
 # unmapped source is a 400 in the browser), and each firm is a root component
-# like every other. This list was literal here and in CLAUDE.md's roll-call
+# like every other. This list was literal here and in CLAUDE.md's list
 # once, and a seventh firm had to be added to both before the rule covered it.
 SOURCE_COMPONENTS = frozenset(company.COMPANIES)
 
@@ -88,7 +88,7 @@ IMPORTS_A_SOURCE = {
 }
 
 # Every non-stdlib name the package may mention, and what it is there for. A
-# fifth library becomes loud once, here, rather than quietly reaching a reader.
+# fifth library is caught here once, rather than quietly reaching a reader.
 THIRD_PARTY = {
     "requests": "the live and archive fetches",
     "bs4": "every parser's DOM",
@@ -139,7 +139,7 @@ def _graph() -> Graph:
     for name, path in known.items():
         tree = ast.parse(path.read_text(encoding="utf-8"))
         # The inventory counts a library wherever it is named; the rules below
-        # want module level only, which is why the two walks are separate.
+        # need module level only, which is why the two walks are separate.
         for node in ast.walk(tree):
             if isinstance(node, (ast.Import, ast.ImportFrom)) and not (
                 isinstance(node, ast.ImportFrom) and node.level
@@ -162,7 +162,7 @@ def _graph() -> Graph:
                 # than a third of the package's `from pressroom.` imports.
                 # Sticking the two together unconditionally invents a node that
                 # is not there and drops the edge that is - silently, which is
-                # what the unresolved list below exists to make loud.
+                # what the unresolved list below exists to report.
                 target = imported if imported in known else imported.rsplit(".", 1)[0]
                 if target in known:
                     edges[name].add(target)
@@ -292,7 +292,7 @@ class ImportGraphTest(unittest.TestCase):
                 )
 
     def test_every_import_of_the_package_names_a_module_in_the_tree(self):
-        """An edge pointing nowhere is a hole in the graph, not in the code."""
+        """An edge pointing nowhere is a gap in the graph, not in the code."""
         for module, lineno, imported in _graph().unresolved:
             with self.subTest(module=module, line=lineno):
                 self.fail(
@@ -356,11 +356,11 @@ class ThirdPartyInventoryTest(unittest.TestCase):
 
 
 class ReaderPathTest(unittest.TestCase):
-    """Invariant 4: the path a reader walks imports stdlib only.
+    """Invariant 4: every module a reader imports uses stdlib only.
 
     Checked as the prose states it - `never import requests or bs4 into any of
-    those` - so the blame lands on the module that did it. The transitive half
-    is ReaderClosureTest's, where a chain is what the reader actually pays for.
+    those` - so the failure names the module that did it. The transitive half
+    is ReaderClosureTest's, where a whole chain is what the reader actually loads.
     """
 
     @classmethod
@@ -490,7 +490,7 @@ class SourceIsolationTest(unittest.TestCase):
                         )
 
     def test_the_documented_exception_is_still_the_exception(self):
-        """An allowlist entry that stopped being earned is a lie, not a spare."""
+        """An allowlist entry that no longer applies is wrong, not spare."""
         for exception in IMPORTS_A_SOURCE:
             with self.subTest(module=exception):
                 self.assertIn(exception, _graph().edges, f"{exception} is gone")

@@ -27,7 +27,7 @@ def iso_date(
     A zone name dateutil does not know ("09:00 ET" on every GlobeNewswire
     listing) is accepted through `tzinfos` and never converted: a release's
     date is the calendar day the publisher printed. Without it dateutil warns
-    today and promises to raise.
+    today and will raise in a future version.
     """
     if not value:
         return ""

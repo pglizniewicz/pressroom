@@ -1,6 +1,6 @@
 /* pressroom browser - one stylesheet, no framework, no build step.
    Mobile-first: the base rules are the 375px layout, and every breakpoint is a
-   min-width. Colours live in tokens defined twice, light then dark, so the page
+   min-width. Colours are tokens defined twice, light then dark, so the page
    follows the reader's system setting. */
 
 /* Reset baseline required by the web-static skill. */
@@ -30,7 +30,7 @@ body { font-family: system-ui, -apple-system, sans-serif; line-height: 1.5; }
   --damaged-bg: #ece0ff;  --damaged-line: #a888d8;
   /* "z listingu": provenance, not grade - the text was read off another page.
      Cool/neutral, so it does not compete with the three warm
-     badges that do judge the body (teaser, short, full). */
+     badges that do rate the body (teaser, short, full). */
   --listing-bg: #dde8f6;  --listing-line: #7d9fc6;
 
   --radius: 6px;
@@ -72,7 +72,7 @@ a { color: var(--accent); }
 }
 
 /* The view heading takes focus after every hash change so keyboard and screen
-   reader users land on the new content. It is not a control and the focus is
+   reader users arrive at the new content. It is not a control and the focus is
    transient, so it never paints a ring: browsers count a scripted focus as
    :focus-visible, which would draw a box around the heading on every single
    navigation. */
@@ -160,7 +160,7 @@ button:hover { border-color: var(--accent); }
   /* Pinned under the topbar AND capped at what is left of the viewport, so the
      panel is its own scroll container. Sticky alone was not enough: an element
      taller than the viewport only pins once its bottom edge arrives, so until
-     then it travels with the page and the wheel over a 25-source list moved the
+     then it scrolls with the page and the wheel over a 25-source list moved the
      results instead of the list. --topbar-h is measured in app.js; 8.5rem is
      the pre-JS fallback, i.e. the value this rule used to hardcode.
      No `overscroll-behavior: contain` here, and that was measured rather than
@@ -241,7 +241,7 @@ button:hover { border-color: var(--accent); }
 .panel .grp-label {
   /* 12px, not 11.2: the complaint was legibility, and the longest label
      ("MIDIMAN / M-AUDIO") measures 151px uppercased in a 240px panel, so
-     there is no reason to shave it. Still clearly below the 13.6px item
+     there is no reason to reduce it. Still clearly below the 13.6px item
      text, which is what carries the rank. */
   font-size: 0.75rem;
   font-weight: 700;
@@ -331,7 +331,7 @@ mark { background: var(--mark-bg); color: var(--mark-fg); }
 }
 /* Rows that predate richtext.py are one flat blob: pre-wrap is the only thing
    that gives them any line breaks at all. Rows with body_html get real
-   elements instead, and pre-wrap there would honour the source indentation. */
+   elements instead, and pre-wrap there would keep the source indentation. */
 .detail .body--text { white-space: pre-wrap; }
 
 .detail .body--rich > :first-child { margin-block-start: 0; }

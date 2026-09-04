@@ -63,7 +63,7 @@ HEADING_RE = re.compile(r"^(\d{2}\.\d{2}\.\d{4}|[A-Za-z]+\s+\d{4})\s*-\s*(.+)$",
 
 # The sidebar box after the article body isn't labeled consistently across
 # captures ("Links!" in German templates, "Related links" seen on the English
-# portal's markup bleeding through some snapshots) - cut at whichever comes
+# portal's markup appearing in some snapshots) - cut at whichever comes
 # first. Both portals need both markers, which is exactly what the two
 # separate copies of this scraper used to get wrong.
 END_MARKERS = ["Links!", "Related links"]
@@ -71,7 +71,7 @@ END_MARKER_RE = re.compile("|".join(re.escape(m) for m in END_MARKERS))
 
 
 def list_articles(prefix: str) -> list[str]:
-    """Dedup by sid: mode/order/thold don't affect content, first-seen wins."""
+    """Dedup by sid: mode/order/thold don't affect content, the first seen is kept."""
     by_sid = {}
     for entry in archive.list_snapshots_or_exit(prefix):
         url = entry["original"]
@@ -97,13 +97,13 @@ def _cut_at_first_marker(text: str) -> str:
 def article_body(soup, heading: str) -> tuple[str, str | None]:
     """(body, body_html) for one portal article, from the DOM.
 
-    The same three cuts the text surgery above makes, done on elements instead
+    The same three cuts the string slicing above makes, done on elements instead
     of on a string:
 
       container  the <td> carrying the most text. Calibrated over every cached
-                 portal capture, and it beats the obvious
-                 `td[valign="top"][width="85%"]`: the attributes are not on
-                 every capture, the size is.
+                 portal capture, and it works where the obvious
+                 `td[valign="top"][width="85%"]` does not: the attributes are
+                 not on every capture, the size is.
       heading    the "{date} - {title}" line, which the container includes and
                  the stored body does not.
       tail       everything from the first END_MARKERS element onward.
@@ -180,7 +180,7 @@ def parse_snapshot(content: bytes) -> Detail:
         heading = f"{date_str} - {title}" if date_str else title
         body, body_html = article_body(soup, heading)
         if not body:
-            # No container in this capture - keep the old text surgery rather
+            # No container in this capture - keep the old string slicing rather
             # than store nothing.
             text = soup.get_text(" ", strip=True)
             parts = text.split(heading)
@@ -192,8 +192,8 @@ def parse_snapshot(content: bytes) -> Detail:
 
 # The yearly category listings (file=index&catid=N&allstories=1) - one archived
 # capture per category, id_ baked in. This is the channel that finds sids the
-# timemap prefix search never surfaces at all, and the list is irreplaceable
-# archaeology: nobody is going to redo the sweep that found these captures.
+# timemap prefix search never surfaces at all, and the list cannot be
+# reconstructed: nobody is going to redo the sweep that found these captures.
 CATEGORY_PAGES = [
     (
         "http://pressde.terratec.net:80/",
@@ -322,9 +322,9 @@ def print_only_sids(prefix: str, have: set) -> list[int]:
 
 def _article_score(content: bytes) -> int:
     """A capture is usable here as soon as it carries a headline - the same test
-    this loop applied to the parse before the walk did it. Longer body wins
-    between two that do, which is what lets the print view beat a truncated
-    article page rather than merely tying with it."""
+    this loop applied to the parse before the walk did it. The longer body is
+    picked between two that do, which is what lets the print view score above a
+    truncated article page rather than merely tying with it."""
     parsed = parse_snapshot(content)
     if not parsed.get("title"):
         return 0
@@ -338,7 +338,7 @@ def recover_article(
     its print view.
 
     `confirmed` is False when any attempt hit a network error, so the caller must
-    not record a dead end - a probe failure is not a verdict. Both urls are
+    not record a dead end - a probe failure is not a confirmed absence. Both urls are
     parsed with this module's own parse_snapshot, which was calibrated over every
     cached print.php capture and handles the print template too.
     """
@@ -421,8 +421,8 @@ def from_categories(conn, session, source: str, prefix: str) -> None:
                 stats.added()
             continue
 
-        # Ordered before the teaser check: a failed probe is not a
-        # verdict, so an already-stored teaser is `uncertain` (a rerun retries
+        # Ordered before the teaser check: a failed probe is not a confirmed
+        # absence, so an already-stored teaser is `uncertain` (a rerun retries
         # it) rather than `skipped`.
         if not confirmed:
             stats.uncertain()
@@ -468,7 +468,7 @@ def from_print_views(conn, session, source: str, prefix: str) -> None:
             stats.dead()
             continue
         # Stored under the print url, because that is the page that existed:
-        # the article url has no capture, and minting a row under an address
+        # the article url has no capture, and creating a row under an address
         # nobody has seen is what SYNTHETIC_URL_SOURCES exists to warn about.
         if storage.store_release(
             conn,

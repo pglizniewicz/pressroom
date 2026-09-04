@@ -1,5 +1,5 @@
 """Does a parse reproduce a stored body? The verdicts `pressroom-verify-body-origin`
-hands out, and how an origin's class is read off its address.
+reports, and how an origin's class is read off its address.
 
 How an origin's address was established is not stored - it is derivable, which
 is why `body_origin` has two columns and no score:

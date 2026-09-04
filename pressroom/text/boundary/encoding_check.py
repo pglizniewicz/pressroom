@@ -1,7 +1,7 @@
 """Prove that no stored text carries a wrong decode any more - and that the two
 places which detect one still agree.
 
-The repair itself lives in the write path - `richtext.extract()` undoes the
+The repair itself is in the write path - `richtext.extract()` undoes the
 damage on the markup *before* rendering the text from it, and
 `storage.store_release`/`upgrade_release` do the same for a title and for a body
 with no markup twin - so there is nothing here to re-run. What remains is a
@@ -51,7 +51,7 @@ KNOWN_UNFIXABLE = {4978}
 
 def capture_words(conn, url: str) -> str:
     """The row's capture bytes as text, tags stripped - or "" if not cached.
-    Read through body_origin, which is where the address a body came from lives."""
+    Read through body_origin, which is where the address a body came from is recorded."""
     row = conn.execute(
         "SELECT p.content FROM body_origin o JOIN page_cache p ON p.url = o.origin_url "
         "WHERE o.url = ?",

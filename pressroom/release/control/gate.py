@@ -3,7 +3,7 @@
 Every write that re-extracts a body passes one of these, and which one is not a
 detail: the two data-loss incidents in this corpus were both a gate mismatch,
 not a missing gate. Each gate says below what it refuses and what it allows;
-they live together because every allowance cost its own measurement over real
+they are in one module because every allowance cost its own measurement over real
 captures, and two copies of that drift silently.
 
 `re` and `collections` are the only imports: no database, no network, no parser.
@@ -17,8 +17,8 @@ from typing import TypedDict
 
 
 def wordchars(text: str) -> str:
-    """Everything that is not a word character, dropped - so a comparison is
-    blind to exactly what a re-extraction is supposed to change: indentation,
+    """Everything that is not a word character, dropped - so a comparison
+    ignores exactly what a re-extraction is supposed to change: indentation,
     line wrapping, bullets, and the joins that come with them (`8 th` -> `8th`).
 
     Ordered-list markers go first, because the "1. " to_text() prepends to an
@@ -29,8 +29,8 @@ def wordchars(text: str) -> str:
 
 
 class Delta(TypedDict):
-    """What `text_delta` measures - a fixed shape, because every gate below asks
-    it the same six questions."""
+    """What `text_delta` measures - a fixed shape, because every gate below
+    reads the same six fields."""
 
     kept: bool
     clean: bool
@@ -53,7 +53,7 @@ def text_delta(old: str, new: str) -> Delta:
       kept   - every character of the old body still appears, in order, in the
                new one. False means text was LOST.
       clean  - every character of the new body came from the old one, in order.
-               False means text was INVENTED - the container grabbed a sidebar.
+               False means text was INVENTED - the container included a sidebar.
 
     Which of the two must hold depends on the source: a parser that cut markers
     out of an already-clean body must keep everything, while one whose body was
@@ -64,7 +64,7 @@ def text_delta(old: str, new: str) -> Delta:
     dropped" and "a paragraph went missing", so never gate on the pair alone.
     `edges_only` separates them: the new body is a contiguous run of the old
     one, i.e. material came off the front and the back and nothing out of the
-    middle. Nav and footer live at the edges; a lost paragraph does not.
+    middle. Nav and footer are at the edges; a lost paragraph does not.
     """
     o, n = wordchars(old), wordchars(new)
     return {
@@ -93,9 +93,9 @@ def safe_to_write(old_body: str, new_body: str) -> tuple[bool, str]:
 
     # Two middle-loss cases are known-good, each confirmed by a word-level diff
     # of the rows before being allowed here: a teaser-grade body replaced by the
-    # real article (what it held was the portal's comment widget, so refusing it
-    # would be protecting nonsense), and a loss under 2%, which every time was a
-    # url path or image alt text sitting mid-page.
+    # real article (what it held was the portal's comment widget, which is not
+    # worth keeping), and a loss under 2%, which every time was a url path or
+    # image alt text sitting mid-page.
     if d["old_len"] < 400 and d["new_len"] > d["old_len"] * 2:
         return True, ""
     if 0 < d["removed"] <= 0.02:
@@ -104,9 +104,9 @@ def safe_to_write(old_body: str, new_body: str) -> tuple[bool, str]:
 
 
 def chars_no_bullets(text: str) -> str:
-    """Every non-whitespace character, bullets dropped. Whitespace *placement* is
-    the one thing this comparison forgives, for the same reason text_delta does:
-    `GeForce ™` -> `GeForce™` is the parser getting it right."""
+    """Every non-whitespace character, bullets dropped. Whitespace *placement*
+    is the one difference this comparison allows, for the same reason
+    text_delta does: `GeForce ™` -> `GeForce™` is the parser getting it right."""
     return "".join((text or "").replace("•", "").split())
 
 
@@ -121,7 +121,7 @@ def strict_same_text(old_body: str, new_body: str) -> tuple[bool, str]:
     replacement by a longer text reads to safe_to_write as the teaser-to-article
     upgrade it explicitly allows.
 
-    Character-sequence equality cannot be fooled that way, so the only writes
+    Character-sequence equality does not admit that case, so the only writes
     this admits are the ones where the current parser reproduces exactly what is
     stored, with only spaces moved.
     """
@@ -136,11 +136,11 @@ def same_words(
 ) -> tuple[bool, str]:
     """(ok, why) for replacing an attachment's flat text with its structured form.
 
-    Compares the **multiset of word characters**, which is blind to order and to
-    joins - exactly what a converter is allowed to change, since the two routes
-    put a superscript or a `®` in different places - and still cannot pass a
-    document that lost a paragraph. A sequence or subsequence comparison refuses
-    those reorderings; see docs/adr/gates.md for the three that were tried.
+    Compares the **multiset of word characters**, which ignores order and joins
+    - exactly what a converter is allowed to change, since the two routes put a
+    superscript or a `®` in different places - and still cannot pass a document
+    that lost a paragraph. A sequence or subsequence comparison refuses those
+    reorderings; see docs/adr/gates.md for the three that were tried.
 
     Two allowances, both named and bounded:
 
@@ -148,7 +148,7 @@ def same_words(
       (conversion.rotated_text - the sideways banner);
     - **markers that became structure**: `1)`..`6)` absorbed into an <ol>, the
       Courier `o` of a second-level bullet absorbed into <li>. Bounded by the
-      number of list items, so it can never excuse a missing word.
+      number of list items, so it can never permit a missing word.
     """
     want = collections.Counter(wordchars(text)) - collections.Counter(
         wordchars(" ".join(dropped))

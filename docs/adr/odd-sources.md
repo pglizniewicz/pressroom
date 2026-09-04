@@ -1,7 +1,7 @@
 # Two sources that break the pattern
 
 One needs a browser TLS fingerprint; the other is a magazine rather than a
-press room. Both cost more than their line count suggests.
+press room. Both took more work than their line count suggests.
 
 ## GlobeNewswire
 
@@ -17,7 +17,7 @@ everything `politeness.py` uses, so it needed no change.
 Two things to keep true: the import stays **inside**
 `globenewswire.make_session()`, so a missing `curl_cffi` breaks exactly one
 scraper with a plain ImportError instead of every module in the tree; and the
-impersonation profile is a moving target — when this starts timing out again,
+impersonation profile changes over time — when this starts timing out again,
 bump `curl_cffi` and try a newer profile before suspecting the parser.
 
 ## Sound on Sound
@@ -30,21 +30,21 @@ source is one company announcing its own products; this is a magazine writing
   an unmapped source 400s in the panel (`taxonomy/entity/company.py`).
 - **`Crawl-delay: 30`**, honoured via `sleep=CRAWL_DELAY` on every fetch — the
   reason that parameter exists. ~820 requests is a ~7 hour run; the articles
-  land in `page_cache`, so that part is one-time and an interrupted run resumes
-  free, while the listings are walked afresh on every run and `--pages` bounds
-  them ([captures.md](captures.md)).
+  are stored in `page_cache`, so that part is done once and an interrupted run
+  refetches nothing, while the listings are walked afresh on every run and
+  `--pages` bounds them ([captures.md](captures.md)).
 - **The listing URLs match `Disallow: /*?*f[0]=`; the articles do not.** That rule
   guards against faceted-search crawl traps, not content. Two named facets at one
-  page per 30s is the call, recorded in the scraper's docstring.
+  page per 30s is the decision taken, recorded in the scraper's docstring.
 
-Two markup traps that produce wrong data rather than failing: the listing carries
+Two markup details that produce wrong data rather than failing: the listing carries
 **two date formats** (`19/8/26` on news, `Published March 2000` in
 `.field--issue-date` on magazine pieces — the second needs `fmt="%Y-%m"`, or
 dateutil fills the day in from *today*), and a page holds 23 `div.views-row` of
 which only **20 contain `article[about]`**, the rest promo blocks.
 
 `detail_id` is Drupal's node id, not a timestamp: faking one would
-have put a dead archive.org link on every row. Belt *and* braces now — the link
-comes from `body_origin` and a live source has no entry — but it was this
+have put a dead archive.org link on every row. Two independent guards now — the
+link comes from `body_origin` and a live source has no entry — but it was this
 docstring that showed the digit rule had become a constraint on what a scraper may
 store, which is half the reason `grade` got its own column.

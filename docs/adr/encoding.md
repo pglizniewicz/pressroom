@@ -1,6 +1,6 @@
 # Encoding
 
-Every rule here was bought with mangled characters someone had to go and find.
+Every rule here came out of mangled characters someone had to go and find.
 
 **Never use `r.text`, and never let BeautifulSoup sniff.** These sites are
 pre-UTF-8 or half-converted; `requests` guesses Latin-1 and bs4 falls back to
@@ -16,7 +16,7 @@ correct choices, per scraper:
 - `BeautifulSoup(content, from_encoding="cp1252")` for sources known to be
   **wholly pre-UTF-8** (2001-era GoLive pages, midiman.de). Not `decode_html`
   there: in prose full of accents two adjacent high bytes can coincidentally form
-  a valid UTF-8 sequence and would be honoured as one.
+  a valid UTF-8 sequence and would be decoded as one.
 
 Damage is greppable: `â€` means UTF-8 read as something 8-bit; a raw C1 control
 character means cp1252 read as ISO-8859-1. `page_cache` holds the original bytes,
@@ -33,11 +33,11 @@ a control character. `richtext.extract()` repairs the emitted HTML **before**
 repairing the two independently could break that — and
 `storage.store_release`/`upgrade_release` repair a title and a body with no
 markup twin. `decoding.REPAIRS` counts what was undone and `Stats.summary()`
-prints it; silence means there was nothing to fix.
+prints it; no output means there was nothing to fix.
 
 **A wrong decode already stored is undone in text, not refetched.** C1 characters
 go back through cp1252 *per character*, because a whole-string
-`encode("latin-1")` dies on the mixed rows that need it most; mojibake is
+`encode("latin-1")` fails on the mixed rows that need it most; mojibake is
 re-encoded with the charset it was misread as, accepted only when the round trip
 leaves no markers and every qualifying codepage agrees. The misreads were cp1252
 and, on German prose, **cp1258** — chardet's guess, not a typo. `mac-roman` is
@@ -45,7 +45,7 @@ not a candidate: it re-encodes cleanly and produces garbage. One row
 is refused by design — its only damage is three 0x81 bytes, and cp1252 does not
 define that byte.
 
-**Detection lives in two places** — `decoding.C1_RE`/`MOJIBAKE_RE` for
+**Detection is in two places** — `decoding.C1_RE`/`MOJIBAKE_RE` for
 the repair, `schema.MOJIBAKE_SQL` for the audit view, because SQLite has no
 regex. They had drifted (the SQL named five C1 codepoints by hand while the regex
 matched the whole `0x80-0x9F` range), so `_C1_SQL` now generates all 32

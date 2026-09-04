@@ -1,10 +1,10 @@
 """What a capture address looks like - the guard that stopped provenance from
-minting dead links.
+writing dead links.
 
-`is_capture_address` is what answers the fear that kept provenance in a separate
-pass for a week: "passing a platform id by mistake would silently mint dead
-links". Each rejection below is one of the values that used to be able to reach
-that write.
+`is_capture_address` is what settles the concern that kept provenance in a
+separate pass for a week: "passing a platform id by mistake would silently write
+dead links". Each rejection below is one of the values that used to be able to
+reach that write.
 """
 
 import unittest

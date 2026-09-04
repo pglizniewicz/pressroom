@@ -12,7 +12,7 @@ generation's 166 files exist under both. So the key is (site, filename), and
 that is the half these tests exist for. It was not needed while each host had a
 tag of its own - the tag was the site - and collapsing the two tags into one is
 exactly what would have dropped 58 German releases from the work list as
-"already stored", silently and with no error.
+"already stored", with no error.
 """
 
 import contextlib
@@ -94,7 +94,7 @@ class PoolTest(support.DbCase):
     def test_the_index_page_itself_is_not_a_release(self):
         """CDX matches a prefix as a string, not as a path segment, so the
         listing for `/presse/pressemit/` also carries `/presse/pressemit.htm` -
-        the index page, which `is_html_page` is perfectly happy with."""
+        the index page, which `is_html_page` accepts."""
         work = self.pool(
             crawled=(
                 "http://www.terratec.de:80/presse/pressemit.htm",
@@ -124,7 +124,7 @@ class PoolTest(support.DbCase):
         self.assertEqual(got(work), {LINKED + "bar.htm"})
 
     def test_the_same_filename_on_the_other_host_is_still_a_candidate(self):
-        """The one that makes a single tag survivable. 58 of this generation's
+        """The one that makes a single tag workable. 58 of this generation's
         filenames exist on both hosts - the German copy of a release keeps the
         release's filename - so a check keyed on the filename alone would call
         every one of them stored. The row seeded here is the .net copy; the .de
@@ -135,7 +135,7 @@ class PoolTest(support.DbCase):
         self.assertEqual(got(work), {FOLDER + "foo.htm"})
 
     def test_an_index_only_file_survives(self):
-        """Both channels earn their keep: this is the shape of the rows that are
+        """Both channels contribute rows: this is the shape of the rows that are
         in the corpus because an index page named them and the folder listing
         does not have them at all."""
         work = self.pool(linked=("gone.htm",), crawled=(FOLDER + "foo.htm",))
@@ -151,8 +151,9 @@ class PoolTest(support.DbCase):
 
     def test_only_this_site_s_index_pages_are_fetched(self):
         """INDEX_PAGES is one flat list carrying both hosts, so the filter that
-        picks a site's own captures out of it is load-bearing: without it the
-        .net index pages would contribute .net urls to the .de pool."""
+        picks a site's own captures out of it is what keeps the pools apart:
+        without it the .net index pages would contribute .net urls to the .de
+        pool."""
         fetched = []
 
         def remember(conn, session, url, timeout=20):

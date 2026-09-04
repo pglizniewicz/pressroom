@@ -14,7 +14,7 @@ Same argument as tests/test_mirrored_rules.py: a comment cannot fail, and one
 that names a deleted file is worse than no comment, because it reads as a
 pointer. This one can fail.
 
-The prose files are in scope for the same reason and a sharper one: `CLAUDE.md`
+The prose files are in scope for the same reason and a stronger one: `CLAUDE.md`
 and `docs/adr/` are where someone goes to look the tree *up*, so a stale name
 there is read as current rather than as a leftover.
 
@@ -31,7 +31,7 @@ from tests import support
 ROOT = support.HERE.parent
 
 # Prose is not only docstrings. `CLAUDE.md` states the rules and `docs/adr/`
-# holds the archaeology behind them, and a pointer to a deleted file is worse
+# holds the reasoning behind them, and a pointer to a deleted file is worse
 # there than in a comment: those are the files someone opens *to look up* how
 # the tree is arranged. Added when the rules and the records were split into
 # separate files, which multiplied the places a stale module name can sit.
@@ -48,10 +48,10 @@ NAME_RE = re.compile(r"\b([a-z_][a-z0-9_]*\.py)\b")
 RETIRED = {
     # Named to explain why a module is shaped the way it is, in the module that
     # replaced it. Deleting the name would delete the explanation.
-    "common.py": "the grab-bag politeness.py and q4/control/platform.py were split out of",
-    # The second grab-bag, named in the rule that banned both. Same argument as
+    "common.py": "the module of unrelated helpers politeness.py and q4/control/platform.py were split out of",
+    # The second such module, named in the rule that banned both. Same argument as
     # common.py: without the name the rule loses its example.
-    "db.py": "the other grab-bag CLAUDE.md's Layout rule was written against",
+    "db.py": "the other module of unrelated helpers CLAUDE.md's Layout rule was written against",
     # Counterexamples, not pointers: CLAUDE.md names them to say what a source
     # module is *not* called, because the tag is a CMS generation not a domain.
     "terratec.py": "the name terratec/control/pressemit.py deliberately does not have",
@@ -59,13 +59,13 @@ RETIRED = {
     # Folded into the module whose parser it already imported: one CMS
     # generation on two hosts is one crawler. docs/adr/catch-up.md names it as
     # one of the two loops that graded a bodyless row correctly before the
-    # library did, which is the record the merge does not get to erase.
+    # library did, which is the record the merge must not erase.
     "presse.py": "the terratec .de loop now merged into terratec/control/pressemit.py",
     # The retired backfill_/repair_/migrate_ family. These two are the evidence
     # for the rule in docs/adr/layout-and-naming.md - one for the docstring that
     # outlived its own moment, one for the finished fix that got deleted.
     "repair_encoding.py": "the docstring that ended up reading 'written as a one-off and no longer one'",
-    "repair_cache_hashes.py": "the worked example of a finished fix git holds and the prose does not",
+    "repair_cache_hashes.py": "the worked example of a finished fix that is in git history and not in the prose",
 }
 
 
@@ -109,7 +109,7 @@ class DeadModuleReferenceTest(unittest.TestCase):
 
     def test_the_allowlist_has_no_entry_for_a_file_that_exists(self):
         """A retired name that comes back is a stale allowlist, and a stale
-        allowlist is how the next rename gets through unnoticed."""
+        allowlist is how the next rename is missed."""
         for name in RETIRED:
             with self.subTest(name=name):
                 self.assertNotIn(

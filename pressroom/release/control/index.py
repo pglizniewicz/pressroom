@@ -1,6 +1,6 @@
 """Keeping releases_fts in agreement with `releases`.
 
-**'integrity-check' passing is not evidence of a healthy index.** It only
+**'integrity-check' passing is not evidence of a correct index.** It only
 checks that the index is internally consistent, not that it agrees with the
 content table, so a stale index reports clean. Verify with orphan/missing counts
 and token probes instead.
@@ -21,7 +21,7 @@ def rebuild_fts(conn) -> None:
 
     No caller: it is typed by hand after a bulk change. The statement is
     `schema.REBUILD_FTS_SQL`, the entity's, like every other change to its
-    tables; this is where the rule about *when* lives.
+    tables; this is where the rule about *when* is.
     """
     schema.rebuild_fts(conn)
 

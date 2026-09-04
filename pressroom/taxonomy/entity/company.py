@@ -17,7 +17,7 @@ Three groupings that are decisions, not data:
   service, not a company of its own.
 - **Sound on Sound is a publisher, and gets its own entry anyway.** Its articles
   are *about* many manufacturers rather than issued by one, so filing it under an
-  existing firm would be a lie - and leaving it out is not an option, because
+  existing firm would be false - and leaving it out is not an option, because
   UNKNOWN is not a key of COMPANIES and the panel's link would answer HTTP 400.
   The axis is labelled "firmy", which is that much looser, and that is the
   cheaper inaccuracy.
@@ -66,9 +66,9 @@ COMPANIES: dict[str, tuple[str, list[str]]] = {
     ),
 }
 
-# Where a source lands when the table has not been told about it - a new
-# scraper, or a renamed tag. It must stay visible: a source that quietly
-# vanished from the company view would make every count on screen a lie.
+# Where a source goes when the table has no entry for it - a new scraper, or a
+# renamed tag. It must stay visible: a source that quietly vanished from the
+# company view would make every count on screen wrong.
 UNKNOWN = "inne"
 UNKNOWN_LABEL = "Nieprzypisane"
 
@@ -139,7 +139,7 @@ def roll_up(source_rows) -> list[dict[str, Any]]:
         agg["sources"].append(row)
         for key in _SUMS:
             agg[key] += row.get(key, 0)
-        # Empty strings are "no date at all" and must not win a min().
+        # Empty strings are "no date at all" and must not be picked by a min().
         if row["first"] and (not agg["first"] or row["first"] < agg["first"]):
             agg["first"] = row["first"]
         if row["last"] and (not agg["last"] or row["last"] > agg["last"]):

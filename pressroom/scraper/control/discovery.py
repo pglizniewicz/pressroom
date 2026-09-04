@@ -14,9 +14,9 @@ guard, `limit`, the dedup that picks the best of several captures - and every
 tail that is really per-scraper.
 
 Three rules hold in every strategy, in one copy here so a scraper cannot get
-them wrong again: a network error is not a verdict, so the item is left alone
-and reported `uncertain` and only a confirmed absence may be `dead`; every
-counter is gated on the write's return value, because `store_release` is
+them wrong again: a network error is not a confirmed absence, so the item is
+left alone and reported `uncertain` and only a confirmed absence may be `dead`;
+every counter is gated on the write's return value, because `store_release` is
 `INSERT OR IGNORE`; and a confirmed absence is asked about before an
 already-stored teaser, while a bodyless row is never `full` - that row cannot be
 told apart from a release which genuinely had none.
@@ -42,8 +42,8 @@ def from_items(conn, session, source: str, items, *, parse, stats, sleep=None) -
     `politeness.fetch_cached`, so an item already in `page_cache` costs no
     request, and goes to `parse(content) -> Detail`; `sleep` is the site's
     Crawl-delay where it publishes one. The fetch and the parse sit in one
-    `try`, because a parser raising on a page is no more a verdict than a
-    timeout is.
+    `try`, because a parser raising on a page confirms an absence no more than
+    a timeout does.
 
     `stats` comes from the caller because it owns the run's shape: several
     scrapers drive this loop once per page or once per year and want one summary
@@ -97,15 +97,15 @@ class Capture(NamedTuple):
 
 
 def _detail_score(parsed) -> int:
-    """A capture with an article beats one with only a headline, which beats one
-    with neither.
+    """A capture with an article scores above one with only a headline, which
+    scores above one with neither.
 
-    The middle rung is not a rounding. `from_candidates` stores a title-only
+    The middle score is not a rounding. `from_candidates` stores a title-only
     capture as a `stub` - the row phase 2 comes back to - so a scorer that
     rejected it outright would turn every one of those into `dead` and lose the
     row. `fetch_detail_snapshot` keeps the body-only rule instead,
     because it returns `{}` for a bodyless parse by contract and walking further
-    for a headline would buy it nothing.
+    for a headline would gain it nothing.
     """
     return len(parsed.get("body") or "") or bool(parsed.get("title"))
 
@@ -115,11 +115,11 @@ def capture(conn, session, url: str, parse, *, stats, timeout: int = 20):
 
     Returns None when the network failed - `stats.uncertain()` has already been
     reported and nothing may be written for this item in this run: a network
-    error is not a verdict. A `Capture` whose `timestamp` is None is the opposite: archive.org
-    answered, and the answer is that there is no usable capture. That is a
-    verdict, and what a scraper does with it differs (`dead`, a title-only stub,
-    or a body read off a listing capture instead), so this returns it rather
-    than counting it.
+    error is not a confirmed absence. A `Capture` whose `timestamp` is None is
+    the opposite: archive.org answered, and the answer is that there is no usable
+    capture. That is a confirmed absence, and what a scraper does with it differs
+    (`dead`, a title-only stub, or a body read off a listing capture instead), so
+    this returns it rather than counting it.
 
     The split is `fetch_detail_snapshot`'s `(parsed, confirmed)` pair
     with the capture's address kept: five loops rebuilt this by hand precisely
@@ -145,19 +145,19 @@ def fetch_detail_snapshot(conn, session, url: str, parse_fn, timeout: int = 20):
     """Fetch and parse a per-item detail page -> (parsed, confirmed).
 
     `parsed` is {} when nothing was recovered, and `confirmed` says whether that
-    is a verdict: a verified dead end may be recorded permanently, a network
-    hiccup must leave the item open to a full retry. A recovered `parsed`
-    carries `detail_id` and `origin_url`, so the caller can write the body and
-    its provenance in one transaction.
+    is an absence or a failure: a verified dead end may be recorded permanently,
+    a transient network failure must leave the item open to a full retry. A
+    recovered `parsed` carries `detail_id` and `origin_url`, so the caller can
+    write the body and its provenance in one transaction.
 
     Capture selection is `archive.fetch_best_matching_snapshot`'s, scored by how
     much body the page yields - the same measure `gate.not_shorter` compares on,
-    so a capture this walk picks cannot then be vetoed downstream for being
+    so a capture this walk picks cannot then be refused downstream for being
     shorter than one it passed over. `({}, True)` means every capture was tried
-    and none carried an article, which is the verdict a caller records as
+    and none carried an article, which is the absence a caller records as
     `dead`; it used to mean only that the newest one did not.
 
-    `capture()` above is the same fetch with the verdict left to the caller;
+    `capture()` above is the same fetch with the decision left to the caller;
     this is the older shape `from_teasers` and `catch_up.retry_missing` take.
     """
 
@@ -169,7 +169,7 @@ def fetch_detail_snapshot(conn, session, url: str, parse_fn, timeout: int = 20):
     )
     if content is None:
         return {}, confirmed
-    # The winner is parsed twice, once to score it and once for real. parse_fn
+    # The chosen capture is parsed twice, once to score it and once for real. parse_fn
     # is pure and one more bs4 pass costs nothing beside a network fetch, and
     # caching the parse by content hash would be more machinery than the saving.
     parsed = parse_fn(content)
@@ -188,10 +188,11 @@ def sample_all_captures(
     returned as one flat list.
 
     Phase 1 for a generation whose releases only ever existed inside a listing:
-    the crawler's pool is the listing's own captures, walked along time rather
-    than along links, and each one is fetched and handed to the listing parser.
-    Owns the listing -> fetch -> parse loop and nothing above it: the dedup that
-    picks the best of several captures is per-scraper, so the caller does it.
+    the crawler's pool is the listing's own captures, walked in time order rather
+    than by following links, and each one is fetched and handed to the listing
+    parser. Owns the listing -> fetch -> parse loop and nothing above it: the
+    dedup that picks the best of several captures is per-scraper, so the caller
+    does it.
     """
     try:
         timestamps = archive.list_all_captures(url)
@@ -243,9 +244,10 @@ def from_candidates(
     `stub_if_absent` is about the other absence, the one where the archive never
     saw the url at all. A url a *listing* named is a release whose title and
     date are real even with no capture behind them, so with this on it becomes a
-    `stub` carrying just those; a url nothing but a folder listing named has
-    nothing to keep, so it stays `dead`. Off by default because the metadata is
-    what earns the row, and three sources pass `titles` without meaning this.
+    `stub` carrying just those; a url nothing but a folder listing named carries
+    no metadata to keep, so it stays `dead`. Off by default because the metadata
+    is what justifies the row, and three sources pass `titles` without meaning
+    this.
     """
     for url in urls:
         if storage.already_stored(conn, url):
@@ -314,7 +316,7 @@ def from_teasers(
     Nothing else is required of it, same rule as a phase-2 collector's.
 
     `prefer_parsed` is the one axis these loops genuinely differ on: with it the
-    detail page's headline and date win where it has them, and the upgrade
+    detail page's headline and date are used where it has them, and the upgrade
     carries them; without it the listing's values are kept, because on two of
     these CMSes the listing states them better than the article page does - and
     the upgrade then writes the body alone.

@@ -3,7 +3,7 @@
 
 Reading a press release out of a binary attachment, for both callers that need
 it - the attachment crawl and the calibration pass. Shells out to `pdftotext`
-and `antiword`; talks to no network and no database.
+and `antiword`; uses no network and no database.
 
 Two levels of answer, and the difference is what the *tool* is asked for:
 `plain_text()` asks for text, which fakes the document's structure with spaces
@@ -49,7 +49,7 @@ LEVEL_INDENT = 12.0
 # releases print down the page margin as one narrow, page-tall block whose
 # "lines" are 100pt+ high. Left in, the height rule below reads it as the
 # biggest heading in the document - and because it is its own flow, poppler
-# emits it after the footer, so the release's real headline lands at the end.
+# emits it after the footer, so the release's real headline comes out at the end.
 # Both were live defects before this rule existed.
 ROTATED_MIN_HEIGHT = 80.0
 ROTATED_MAX_ASPECT = 0.25
@@ -62,7 +62,7 @@ MARGIN_TOP = 90.0
 MARGIN_BOTTOM = 60.0
 
 # How much taller than the page's median line a line must be to read as a
-# heading. Calibrate with pressroom-calibrate-converters rather than by taste.
+# heading. Calibrate with pressroom-calibrate-converters rather than by guess.
 HEADING_FACTOR = 1.6
 HEADING_MAX_CHARS = 200
 
@@ -126,8 +126,8 @@ def kind_of(content: bytes) -> str:
     that turn up: antiword refuses RTF and there is no unrtf here, and HTML
     under a .pdf URL is the original server's soft-404 served as HTTP 200 -
     which CDX's statuscode filter cannot catch, and which must never be
-    returned as text, because an error page easily outruns a teaser and would
-    pass a length-based guard.
+    returned as text, because an error page is easily longer than a teaser and
+    would pass a length-based guard.
     """
     head = content[:8]
     if head.startswith(PDF_MAGIC):
@@ -146,7 +146,7 @@ def is_attachment(content: bytes) -> bool:
     """True if these bytes are a type plain_text() can pull real text from.
 
     The floor under attachment_crawl.attachment_score: a capture that is HTML
-    (a soft-404) scores nothing, so the walk keeps going instead of settling for
+    (a soft-404) scores nothing, so the walk keeps going instead of accepting
     a wrong-typed page. Checked on the raw bytes rather than by
     calling plain_text and looking at `kind` - that would run
     pdftotext/antiword once to classify and again to extract.
@@ -276,7 +276,7 @@ def _page_lines(page) -> list[tuple[float, float, list[str]]]:
     - **blocks**, because they split a numbered list down the middle: the
       markers `1) 2) 3)` become one block at x=45 and their sentences another at
       x=63, both spanning the same rows. Reading those as two paragraphs turned
-      every numbered list in this corpus into mush.
+      every numbered list in this corpus into unreadable text.
     - **lines**, because a superscript is its own line. `4`+`th`+`-order` is
       three pieces on two lines, and the `th` sorts *before* the sentence it
       belongs to, which is how a bulleted line once arrived as
@@ -497,8 +497,8 @@ def to_richtext(content: bytes) -> tuple[str, str, str]:
     `to_text(body_html)`.
 
     **A PDF that comes back empty is a condition to report, never a fallback to
-    take.** Falling back to its text would land the row in the corpus as a
-    pre-wrap blob and nobody would learn that the converter failed on it, so a
+    take.** Falling back to its text would store the row in the corpus as a
+    pre-wrap blob and nothing would record that the converter failed on it, so a
     caller writing to the database must leave it alone and surface it -
     pressroom-calibrate-converters lists these under "decisions needed".
     """

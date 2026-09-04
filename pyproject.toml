@@ -32,7 +32,7 @@ globenewswire = ["curl_cffi"]
 # One entry point per thing anyone runs; tests/test_entry_points.py asserts the
 # four families and their sizes. Declared rather than left as
 # `python -m pressroom.terratec.boundary.portal`, because the layer path is an
-# implementation detail of where the code lives and has no business in a
+# implementation detail of where the code is and does not belong in a
 # documented command line.
 [project.scripts]
 # The corpus
@@ -73,7 +73,7 @@ pressroom-maudio-news         = "pressroom.maudio.boundary.news_blog:main"
 include = ["pressroom*"]
 
 # The browser's three files are served from a name whitelist in
-# browser/boundary/http.py, so they have to travel with the package.
+# browser/boundary/http.py, so they have to be installed with the package.
 [tool.setuptools.package-data]
 "pressroom.browser.boundary" = ["static/*"]
 
@@ -85,7 +85,7 @@ include = ["pressroom*"]
 # breakage. Pinned rather than inherited, so a change to ruff's defaults is not
 # silently a change to this repo.
 #
-# It earns its place: F821 found three calls to `snapshot_url` in
+# It is worth having: F821 found three calls to `snapshot_url` in
 # fetcher/control/archive.py that imported nothing of the kind, in code
 # pressroom-verify-names reports clean (it only inspects `module.attr` forms) and
 # the hermetic suite never reaches (they are network paths).

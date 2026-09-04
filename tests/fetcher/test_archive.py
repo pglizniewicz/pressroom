@@ -3,8 +3,8 @@
 The regression this file exists for: `get_latest_working_snapshot` returned the
 newest HTTP-200 capture, and for a dead press release on a rebuilt domain that
 is the modern site's shell page. It parses to nothing, `discovery.fetch_detail_snapshot`
-called that a confirmed verdict, and phase 2 recorded `dead` on a row whose
-article was sitting in an older capture all along.
+called that a confirmed absence, and phase 2 recorded `dead` on a row whose
+article was in an older capture all along.
 
 No CDX and no network: `list_all_captures` and `fetch_snapshot` are patched, so
 what is under test is the ordering, the two probes and the `confirmed` rule.
@@ -29,7 +29,7 @@ SHELL = b"y" * 40772
 
 def score_letters(content: bytes) -> int:
     """Points for `x` bytes only, so a bigger capture made of `y` scores zero -
-    the shape of the trap, since the shell page is the larger file."""
+    the shape of the failure, since the shell page is the larger file."""
     return content.count(b"x")
 
 
@@ -185,7 +185,7 @@ class YearProbeTest(WalkCase):
 
 class LastProbeTest(WalkCase):
     def test_the_last_good_capture_wins_when_the_release_was_corrected_later(self):
-        """The hole one probe leaves: a correction published onto a site that
+        """The gap one probe leaves: a correction published onto a site that
         then died has no capture a year out, but does have a last one."""
         self.install({"20110101000000": b"x" * 900, "20110901000000": b"x" * 2600})
         _, ts, _ = self.walk()

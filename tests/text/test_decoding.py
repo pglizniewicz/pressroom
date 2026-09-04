@@ -1,4 +1,4 @@
-"""Bytes to text when the declared charset lies, and undoing the times it did.
+"""Bytes to text when the declared charset is wrong, and undoing the times it was.
 
 The failures pinned here are all silent ones: every case below produced text
 that looked plausible and was wrong, and was found by reading the corpus rather
@@ -22,7 +22,7 @@ class DecodeHtmlTest(unittest.TestCase):
         self.assertIn("Word’s", got)  # the stray reads as cp1252
 
     def test_the_five_undefined_bytes_become_one_replacement_each(self):
-        # errors="replace" for them: one U+FFFD beats an exception that loses
+        # errors="replace" for them: one U+FFFD is better than an exception that loses
         # the page.
         self.assertEqual(decoding.decode_html(b"a\x81b"), "a�b")
 
@@ -57,7 +57,7 @@ class UndoMojibakeTest(unittest.TestCase):
         self.assertEqual(codec, "cp1258")
 
     def test_mac_roman_is_not_a_candidate(self):
-        """It re-encodes this text happily and leaves no damage markers, so
+        """It re-encodes this text without error and leaves no damage markers, so
         including it would make a second, contradicting candidate and the
         agreement check would refuse the row - while its output is simply wrong
         ('völlig' becomes v-cedilla-llig)."""
@@ -83,7 +83,7 @@ class UndoMojibakeTest(unittest.TestCase):
 
 class RepairTextTest(unittest.TestCase):
     def test_is_idempotent(self):
-        """What lets this live in the write path at all: every store and every
+        """What lets this be in the write path at all: every store and every
         upgrade calls it, and an already-repaired row costs a regex match."""
         once = decoding.repair_text("völlig".encode("utf-8").decode("cp1252"))
         self.assertIsNotNone(once)

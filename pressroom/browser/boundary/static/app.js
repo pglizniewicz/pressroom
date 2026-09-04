@@ -217,7 +217,7 @@ function dateNode(iso, cls) {
 
 function badges(row) {
   const out = [];
-  // row.grade, not row.detail_id: the verdict is its own column now, so the
+  // row.grade, not row.detail_id: the grade is its own column now, so the
   // browser no longer has to know which detail_id values are not references.
   if (row.grade === "teaser" || row.grade === "stub") {
     out.push(["teaser", row.grade]);
@@ -226,7 +226,7 @@ function badges(row) {
   } else {
     out.push(["full", (row.body_len / 1000).toFixed(1) + "k"]);
   }
-  // row.damaged comes from the API, judged over the whole body - the excerpt
+  // row.damaged comes from the API, measured over the whole body - the excerpt
   // alone would miss damage further down and disagree with the audit filter.
   if (row.damaged) out.push(["damaged", "kodowanie"]);
   // Provenance, not folded into the teaser badge: the text was read off a
@@ -650,16 +650,16 @@ function readControls() {
   };
 }
 
-// Every view is painted out of an awaited fetch, and a hash change can land
-// while one is still in the air. `state` is global and the new route replaces
+// Every view is painted out of an awaited fetch, and a hash change can arrive
+// while one is still outstanding. `state` is global and the new route replaces
 // it synchronously, so a late loader does not merely repaint the view you just
 // left - it repaints it with the *new* view's filters, heading and panel
 // (loadList reads state.q and filterSummary() only after the await, gapTable
-// builds its links from state.panel), and then steals the focus route() moved.
+// builds its links from state.panel), and then takes back the focus route() moved.
 // So each route gets an AbortController: entering one aborts the last, which
 // cancels the abandoned request at the socket instead of merely ignoring it,
 // and every loader rechecks its own signal after the awaits before touching
-// the DOM - a response already buffered when the abort lands still resolves.
+// the DOM - a response already buffered when the abort arrives still resolves.
 // The signal comes off the module rather than a parameter so that "doładuj
 // następne", which is not a route at all, is cancelled by the same gate.
 function beginRoute() {
@@ -668,8 +668,8 @@ function beginRoute() {
   return inflight.signal;
 }
 
-// The one place a failed load is reported, and the one place that knows an
-// abandoned route is not a failure.
+// The one place a failed load is reported, and the one place that tells an
+// abandoned route from a failure.
 function report(promise, signal) {
   return promise.catch((e) => {
     if (!signal.aborted) statusEl.textContent = "Błąd: " + e.message;
@@ -692,7 +692,7 @@ async function route() {
   else await report(loadList(false), signal);
   if (signal.aborted) return;
   // A hash change replaces the whole main region; without moving focus a
-  // keyboard or screen-reader user stays parked wherever the last link was.
+  // keyboard or screen-reader user stays wherever the last link was.
   heading.focus();
 }
 

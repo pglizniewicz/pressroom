@@ -246,7 +246,7 @@ def scrape(
     # Grouped by tag rather than walked in candidate order: a tag is what says
     # which rows a run owns, and it is what a Stats is labelled with - so one
     # pass per tag is what lets the library own the loop. The listing's title
-    # rides along as the fallback for a capture whose own markup carries none.
+    # is passed through as the fallback for a capture whose own markup carries none.
     by_tag: dict[str, dict[str, str]] = {}
     for item in items:
         by_tag.setdefault(item["source"], {})[item["url"]] = item["title"]

@@ -3,29 +3,29 @@
 `archive.fetch_best_matching_snapshot` takes the earliest capture of a url that
 parses to something, and the default is meant to hold: a press release is not
 edited after publication, so the earliest copy is normally the article itself.
-Two probes exist for when it does not hold, and when one of them wins, the row
+Two probes exist for when it does not hold, and when one of them is picked, the row
 was recovered from something other than the obvious answer. That is worth a
 line at the end of the run.
 
 Its own module rather than a counter on `Stats`, for the same reason
 `decoding.REPAIRS` is: the fact is produced deep inside the fetch, and threading
 it back out through every scraper would be sixteen chances to forget. Collected
-here, drained by `Stats.summary()`, silent when there is nothing to say.
+here, drained by `Stats.summary()`, silent when there is nothing to report.
 
-Stdlib only - a progress trailer has no business pulling a library in.
+Stdlib only - a progress trailer must not pull a library in.
 """
 
 from typing import NamedTuple
 
 # Why the earliest capture was not the answer. Constants rather than free text
-# at the append site, so the vocabulary lives in one place - the same rule
+# at the append site, so the vocabulary is in one place - the same rule
 # `outcome._OUTCOMES` follows for its markers.
 LATER_IS_BETTER = "rok pozniej bogatsza"
 NEWEST_IS_BETTER = "ostatnia bogatsza"
 PROBE_UNREACHABLE = "probki nie pobrano"
 
 # How many rows the trailer lists before it stops naming them. The count in the
-# header is always the whole truth; this only caps the reading.
+# header is always complete; this only caps the listing.
 CAP = 10
 
 
@@ -33,7 +33,7 @@ class Override(NamedTuple):
     """One decision that went against the earliest capture.
 
     `url` is the row's own url, which is the key to SELECT on - not the source,
-    which `archive.py` does not know. `passed_score` is None when the capture we
+    which `archive.py` does not have. `passed_score` is None when the capture we
     passed over could not be fetched at all, which is a different statement from
     "we looked and it was worse".
     """
@@ -59,7 +59,7 @@ def note(
     why: str,
 ) -> None:
     """Record one such decision. Called from exactly one place, at the point the
-    walk settles on a capture, so a caller cannot forget to."""
+    walk picks a capture, so a caller cannot forget to."""
     OVERRIDES.append(Override(url, taken, taken_score, passed, passed_score, why))
 
 

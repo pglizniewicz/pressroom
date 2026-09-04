@@ -1,6 +1,6 @@
 """What can go wrong in a conversion, measured: the interleaving artefacts the
 text route produces, the structure the layout route loses, and the thresholds
-that turn those counts into a verdict.
+that turn those counts into a pass or a fail.
 
 `pressroom-calibrate-converters` reports these over every cached attachment;
 the measures are here so the boundary walks the cache, prints, and writes the
@@ -57,8 +57,8 @@ def artefacts(text: str) -> tuple[int, int, int]:
 
 def rotated_blocks(content: bytes) -> int:
     """How many blocks conversion._pdf_fragment drops as sideways text. Counted
-    here rather than returned from there: the converter has no business growing
-    a diagnostics channel for one review script."""
+    here rather than returned from there: the converter must not grow a
+    diagnostics channel for one review script."""
     xml = conversion._run(["pdftotext", "-bbox-layout", "-", "-"], content)
     soup = BeautifulSoup(xml, "html.parser")
     n = 0
@@ -92,13 +92,13 @@ def first_heading_index(body_html: str) -> int:
 
 def furniture(body_html: str) -> int:
     """Short paragraphs or headings that appear more than once - a running
-    header or footer that survived into the body ("Press Release", the footer
+    header or footer that was left in the body ("Press Release", the footer
     URL). Counted as the number of surplus copies.
 
     Not keyed to the page count: counting pages from the raw PDF
     bytes does not agree with what poppler reports, and the measure printed 0
-    while the review page plainly showed the repeats. A measure that can be
-    wrong in the reassuring direction is worse than no measure.
+    while the review page plainly showed the repeats. A measure that can
+    under-report is worse than no measure.
     """
     soup = BeautifulSoup(body_html, "html.parser")
     texts = [el.get_text(" ", strip=True) for el in soup.find_all(["p", "h3"])]

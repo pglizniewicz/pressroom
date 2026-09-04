@@ -1,6 +1,6 @@
 """The four gates, and each allowance measured into them.
 
-Every case here is a fact this corpus paid for. `gate.py`'s own docstring says
+Every case here is a failure this corpus actually had. `gate.py`'s own docstring says
 the two data-loss incidents were both a gate *mismatch* rather than a missing
 gate, so what these tests pin is not only "does it refuse a bad write" but
 "does it still allow the good ones it was widened for" - a gate that refuses
@@ -130,8 +130,8 @@ class NotShorterTest(unittest.TestCase):
 
 
 class SameWordsTest(unittest.TestCase):
-    """The attachment gate: the same bytes read a second way. Blind to order and
-    to joins, which is exactly what a converter may change, and to nothing else.
+    """The attachment gate: the same bytes read a second way. Ignores order and
+    joins, which is exactly what a converter may change, and nothing else.
     """
 
     def test_allows_a_fragment_moved(self):
@@ -158,7 +158,7 @@ class SameWordsTest(unittest.TestCase):
         self.assertTrue(ok, why)
 
     def test_refuses_marker_absorption_beyond_the_bound(self):
-        """Bounded at two characters per list item so it can never excuse a
+        """Bounded at two characters per list item so it can never permit a
         missing word - here the "markers" are a year, not a bullet."""
         ok, _ = gate.same_words("alpha 1234567890 beta", "alpha beta", [], 1)
         self.assertFalse(ok)

@@ -1,7 +1,7 @@
 # Text and markup
 
-How a release becomes `body` + `body_html`, and the extraction rules that each
-cost a measurement.
+How a release becomes `body` + `body_html`, and the extraction rules a
+measurement established.
 
 **A release is stored twice: `body` and `body_html`.** `body` is plain text with
 real paragraphs — FTS, snippets and every `length(body)` heuristic read it.
@@ -16,7 +16,7 @@ HTML rebuilt.
 
 **Never write `soup.get_text(" ", strip=True)` for a body again.** That is what
 flattened the whole corpus: every `</p>`, `<li>` and `<br>` becomes one space, so
-a 4000-character release arrives as one blob — and the newlines that survive are
+a 4000-character release arrives as one blob — and the newlines that remain are
 the *source file's* line wrapping, which `strip=True` leaves inside a text node.
 Real structure gone, indentation kept. `get_text(strip=True)` on a **title** is
 still right.
@@ -34,13 +34,13 @@ Three things `richtext.py` does that are decisions, not cleanup:
   that is what separates a product photo in its own paragraph from a banner built
   out of `top.gif` and 1x1 spacers.
 
-**The allowlist lives in two places**, `richtext._ALLOWED` and `RICH_TAGS` in
+**The allowlist is in two places**, `richtext._ALLOWED` and `RICH_TAGS` in
 `static/app.js`; `tests/test_mirrored_rules.py` asserts the pair.
 
 **`richtext.cut_from()` must find the text node, not the element.** The naive
 version scanned leaf *elements* and silently did nothing on midiman.de, where
 "Infos bei:" sits in a bare text node between two `<br>` — the contact footer
-survived into 37 bodies that should have had it cut.
+was left in 37 bodies that should have had it cut.
 
 **A parser that finds no container must fall back, never blank.**
 `extract(None)` returns `("", "")`, so a missing container silently becomes an
@@ -54,7 +54,7 @@ distribution — a selector comes from the dominant shape, never one sample. Tha
 is what stopped `td[valign="top"][width="85%"]` (looks obvious, misses 36 of 186
 portal captures) in favour of `richtext.densest(soup, "td")`, which hit 100%.
 Three shapes came out of it: *the page is the release* (`golive.py` — careful,
-the one parser whose **title** comes from text surgery, so its flat `get_text`
+the one parser whose **title** comes from string slicing, so its flat `get_text`
 stays, for detection only), *the biggest layout table/cell* (`pressemit.py`,
 `portal.py` — no classes or ids worth keying on), and *an HTML
 fragment already sliced* (`presse_de.py`'s `blocks()`).
@@ -68,7 +68,7 @@ as a headline when it sits in a `div.block` or is the column's only one.
 
 **A title comes from markup that means "headline", never from the body**, and is
 written **only over an empty one** (`catch_up._fill_title`). Three rules the
-recovery was built on, each of which cost a measurement:
+recovery was built on, each established by a measurement:
 
 - **A new extraction rule goes in as a *fallback*, never a replacement.**
   `pressemit.find_headline` runs only when the caller's bold-tag rule returns "".
@@ -78,7 +78,7 @@ recovery was built on, each of which cost a measurement:
   `<tr>`/`<td>` are the container being walked into, so stopping there ends the
   walk before any text; a cell that opens with a paragraph has no headline, and
   descending into it titles the row with the release's first sentence.
-  `MAX_HEADLINE` bounds whatever slips through.
+  `MAX_HEADLINE` bounds whatever gets past that.
 - **The pass writes the title and nothing else.** Several of those captures parse
   to a better *body* too, but a body rewrite belongs to the re-extraction
   strategies,

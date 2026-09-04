@@ -75,10 +75,10 @@ LISTING["midiman_de"] = presse_de.parse_page
 LISTING["maudio_com_news"] = lambda c, base, ts: news_blog.parse_listing_page(c, base)
 LISTING["soundonsound"] = lambda c, base, ts: magazine.parse_listing(c)
 LISTING["terratec"] = lambda c, base, ts: pressemit.extract_links(c, base)
-# The yearly category listings - the channel portal.py calls "irreplaceable
-# archaeology" and the one that raised NameError on every run for a day, because
-# the regex it referenced was left behind in a deleted file. Nothing else in
-# this repo executes it.
+# The yearly category listings - the channel portal.py says cannot be
+# reconstructed, and the one that raised NameError on every run for a day,
+# because the regex it referenced was left behind in a deleted file. Nothing
+# else in this repo executes it.
 LISTING.update({tag: lambda c, base, ts: portal.extract_teasers(c) for tag in PORTAL})
 # The two 1996-97 anchor pages: the whole source is two listings, and which
 # one a capture is decides both the date marker and the anchor scheme.

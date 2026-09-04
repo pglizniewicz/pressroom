@@ -10,7 +10,7 @@ import re
 
 # The only thing body_origin may hold, spelled out here because this is where a
 # bad value is caught: a Q4 numeric id, a Drupal node id or a bare row url
-# raises at the write site rather than minting a dead link.
+# raises at the write site rather than building a dead link.
 _CAPTURE_ADDRESS_RE = re.compile(r"^https?://web\.archive\.org/web/\d{14}id_/.+")
 
 
@@ -26,7 +26,7 @@ def is_timestamp(value) -> bool:
 
     The single implementation, and only the archive-facing code asks: a reader
     does not, because body_origin records the capture and releases.grade records
-    the verdict.
+    the grade.
     """
     return bool(value) and str(value).isdigit() and len(str(value)) == TS_LEN
 
@@ -68,9 +68,9 @@ def timestamp_of(capture_address) -> str | None:
 
 
 def viewer_url(capture_address) -> str | None:
-    """The address a person opens: the `id_` marker dropped, so the reader lands
-    on archive.org's ordinary viewer page rather than page_cache's raw-bytes
-    variant. None for None - a row with no recorded capture gets no link, the
-    live sources included.
+    """The address a person opens: the `id_` marker dropped, so the reader
+    arrives at archive.org's ordinary viewer page rather than page_cache's
+    raw-bytes variant. None for None - a row with no recorded capture gets no
+    link, the live sources included.
     """
     return capture_address.replace("id_/", "/", 1) if capture_address else None

@@ -93,8 +93,8 @@ class FromItemsTest(support.DbCase):
         )
 
     def test_a_parser_raising_on_a_page_is_uncertain_too(self):
-        """The fetch and the parse sit in one `try`: a parser that
-        trips on a page is no more a verdict about the release than a timeout."""
+        """The fetch and the parse sit in one `try`: a parser that fails on a
+        page confirms nothing about the release, any more than a timeout does."""
 
         def trip(content):
             raise ValueError("unexpected markup")
@@ -342,7 +342,7 @@ class FromCandidatesTest(support.DbCase):
         `full`, and no origin: body_origin records the capture a body came from
         and there is no body.
 
-        This is also what `_detail_score`'s middle rung is for. The walk only
+        This is also what `_detail_score`'s middle score is for. The walk only
         returns a capture that scores above zero, so a scorer counting body
         length alone would reject this one, `capture()` would report a confirmed
         absence, and every title-only row would become `dead` instead."""
@@ -421,7 +421,7 @@ class FromCandidatesTest(support.DbCase):
     def test_metadata_is_what_earns_that_row_not_the_flag(self):
         """Both channels of a merged pool go through one call, so the flag is on
         for candidates that carry no metadata too. Nothing to keep means the
-        default verdict stands."""
+        default, `dead`, stands."""
         counts = self.run_urls(
             FakeArchive(snapshot=None).install(self), stub_if_absent=True
         )
@@ -456,7 +456,7 @@ def teaser_entry(url="http://x/one", **kw):
 class FromTeasersTest(support.DbCase):
     def run_entries(self, entries, detail=None, confirmed=True, prefer_parsed=False):
         """`detail` is what the fake detail fetch hands back; None means it
-        recovered nothing, and `confirmed` then says whether that is a verdict
+        recovered nothing, and `confirmed` then says whether that is an absence
         or a network failure."""
         stats = Stats("src")
         calls = []
@@ -497,8 +497,8 @@ class FromTeasersTest(support.DbCase):
         """Rule 3, and the one the copies disagreed on: three of the four asked
         `confirmed` before asking about the teaser and said in a comment why,
         while `maudio/presse_de.py` had the two the other way round - so a
-        network error there was filed under "already as good as it gets", which
-        is exactly where a rerun stops looking."""
+        network error there was filed under `skipped`, "nothing left to
+        upgrade", which is exactly where a rerun stops looking."""
         self.seed("src", url="http://x/one", body="teaser", grade="teaser")
         counts, _ = self.run_entries([teaser_entry()], detail=None, confirmed=False)
         self.assertEqual(counts["uncertain"], 1)

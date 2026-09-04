@@ -52,7 +52,7 @@ class ParamTest(support.DbCase):
 
     def test_an_unknown_flag_is_refused_rather_than_dropped(self):
         """Dropping a typo silently would report a full corpus as if it were the
-        filtered slice - the one lie an audit view must not tell."""
+        filtered slice - the one wrong answer an audit view must not give."""
         with self.assertRaises(http.BadRequest):
             http.handle_search(self.conn, {"flags": ["teasr"]})
 
@@ -94,7 +94,7 @@ class PayloadTest(support.DbCase):
         )
 
     def test_a_list_row_carries_the_same_three_strings(self):
-        """capture_page rides on every row, list and detail, so the badge costs
+        """capture_page is on every row, list and detail, so the badge costs
         no extra query."""
         got = http.handle_search(self.conn, {})["results"][0]
         for key in ("wayback_url", "capture_page", "capture_kind", "capture_ts"):
@@ -189,22 +189,21 @@ class ServerTest(support.DbCase):
         caught.exception.close()
 
     def test_the_server_opens_the_database_read_only(self):
-        """A browser has no business writing anything, and every request gets
+        """A browser must never write anything, and every request gets
         its own connection."""
         self.get("/api/search")
         self.assertIsNotNone(self.json("/api/quality"))
 
     def test_every_request_closes_the_connection_it_opened(self):
         """The leak this test exists to keep out: the connection used to be
-        parked on a threading.local and never closed, so a suite run printed
+        kept on a threading.local and never closed, so a suite run printed
         one `ResourceWarning: unclosed database` per request that reached the
         database, and a long browsing session accumulated descriptors.
 
         `daemon_threads = False` is what makes the assertion deterministic
         rather than a poll: server_close() then joins the request threads, so
         by the time it returns every handler has left its `with`. The client
-        otherwise has the response in hand before the server has closed
-        anything.
+        otherwise has the response before the server has closed anything.
         """
         opened = []
         real = connection.connect_ro

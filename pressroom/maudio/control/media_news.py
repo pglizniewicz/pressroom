@@ -38,7 +38,7 @@ Two-tier discovery, same idiom as terratec/control/portal.py:
      matching the detail page's own title against the listing map, and left
      blank when there is no match: a genuine gap, not a parse failure.
 
-Confirmed dead end, and the reason step 3 carries the weight: later captures
+Confirmed dead end, and the reason step 3 does most of the work: later captures
 link articles as news/en_us-<N>.html, a scheme with zero Wayback captures on
 any domain, ever. The Avid-era listings link that way exclusively - even
 midiman.net's own listing points at m-audio.com/news/en_us-1930.html - so
@@ -148,7 +148,7 @@ def _entries_short_news(soup: BeautifulSoup, base_url: str) -> list[Entry]:
     are not shared: there, #news-title holds the date
     in its own <strong> and the title in the anchor. Here both hold the single
     string "Date - Title", so it goes through DATE_TITLE_RE instead - feeding
-    this markup to that parser would glue the date onto every title.
+    this markup to that parser would join the date onto every title.
     """
     entries = []
     for div in soup.find_all("div", id="short-news"):

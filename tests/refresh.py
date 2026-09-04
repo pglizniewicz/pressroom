@@ -15,7 +15,7 @@ git diff. That diff *is* the record of what the change did - the thing this repo
 used to produce by hand and paste into CLAUDE.md.
 
 Selection rule, so a refresh does not silently pick a different page: the
-**smallest** capture that qualifies. Small keeps the repo light and a fixture
+**smallest** capture that qualifies. Small keeps the checkout small and a fixture
 readable; qualifying keeps it representative (a stored body over 800 characters,
 so the fixture is a real release rather than a "page moved" stub).
 
@@ -49,18 +49,18 @@ MIN_BODY = 800
 # A listing fixture has to be a listing, and a rich one where the corpus has
 # one. "Smallest that parses" picked a 254-byte redirect stub for two sources
 # and a 3-teaser tail page for the portal's category channel, which is the
-# channel portal.py calls irreplaceable - a capture that parses to almost
-# nothing pins almost nothing. Where no capture reaches this, the richest one
-# there is wins instead: maudio_com_news tops out at 5 entries per page and
-# terratec_early's English page carries 5, and both are still the whole of what
-# that channel is.
+# channel portal.py says cannot be reconstructed - a capture that parses to
+# almost nothing pins almost nothing. Where no capture reaches this, the richest
+# one available is picked instead: maudio_com_news tops out at 5 entries per
+# page and terratec_early's English page carries 5, and both are still the whole
+# of what that channel is.
 MIN_ENTRIES = 8
 
 # The sources where one page proves nothing about another, so they get one
 # fixture per page: terratec_early's German and English pages use different date
 # markers and different anchor schemes, and midiman_de's Musikmesse roundup
-# delimits its blocks with a comment vocabulary the two listings it hangs off do
-# not use, dates its releases off the page rather than the block, and is the one
+# delimits its blocks with a comment vocabulary the two listings that link to it
+# do not use, dates its releases off the page rather than the block, and is the one
 # page in that source whose releases have an anchor of their own.
 TWO_LISTINGS = ("terratec_early", "midiman_de")
 
@@ -159,10 +159,10 @@ def _listing_candidates(conn, source):
     """Captures of some OTHER page - which for these sources is the listing the
     body was read out of.
 
-    `.pdf`/`.doc` rows are excluded and it is not a tidiness rule: an attachment
-    row's origin is also "not the address the row implies" (it is the *located*
-    class), so without this the three media_pr sources all picked the same Word
-    file as their listing fixture - a document no listing parser can read.
+    `.pdf`/`.doc` rows are excluded because an attachment row's origin is also
+    "not the address the row implies" (it is the *located* class), so without
+    this the three media_pr sources all picked the same Word file as their
+    listing fixture - a document no listing parser can read.
     """
     return conn.execute(
         """
@@ -327,7 +327,7 @@ def _usable(conn, source, kind, rows, want) -> list:
     sources is a 254-byte stub, and the smallest detail capture can be a "page
     moved" placeholder - a fixture that parses to nothing would go green forever,
     which is the one thing a regression gate must not do. And a capture that
-    parses to three of the twenty-four teasers on a fatter one pins a quarter of
+    parses to three of the twenty-four teasers on a bigger one pins a quarter of
     the parser.
     """
     floor = MIN_ENTRIES if kind == "listing" else MIN_BODY
@@ -374,7 +374,7 @@ def _write(conn, name, capture, files: dict) -> str:
     Several fixtures legitimately want the same bytes - the three media_pr
     domains mirror one listing, and the two pressdb ones do too - so the
     manifest points at a file rather than owning one. Committing the same 24 KB
-    capture three times would be paying for the mirror twice over.
+    capture three times would store the same bytes twice over.
     """
     content = conn.execute(
         "SELECT content FROM page_cache WHERE url = ?", (capture,)

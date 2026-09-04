@@ -8,8 +8,8 @@ so a marker stream is readable without knowing which scraper produced it:
     U  upgraded     an existing teaser/stub row gained real content
     t  teaser       stored, but only the short listing teaser was available
     s  stub         stored, but only a title/date - no body at all
-    .  skipped      already stored and already as good as it gets
-    ?  uncertain    a network error, not a verdict - will retry next run
+    .  skipped      already stored, and nothing left to upgrade
+    ?  uncertain    a network error, not a confirmed absence - will retry next run
     d  dead         confirmed: nothing recoverable from the archive
 
 `uncertain` is its own bucket rather than folded into `skipped`, because those
@@ -29,8 +29,8 @@ from pressroom.reporting.control import selection
 CAPTURE = ","
 
 # How often the marker stream is interrupted by a timestamped progress line.
-# These runs last hours, and a wall of undated markers gives no way to tell
-# "alive but rate-limited" from "hung".
+# These runs last hours, and a long run of undated markers gives no way to tell
+# "running but rate-limited" from "hung".
 HEARTBEAT_SECONDS = 900
 
 # outcome -> (marker char, summary label). Order is the summary's order.
@@ -80,8 +80,8 @@ class Stats:
         finish an item every couple of seconds even when archive.org is
         throttling hard (its retry backoff caps out around a minute), so a
         clock check here is enough and keeps the module thread-free. The one
-        case it cannot cover is a single item wedged for longer than the
-        interval - then the next beat is simply late.
+        case it cannot cover is a single item stuck for longer than the
+        interval - then the next heartbeat is simply late.
         """
         now = time.monotonic()
         if now - self._last_beat < HEARTBEAT_SECONDS:
@@ -148,18 +148,19 @@ class Stats:
             total = f". Total in DB: {storage.source_total(conn, self.source)}"
 
         print(f"\n{prefix}{body}{total}")
-        # What the write path had to undo on the way past. Printed here rather
+        # What the write path had to undo as it went. Printed here rather
         # than reported by a separate pass, because the alternative was a rule
         # ("re-run the encoding repair after anything that refetches") that a
         # human had to remember, and one forgotten run put the damage back into
-        # 34 rows. Silence means there was nothing to fix.
+        # 34 rows. No output means there was nothing to fix.
         if decoding.REPAIRS:
             fixed = ", ".join(f"{n}x {m}" for m, n in decoding.REPAIRS.most_common())
             print(f"{prefix}naprawione kodowanie: {fixed}")
             decoding.REPAIRS.clear()
         # Which rows were not recovered from the earliest capture of their url,
-        # and what beat it. Same shape and same reason as the block above: the
-        # walk is the only place that knows, and a separate pass would be a rule
-        # someone has to remember. Silence means the default answer held.
+        # and what scored above it. Same shape and same reason as the block
+        # above: the walk is the only place that has the information, and a
+        # separate pass would be a rule someone has to remember. No output means
+        # the default answer held.
         for line in selection.drain(prefix):
             print(line)

@@ -143,7 +143,7 @@ def extract_entries(
 ) -> list[Entry]:
     # decode_html rather than letting bs4 sniff: verified a no-op on every
     # currently cached capture, but two of them are already not valid utf-8,
-    # so the chardet fallback is one stray byte away. See decoding.py.
+    # so one more stray byte would trigger the chardet fallback. See decoding.py.
     soup = BeautifulSoup(decode_html(html), "html.parser")
     entries = extract_entries_template_a(soup, base_url) + extract_entries_template_b(
         soup, base_url

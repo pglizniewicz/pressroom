@@ -14,7 +14,7 @@ of a body. Three measurements shaped it:
   word-*character sequences* and strips `to_text()`'s ordinals.
 - `kept` and `clean` are not enough: **`kept=False, clean=True` is the signature
   of both "nav was correctly dropped" and "a paragraph went missing"**.
-  `edges_only` separates them — chrome lives at the edges, a lost paragraph does
+  `edges_only` separates them — chrome is at the edges, a lost paragraph does
   not.
 - two middle-loss cases are allowed by name, each confirmed by a word diff: a
   teaser-grade body replaced by the real article, and a loss under 2%, which
@@ -29,10 +29,10 @@ off the end.
 
 **The conversion gate is a multiset of word characters, and it is the fourth
 attempt.** `gate.wordchars` drops indentation, wrapping, bullets and ordinals;
-comparing the *multiset* is blind to the two things a converter may change —
+comparing the *multiset* ignores the two things a converter may change —
 order and joins — while still refusing a document that lost a paragraph.
 Character *sequence* refused 13 of 73 documents for pure reordering, and word
 coverage refused 10 more for joins (`Composer` + `®` + `system` arriving as
 `Composer®system`). Two allowances, named and bounded: the rotated banner the
 converter says it dropped, and **markers that became structure**, capped at two
-characters per list item so it can never excuse a missing word.
+characters per list item so it can never permit a missing word.
