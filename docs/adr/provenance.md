@@ -27,7 +27,7 @@ for this row". **Two columns**, after two removals. `page_url` was a prefix of
 `page_cache` key — rebuilding it the other way would need `detail_id`, which a
 recovery can rewrite underneath, so the link is `address.viewer_url(origin_url)`
 and never consults the timestamp when an entry exists. `matched` went once its three classes turned out to be
-derivable from the address, which `verification.origin_class()` computes
+derivable from the address, which `reproduction.origin_class()` computes
 (`computed` = the address the row implies, `located` = a .pdf/.doc found under
 its own path, `inferred` = neither). The score was never the useful thing: most
 inferred rows fall below 1.0 and are right, and four attachment rows scored a

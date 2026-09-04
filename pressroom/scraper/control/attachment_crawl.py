@@ -306,23 +306,22 @@ def no_own_bytes_rows(conn) -> list[tuple[str, str]]:
             continue
         page = key.split("id_/", 1)[1]
         own.add(page.lower())
-        anywhere.add(page.rsplit("/", 1)[1].lower())
+        anywhere.add(conversion.attachment_name(page))
     return [
         (url, body)
         for url, body in conn.execute(
             "SELECT url, COALESCE(body, '') FROM releases "
             "WHERE lower(url) LIKE '%.pdf' OR lower(url) LIKE '%.doc' ORDER BY id"
         )
-        if url.lower() not in own and url.rsplit("/", 1)[1].lower() in anywhere
+        if url.lower() not in own and conversion.attachment_name(url) in anywhere
     ]
 
 
 def missing_bytes_rows(conn) -> list[tuple[str, str]]:
     """(url, body) for attachment rows with no cached bytes under any mirror name.
 
-    Done in Python, not SQL: SQLite has no basename(), the rtrim/replace trick
-    that emulates one is unreadable, and this comparison has to match the one
-    converter/boundary/calibration.py and the richtext pass use.
+    Done in Python, not SQL: SQLite has no basename(), and the name rule is
+    `conversion.attachment_name`, the one every pass compares by.
     """
     cached = set()
     for (key,) in conn.execute(
@@ -330,14 +329,14 @@ def missing_bytes_rows(conn) -> list[tuple[str, str]]:
         "OR lower(url) LIKE '%.doc'"
     ):
         if "id_/" in key:
-            cached.add(key.rsplit("/", 1)[1].lower())
+            cached.add(conversion.attachment_name(key))
     return [
         (url, body)
         for url, body in conn.execute(
             "SELECT url, COALESCE(body, '') FROM releases "
             "WHERE lower(url) LIKE '%.pdf' OR lower(url) LIKE '%.doc' ORDER BY id"
         )
-        if url.rsplit("/", 1)[1].lower() not in cached
+        if conversion.attachment_name(url) not in cached
     ]
 
 

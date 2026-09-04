@@ -49,24 +49,6 @@ _NON_ASCII_WORD = re.compile(r"\S*[^\x00-\x7f]\S*")
 KNOWN_UNFIXABLE = {4978}
 
 
-def damaged(text: str) -> bool:
-    return bool(text) and bool(
-        decoding.C1_RE.search(text) or decoding.MOJIBAKE_RE.search(text)
-    )
-
-
-def undefined_bytes(text: str) -> list[str]:
-    """The C1 codepoints in `text` that cp1252 does not define - the reason a
-    repair is refused rather than guessed."""
-    return sorted(
-        {
-            hex(ord(c))
-            for c in text
-            if decoding.C1_RE.match(c) and ord(c) not in decoding._C1_TRANSLATION
-        }
-    )
-
-
 def capture_words(conn, url: str) -> str:
     """The row's capture bytes as text, tags stripped - or "" if not cached.
     Read through body_origin, which is where the address a body came from lives."""
@@ -94,13 +76,13 @@ def run(source: str | None = None, check_bytes: bool = False) -> None:
     for rid, src, url, title, body, body_html in rows:
         hit = False
         for field, text in (("title", title), ("body", body), ("body_html", body_html)):
-            if not damaged(text):
+            if not decoding.damaged(text):
                 continue
             hit = True
             got = decoding.repair_text(text)
             if got is None:
                 refused.append(
-                    (rid, src, field, undefined_bytes(text) or ["ambiguous"])
+                    (rid, src, field, decoding.undefined_bytes(text) or ["ambiguous"])
                 )
             else:
                 repairable.append((rid, src, field, got[1], text, got[0]))

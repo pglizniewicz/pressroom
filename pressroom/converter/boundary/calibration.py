@@ -16,7 +16,8 @@ It answers two questions, because one of them cannot be answered by numbers:
      headline *after* the footer.
 
 Bytes come from `page_cache` only, mirror domains included: most rows with no
-cached capture of their own can still be read from a sibling's bytes.
+cached capture of their own can still be read from a sibling's bytes. The
+measures are `control/quality.py`'s; this walks, prints and writes the page.
 
 Usage:
   pressroom-calibrate-converters                     # metrics + 12-document page
@@ -28,42 +29,10 @@ Usage:
 import argparse
 import collections
 import html as html_mod
-import re
 import statistics
 
-import warnings
-
-from bs4 import BeautifulSoup, XMLParsedAsHTMLWarning
-
-from pressroom.converter.control import conversion
+from pressroom.converter.control import conversion, quality
 from pressroom.database.control import connection
-
-# Interleaving signals: the text route merges overlapping copies of a document
-# into strings that exist in no version of it. See conversion.py's docstring.
-DUP_RE = re.compile(r"\b(\w+ \w+) \1\b", re.I)
-MERGE_RE = re.compile(r"\d{2,}\.\d{2}\.\w|\d{3,}\.\d{2}\.")
-CASE_RE = re.compile(r"[a-z]{3}[A-Z][a-z]{2}")
-# A word split across a line break and rejoined with the space still in it.
-# `X- and`, `X- or`, `X- to` are excluded because they are correct English, not
-# damage: "61- and 88-note models".
-HYPHEN_RE = re.compile(r"\w- (?!and\b|or\b|to\b|through\b)\w")
-
-# The gate the writing pass would use. Retention alone is not enough: the one
-# document it rejects (0.68) is the one where the structured output is right.
-MIN_RETENTION = 0.90
-
-# Same choice as conversion.py: poppler's bbox tree is XML read
-# with html.parser, because this repo declares no lxml.
-warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
-
-
-def artefacts(text: str) -> tuple[int, int, int]:
-    words = text.split()
-    return (
-        len(DUP_RE.findall(" ".join(words))),
-        len(MERGE_RE.findall(text)),
-        sum(1 for w in words if CASE_RE.search(w)),
-    )
 
 
 def documents(conn) -> dict[str, tuple[str, list[tuple[int, str, str, str]]]]:
@@ -79,7 +48,7 @@ def documents(conn) -> dict[str, tuple[str, list[tuple[int, str, str, str]]]]:
     ):
         if "id_/" not in key:
             continue
-        name = key.rsplit("/", 1)[1].lower()
+        name = conversion.attachment_name(key)
         # Prefer bytes that actually are the attachment: several keys can share
         # a filename - the same document under two directory schemes, plus the
         # original server's soft-404 - and taking whichever came first reviewed
@@ -91,64 +60,8 @@ def documents(conn) -> dict[str, tuple[str, list[tuple[int, str, str, str]]]]:
         "SELECT id, source, url, COALESCE(body, '') FROM releases "
         "WHERE lower(url) LIKE '%.pdf' OR lower(url) LIKE '%.doc' ORDER BY id"
     ):
-        rows[url.rsplit("/", 1)[1].lower()].append((rid, source, url, body))
+        rows[conversion.attachment_name(url)].append((rid, source, url, body))
     return {name: (cached[name], rs) for name, rs in rows.items() if name in cached}
-
-
-def rotated_blocks(content: bytes) -> int:
-    """How many blocks conversion._pdf_fragment drops as sideways text. Counted
-    here rather than returned from there: the converter has no business growing
-    a diagnostics channel for one review script."""
-    xml = conversion._run(["pdftotext", "-bbox-layout", "-", "-"], content)
-    soup = BeautifulSoup(xml, "html.parser")
-    n = 0
-    for b in soup.find_all("block"):
-        h = float(b.get("ymax", 0)) - float(b.get("ymin", 0))
-        w = float(b.get("xmax", 0)) - float(b.get("xmin", 0))
-        if h > conversion.ROTATED_MIN_HEIGHT and w < h * conversion.ROTATED_MAX_ASPECT:
-            n += 1
-    return n
-
-
-def first_heading_index(body_html: str) -> int:
-    """Position of the first h3 among the fragment's top-level elements, or -1.
-
-    The measure that would have caught the reading-order bug: a press release's
-    headline is at the top of the document, so a first heading sitting at
-    element 12 means the blocks were emitted in the wrong order.
-    """
-    soup = BeautifulSoup(body_html, "html.parser")
-    for i, el in enumerate(soup.find_all(recursive=False)):
-        if el.name == "h3":
-            return i
-    return -1
-
-
-def furniture(body_html: str) -> int:
-    """Short paragraphs or headings that appear more than once - a running
-    header or footer that survived into the body ("Press Release", the footer
-    URL). Counted as the number of surplus copies.
-
-    Not keyed to the page count: counting pages from the raw PDF
-    bytes does not agree with what poppler reports, and the measure printed 0
-    while the review page plainly showed the repeats. A measure that can be
-    wrong in the reassuring direction is worse than no measure.
-    """
-    soup = BeautifulSoup(body_html, "html.parser")
-    texts = [el.get_text(" ", strip=True) for el in soup.find_all(["p", "h3"])]
-    short = [t for t in texts if 0 < len(t) < 60]
-    return sum(n - 1 for n in collections.Counter(short).values() if n > 1)
-
-
-# A PDF whose structured output is one block while the text route has many
-# lines: not empty, but degenerate - every paragraph break lost. Worth the same
-# human decision as an empty conversion, and invisible to the retention measure,
-# which counts words rather than structure.
-DEGENERATE_MIN_LINES = 10
-
-# Below this, the structured route lost enough words that somebody should look
-# at the document rather than trust the gate.
-REVIEW_RETENTION = 0.95
 
 
 def review(limit_preview, out_path: str) -> None:
@@ -196,7 +109,7 @@ def review(limit_preview, out_path: str) -> None:
                     body,
                     body_html,
                     0.0,
-                    artefacts(text),
+                    quality.artefacts(text),
                     (0, 0, 0),
                     False,
                 )
@@ -204,13 +117,15 @@ def review(limit_preview, out_path: str) -> None:
             continue
         tw, sw = len(text.split()), len(body.split())
         ratio = sw / tw if tw else 0.0
-        at, ab = artefacts(text), artefacts(body)
+        at, ab = quality.artefacts(text), quality.artefacts(body)
         cleaner = sum(ab) < sum(at)
-        ok = sw > 50 and (ratio >= MIN_RETENTION or cleaner)
+        ok = sw > 50 and (ratio >= quality.MIN_RETENTION or cleaner)
         verdicts[f"{kind}: {'convert' if ok else 'keep text'}"] += 1
         retention.append((ratio, name))
-        blocks = BeautifulSoup(body_html, "html.parser").find_all(recursive=False)
-        if len(blocks) <= 1 and len(text.split("\n")) >= DEGENERATE_MIN_LINES:
+        if (
+            quality.top_level_blocks(body_html) <= 1
+            and len(text.split("\n")) >= quality.DEGENERATE_MIN_LINES
+        ):
             decisions.append(
                 (
                     name,
@@ -219,7 +134,7 @@ def review(limit_preview, out_path: str) -> None:
                     "paragraph breaks were lost - check the gap rule",
                 )
             )
-        elif ratio < REVIEW_RETENTION:
+        elif ratio < quality.REVIEW_RETENTION:
             decisions.append(
                 (
                     name,
@@ -229,22 +144,22 @@ def review(limit_preview, out_path: str) -> None:
                 )
             )
 
-        h3_at = first_heading_index(body_html)
+        h3_at = quality.first_heading_index(body_html)
         if kind == "pdf":
-            rotated = rotated_blocks(content)
+            rotated = quality.rotated_blocks(content)
             defects["pdf: rotated blocks dropped"] += rotated
             defects["pdf: docs with a rotated block"] += 1 if rotated else 0
         if h3_at > 3:
             defects["first h3 later than element 3"] += 1
         elif h3_at == -1:
             defects["no h3 at all"] += 1
-        defects["furniture repeats left in body"] += furniture(body_html)
-        defects["rejoined hyphenations"] += len(HYPHEN_RE.findall(body))
+        defects["furniture repeats left in body"] += quality.furniture(body_html)
+        defects["rejoined hyphenations"] += len(quality.HYPHEN_RE.findall(body))
         cards.append((name, kind, key, rows, text, body, body_html, ratio, at, ab, ok))
 
     print(
         "\n=== verdict under the writing gate "
-        f"(retention >= {MIN_RETENTION:.0%}, or fewer interleaving artefacts)"
+        f"(retention >= {quality.MIN_RETENTION:.0%}, or fewer interleaving artefacts)"
     )
     for k, v in sorted(verdicts.items()):
         print(f"  {v:5}  {k}")
@@ -270,10 +185,12 @@ def review(limit_preview, out_path: str) -> None:
     else:
         print(
             "  none - every cached PDF converted, none degenerate, "
-            f"none below {REVIEW_RETENTION:.0%} retention"
+            f"none below {quality.REVIEW_RETENTION:.0%} retention"
         )
 
-    print("\n=== known defects, measured (thresholds live in conversion.py)")
+    print(
+        "\n=== known defects, measured (thresholds live in conversion.py and quality.py)"
+    )
     for k in sorted(defects):
         print(f"  {defects[k]:5}  {k}")
 

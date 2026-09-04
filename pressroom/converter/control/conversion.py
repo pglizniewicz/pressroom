@@ -169,6 +169,16 @@ def is_attachment_url(url: str) -> bool:
     return (url or "").lower().split("?", 1)[0].endswith(ATTACHMENT_EXTS)
 
 
+def attachment_name(path: str) -> str:
+    """The file name, lowercased: the one identity a mirrored attachment keeps
+    across hosts and directory schemes, so the same PDF under midiman.com,
+    midiman.net and m-audio.com is reviewed once and its bytes are found under
+    any of them. A *label* for grouping and lookup, never a proof of identity -
+    matching on the name alone once paired a row with a different release
+    (#5343); identity is the bytes and the extracted text."""
+    return path.rsplit("/", 1)[-1].lower()
+
+
 # Everything else a fetch can return that is not text to parse. Kept beside
 # PDF_MAGIC/OLE2_MAGIC rather than in the caller: one table, both directions of
 # the question - "is this an attachment I can extract" and "is this safe to

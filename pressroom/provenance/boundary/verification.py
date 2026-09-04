@@ -1,32 +1,13 @@
 """Prove that every recorded origin really is where a row's body came from.
 
-`body_origin` says which archive.org capture each body was read out of, and
-how that address was established is not stored - it is derivable, which is why
-the table has two columns and no score:
+`body_origin` says which archive.org capture each body was read out of. The
+proof is reproduction: run the source's own parser over the recorded capture
+and compare the result to what the row stores. The verdicts and the origin
+classes are `control/reproduction.py`'s; what is this module's is the walk over
+`body_origin` and the one thing a library cannot hold - which parser each source
+tag means, since that dispatch imports the sources themselves.
 
-  computed    origin_url is exactly `web/<detail_id>id_/<url>`, i.e. the
-              address the row implies. Nothing was checked when it was written.
-  located     the row's url is a .pdf/.doc and its bytes were found under that
-              path, possibly on a sibling domain of the same scraper.
-  inferred    neither - the page had to be found by looking for the body's text
-              among the captures sharing that timestamp.
-
-The proof is reproduction: run the source's own parser over the recorded capture
-and compare the result to what the row stores. Not a score - the fraction of
-text probes that hit is neither necessary nor sufficient, since a body can probe
-low and be right while an attachment row probes perfectly against the original
-server's error page.
-
-What counts as reproduced, and why not stricter:
-
-  exact              the parser's text equals the stored body
-  typography only    equal once whitespace and bullets are dropped - to_text()
-                     numbers an <ol> `1.` where the PDF wrote `1)`, and the two
-                     routes place a superscript differently
-  body inside parse  the stored body is a prefix/substring of the parse: a
-                     teaser waiting for the recovery pass, not a wrong pairing
-
-Anything else is reported. Read-only: this writes nothing, ever.
+Anything not reproduced is reported. Read-only: this writes nothing, ever.
 
 Usage:
   pressroom-verify-body-origin
@@ -40,6 +21,7 @@ import collections
 
 from pressroom.converter.control import conversion
 from pressroom.database.control import connection
+from pressroom.provenance.control import reproduction
 from pressroom.provenance.entity import origin
 from pressroom.sources.maudio.control import (
     golive,
@@ -64,11 +46,6 @@ CACHED_PARSERS = {
     "maudio_com": golive.parse_snapshot,
     "maudio_com_news": news_blog.parse_detail,
 }
-
-
-def squash(text: str) -> str:
-    """Every non-whitespace character, bullets dropped."""
-    return "".join((text or "").replace("•", "").split())
 
 
 def candidate_bodies(
@@ -129,53 +106,6 @@ def candidate_bodies(
     return [parser(content).get("body") or ""] if parser else None
 
 
-def verdict(body: str, candidates: list | None) -> str:
-    if candidates is None:
-        return "no parser for this source"
-    if not candidates:
-        return "PARSER FOUND NOTHING"
-    if any(c == body for c in candidates):
-        return "exact"
-    if any(squash(c) == squash(body) for c in candidates):
-        return "typography only"
-    if any(squash(body) and squash(body) in squash(c) for c in candidates):
-        return "body inside parse (teaser)"
-    if any(squash(c) and squash(c) in squash(body) for c in candidates):
-        return "PARSE INSIDE BODY"
-    return "MISMATCH"
-
-
-def attachment_verdict(body: str, body_html, content: bytes) -> str:
-    """Attachments have no HTML parser - the extractor is the parser."""
-    if body_html:
-        text, _html, _kind = conversion.to_richtext(content)
-    else:
-        text, _kind = conversion.plain_text(content)
-    if not text:
-        return "EXTRACTOR FOUND NOTHING"
-    if text == body:
-        return "exact"
-    if squash(text) == squash(body):
-        return "typography only"
-    if squash(body) and squash(body) in squash(text):
-        return "body inside parse (teaser)"
-    return "MISMATCH"
-
-
-def origin_class(url: str, detail_id, origin_url: str) -> str:
-    """'computed' | 'located' | 'inferred' - how this address was established.
-
-    Derived rather than stored, which is why body_origin has two columns and no
-    third saying how each entry was arrived at: the three cases are
-    distinguishable from the address itself.
-    """
-    if origin_url == f"https://web.archive.org/web/{detail_id}id_/{url}":
-        return "computed"
-    if url.lower().endswith((".pdf", ".doc")):
-        return "located"
-    return "inferred"
-
-
 def run(source: str | None = None, inferred_only: bool = False) -> None:
     conn = connection.connect_ro()
     sql = """SELECT r.id, r.source, r.url, r.detail_id, COALESCE(r.body, ''), r.body_html,
@@ -203,7 +133,7 @@ def run(source: str | None = None, inferred_only: bool = False) -> None:
         got = conn.execute(
             "SELECT content FROM page_cache WHERE url = ?", (capture,)
         ).fetchone()
-        kind = origin_class(url, ts, capture)
+        kind = reproduction.origin_class(url, ts, capture)
         if got is None:
             tally[(kind, "bytes not cached")] += 1
             continue
@@ -215,11 +145,13 @@ def run(source: str | None = None, inferred_only: bool = False) -> None:
             problems.append((rid, src, "bytes are neither", capture))
             continue
         if conversion.is_attachment(content):
-            v = attachment_verdict(body, body_html, content)
+            v = reproduction.attachment_verdict(body, body_html, content)
         else:
             page = origin.page_of(capture) or capture
             try:
-                v = verdict(body, candidate_bodies(src, content, page, ts, url))
+                v = reproduction.verdict(
+                    body, candidate_bodies(src, content, page, ts, url)
+                )
             except Exception as e:
                 v = f"PARSER RAISED ({type(e).__name__})"
         tally[(kind, v)] += 1

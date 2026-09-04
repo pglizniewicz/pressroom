@@ -20,6 +20,7 @@ import unittest
 from pressroom.converter.control import conversion
 from pressroom.fetcher.control import address
 from pressroom.provenance.boundary import verification
+from pressroom.provenance.control import reproduction
 from pressroom.provenance.entity import origin
 from pressroom.release.entity import schema
 from pressroom.release.entity.grade import Grade
@@ -230,10 +231,10 @@ class ProvenanceTest(CorpusCase):
                     continue  # bytes not cached: nothing to check
                 content = got[0]
                 if conversion.is_attachment(content):
-                    v = verification.attachment_verdict(body, body_html, content)
+                    v = reproduction.attachment_verdict(body, body_html, content)
                 else:
                     page = origin.page_of(capture) or capture
-                    v = verification.verdict(
+                    v = reproduction.verdict(
                         body, verification.candidate_bodies(src, content, page, ts, url)
                     )
                 if v.split()[0].isupper():
@@ -248,7 +249,7 @@ class ProvenanceTest(CorpusCase):
             "SELECT r.url, r.detail_id, c.origin_url"
             "  FROM body_origin c JOIN releases r ON r.url = c.url"
         ):
-            seen.add(verification.origin_class(url, ts, capture))
+            seen.add(reproduction.origin_class(url, ts, capture))
         self.assertEqual(seen - {"computed", "located", "inferred"}, set())
 
 

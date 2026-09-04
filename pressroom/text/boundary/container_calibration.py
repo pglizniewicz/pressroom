@@ -11,7 +11,8 @@ the distribution. A selector worth encoding is one that wins on most captures;
 if no shape dominates, say so and leave that parser alone - flat text beats a
 sidebar stored as a press release.
 
-Read-only. Prints, writes nothing.
+Read-only. Prints, writes nothing. The measure is `control/containers.py`'s;
+this is the walk over the cache and the report.
 
 Usage:
   pressroom-calibrate-containers                    # every source with a cache
@@ -22,9 +23,8 @@ Usage:
 import argparse
 import collections
 
-from bs4 import BeautifulSoup
-
 from pressroom.database.control import connection
+from pressroom.text.control import containers
 
 # The row's own capture, keyed the way archive.fetch_snapshot stores it.
 _ROWS_SQL = """
@@ -37,58 +37,6 @@ _ROWS_SQL = """
        {where}
      ORDER BY r.source, r.id
 """
-
-
-def norm(text: str) -> str:
-    return " ".join((text or "").split())
-
-
-def describe(tag) -> str:
-    """A stable, greppable shape for one element: tag plus the attributes that
-    a selector could actually key on. Keeps `width`/`valign` -
-    on 1998-era table layouts those are the only distinguishing marks there
-    are, and dropping them would collapse every <td> into one bucket."""
-    bits = []
-    for a in ("id", "class", "valign", "width", "align", "border"):
-        v = tag.get(a)
-        if v:
-            bits.append(f'{a}="{" ".join(v) if isinstance(v, list) else v}"')
-    return f"{tag.name}[{' '.join(bits)}]" if bits else tag.name
-
-
-def ancestry(tag, depth: int = 3) -> str:
-    return " < ".join(describe(a) for a in list(tag.parents)[:depth])
-
-
-def best_container(soup, body: str):
-    """Smallest element whose text contains the head of the stored body.
-
-    Anchored on a slice from the MIDDLE of the stored body, not its start. The
-    stored body is the *old* extraction, and for the whole-page parsers it
-    opens with the site navigation - so a prefix anchor matches only <html>
-    and every source calibrates to "the whole document", which is the answer
-    we already have and the one we are trying to replace. The middle of a
-    press release is article prose on every template here.
-    """
-    flat = norm(body)
-    mid = len(flat) // 2
-    key = flat[max(0, mid - 40) : mid + 40]
-    if len(key) < 40:
-        return None, 0
-    # Smallest element that both contains the anchor AND holds most of the
-    # body. Without the coverage floor the winner is whichever <p> the anchor
-    # happens to sit in - true, useless, and not a container.
-    floor = 0.75 * len(flat)
-    best = fallback = None
-    for tag in soup.find_all(True):
-        txt = norm(tag.get_text(" ", strip=True))
-        if key not in txt:
-            continue
-        if fallback is None or len(txt) > fallback[1]:
-            fallback = (tag, len(txt))
-        if len(txt) >= floor and (best is None or len(txt) < best[1]):
-            best = (tag, len(txt))
-    return best or fallback or (None, 0)
 
 
 def calibrate(source_filter=None, show=0) -> None:
@@ -116,18 +64,17 @@ def calibrate(source_filter=None, show=0) -> None:
         misses = 0
         samples = []
         for url, ts, body, content in items:
-            # cp1252 stated, never sniffed - every one of these sources is
-            # pre-UTF-8 and declares no charset (CLAUDE.md's encoding rule).
-            soup = BeautifulSoup(content, "html.parser", from_encoding="cp1252")
-            tag, n = best_container(soup, body)
+            tag, n = containers.locate(content, body)
             if tag is None:
                 misses += 1
                 continue
-            shapes[describe(tag)] += 1
-            paths[ancestry(tag)] += 1
-            ratios.append(n / max(len(norm(body)), 1))
+            shapes[containers.describe(tag)] += 1
+            paths[containers.ancestry(tag)] += 1
+            ratios.append(n / max(len(containers.norm(body)), 1))
             if len(samples) < show:
-                samples.append((ts, describe(tag), n, len(norm(body))))
+                samples.append(
+                    (ts, containers.describe(tag), n, len(containers.norm(body)))
+                )
 
         found = len(ratios)
         print(

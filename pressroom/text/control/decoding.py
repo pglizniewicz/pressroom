@@ -106,6 +106,21 @@ for _code in range(0x80, 0xA0):
         pass
 
 
+def damaged(text) -> bool:
+    """Whether `text` carries either damage shape - a raw C1 control, or the
+    UTF-8-read-as-8-bit family. The question `pressroom-verify-encoding` asks
+    of every stored field, with the two detectors the repair itself uses."""
+    return bool(text) and bool(C1_RE.search(text) or MOJIBAKE_RE.search(text))
+
+
+def undefined_bytes(text: str) -> list[str]:
+    """The C1 codepoints in `text` that cp1252 does not define - the reason a
+    repair is refused rather than guessed."""
+    return sorted(
+        {hex(ord(c)) for c in text if C1_RE.match(c) and ord(c) not in _C1_TRANSLATION}
+    )
+
+
 def undo_c1(text: str) -> str:
     """Re-read every C1 control character as the cp1252 byte it really was,
     leaving the five cp1252 does not define untouched.
