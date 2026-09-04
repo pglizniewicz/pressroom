@@ -8,7 +8,7 @@ Usage:
   pressroom-terratec --site de                        # one host only
 """
 
-from pressroom.scraper.boundary import command
+from pressroom.scraper.control import command
 from pressroom.terratec.control import pressemit
 
 

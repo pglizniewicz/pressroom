@@ -12,7 +12,7 @@ Usage:
   pressroom-soundonsound
 """
 
-from pressroom.scraper.boundary import command
+from pressroom.scraper.control import command
 from pressroom.soundonsound.control import magazine
 
 

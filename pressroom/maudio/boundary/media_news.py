@@ -9,7 +9,7 @@ Usage:
 """
 
 from pressroom.maudio.control import media_news
-from pressroom.scraper.boundary import command
+from pressroom.scraper.control import command
 
 
 def main():

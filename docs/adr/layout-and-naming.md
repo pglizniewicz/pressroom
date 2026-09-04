@@ -137,7 +137,7 @@ Three decisions inside this one:
 ## Where every command line is built
 
 Sixteen scrapers each carried a hand-written `__main__`, and eleven were the
-same five lines; `boundary/command.py` replaced them all. Two couplings came
+same five lines; `control/command.py` replaced them all. Two couplings came
 with it. An `Option`'s `dest` is the keyword the crawl receives, so the flag and
 the parameter it feeds share a name. And `run()` takes the docstring **whole**
 and uses its first paragraph, because slicing it in the caller was silent:
@@ -259,14 +259,22 @@ work, not a decision.
   its summary was filed as an entity once, and it owns no table. The pattern
   allows it: a responsibility that is procedural, or a table, or an entry
   point, needs no more than its own layer.
-- **Control prints, and does not ask.** The marker stream and the summary line
-  are the product of a run, and `reporting` owns their vocabulary; routing them
-  through the boundary would be an event bus for a command-line tool. The one
-  question a scraper puts to a person is `command.ask_on_tty`'s, and
-  `catch_up.confirm_rewrite` takes the answer as a callable.
-- **`scraper/boundary/command.py` is a boundary that boundaries call.** No
-  outside actor reaches it; fifteen scraper boundaries assemble their command
-  line through it. It is the one such target, and `LayerDirectionTest` says so.
+- **Control prints, and does not ask on its own.** The marker stream and the
+  summary line are the product of a run, and `reporting` owns their vocabulary;
+  routing them through the boundary would be an event bus for a command-line
+  tool. The one question a scraper puts to a person is asked by the scraper's
+  boundary: `command.ask_on_tty` is a library function, `command.options` hands
+  it over as `confirm` on that boundary's behalf, and `catch_up.confirm_rewrite`
+  takes the answer as a callable.
+- **`scraper/control/command.py` is control, and `scraper` has no boundary.**
+  The module was filed as a boundary first, because it does a boundary's work:
+  argparse, the terminal prompt. That cost an exception in `LayerDirectionTest`
+  and a sentence in the system doc naming the one boundary other boundaries
+  call. What decided it was the pattern's own criterion: a boundary is what an
+  outside actor reaches, and no actor reaches this module - no console script
+  points at it, fifteen scraper boundaries import it. A module built for other
+  components to call is control. `scraper` keeps control and entity only: the
+  actor's entry point is each source component's own boundary.
 - **The tests reach control and entity.** The pattern has tests as an outside
   actor that reaches only boundaries. This suite is hermetic — gates, parsers
   over gzipped captures, phase strategies over a temp database — and testing a

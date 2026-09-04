@@ -8,7 +8,7 @@ Usage:
 """
 
 from pressroom.maudio.control import pressdb
-from pressroom.scraper.boundary import command
+from pressroom.scraper.control import command
 
 
 def main():

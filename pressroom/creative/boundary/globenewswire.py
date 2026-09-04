@@ -7,7 +7,7 @@ Usage:
 """
 
 from pressroom.creative.control import globenewswire
-from pressroom.scraper.boundary import command
+from pressroom.scraper.control import command
 
 
 def main():

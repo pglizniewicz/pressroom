@@ -1,6 +1,6 @@
 """Where every scraper's command line is built.
 
-`boundary/command.py` replaced sixteen hand-written `__main__`s
+`control/command.py` replaced sixteen hand-written `__main__`s
 (`docs/adr/layout-and-naming.md`). What is worth asserting about the replacement
 is the two couplings it introduced, both of which fail quietly: an Option's
 `dest` is the keyword the crawl receives, and the description comes from a
@@ -13,7 +13,7 @@ import io
 import unittest
 from unittest import mock
 
-from pressroom.scraper.boundary import command
+from pressroom.scraper.control import command
 
 
 class OptionTest(unittest.TestCase):

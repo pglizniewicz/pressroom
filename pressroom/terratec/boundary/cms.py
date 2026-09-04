@@ -10,7 +10,7 @@ Usage:
   pressroom-terratec-cms de
 """
 
-from pressroom.scraper.boundary import command
+from pressroom.scraper.control import command
 from pressroom.terratec.control import cms
 
 

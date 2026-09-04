@@ -33,8 +33,8 @@ components back out of this sentence.
 The two readers — `release/boundary/search.py`, which is `pressroom-search`, and
 `browser/boundary/http.py`, which is `pressroom-serve` — reach only the
 stdlib-only modules S4 names, and never `fetcher/control/politeness.py`, `q4`
-or a source component. `scraper/boundary/command.py` is the one boundary other
-boundaries call: every scraper assembles its command line through it.
+or a source component. Every scraper assembles its command line through
+`scraper/control/command.py`; no boundary imports another component's boundary.
 
 ## System invariants
 The system is the whole assembly. Each statement ends with the test that holds

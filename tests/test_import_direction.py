@@ -515,12 +515,11 @@ class LayerDirectionTest(unittest.TestCase):
     `reporting/entity/outcome.py` broke it in its summary line - procedural
     reporting misfiled as an entity, `reporting/control/` now.
 
-    A boundary reaching another component's boundary has exactly one sanctioned
-    target, `scraper/boundary/command.py`, the command line every scraper
-    assembles through; a second one would be a facade nobody outside calls.
+    A boundary imports no other component's boundary either: a module built
+    for other boundaries to call is control, as `scraper/control/command.py`
+    is now - it was the one sanctioned exception to this rule while it was
+    filed as a boundary.
     """
-
-    COMMAND_LINE = "pressroom.scraper.boundary.command"
 
     def test_no_entity_module_imports_control(self):
         for module, targets in sorted(_graph().edges.items()):
@@ -536,20 +535,20 @@ class LayerDirectionTest(unittest.TestCase):
                         f"what needs control is control"
                     )
 
-    def test_a_boundary_reaches_another_boundary_only_for_the_command_line(self):
+    def test_no_boundary_imports_another_component_s_boundary(self):
         for module, targets in sorted(_graph().edges.items()):
             if _layer(module) != "boundary":
                 continue
             for target in sorted(targets):
-                if _layer(target) != "boundary" or target == self.COMMAND_LINE:
+                if _layer(target) != "boundary":
                     continue
                 if _component(target) == _component(module):
                     continue
                 with self.subTest(module=module, target=target):
                     self.fail(
                         f"{_rel(module)} imports {_rel(target)}; a boundary is "
-                        f"what an outside actor reaches, and the only one built "
-                        f"for other boundaries is {_rel(self.COMMAND_LINE)}"
+                        f"what an outside actor reaches, and a module built for "
+                        f"other boundaries to call is control"
                     )
 
     def test_no_control_or_entity_module_imports_a_boundary(self):

@@ -129,7 +129,7 @@ generation**, not the domain, because that is what a source tag identifies (D4):
 `terratec/control/pressemit.py` is not called `terratec.py` and
 `maudio/control/golive.py` is not called `midiman.py`.
 
-**`boundary/command.py` is where every command line is built**: a
+**`control/command.py` is where every command line is built**: a
 boundary declares its per-scraper options as values, an `Option`'s `dest` is the
 keyword the crawl receives, and `run()` takes the docstring **whole**, never
 `splitlines()[0]`.

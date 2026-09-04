@@ -8,7 +8,7 @@ Usage:
   pressroom-amd --refetch                    # fetch every stored article again
 """
 
-from pressroom.scraper.boundary import command
+from pressroom.scraper.control import command
 from pressroom.amd.control import q4
 
 

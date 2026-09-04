@@ -9,6 +9,10 @@ than re-implemented as argparse calls.
 The crawl is always called with `catch=` plus one keyword per declared Option,
 so an Option's `dest` is part of the crawl's signature. That coupling is the
 point: the flag and the parameter it feeds share a name.
+
+This is control, not a boundary: no console script points here, the scrapers'
+boundary modules import it, and `ask_on_tty` is a library function that puts
+the one question to the person on the calling boundary's behalf.
 """
 
 import argparse
