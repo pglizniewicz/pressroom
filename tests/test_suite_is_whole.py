@@ -10,8 +10,8 @@ subdirectory has to be a package for real.
 The subpackages under `tests/` are correct today and nothing checked that they
 stay that way. A new `tests/<area>/` whose `__init__.py` was never written takes
 its tests out of the suite and reports nothing: the failure is a green run
-rather than a red one, which is the shape every invariant in `CLAUDE.md` is
-written against.
+rather than a red one, which is the shape every invariant in the system doc
+(`pressroom/__init__.py`) is written against.
 
 The first assertion is the claim. The second is the one way it goes wrong in
 practice, kept because it is the one whose message says what to do.

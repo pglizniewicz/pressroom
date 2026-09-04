@@ -122,7 +122,8 @@ class RichtextCursorTest(support.DbCase):
 class VerdictTest(support.DbCase):
     """Which of the three writes here states `grade`, and which one must not.
 
-    The rule is one line in CLAUDE.md - an upgrade that replaces a teaser body
+    The rule is one line in README.md's Conventions - an upgrade that replaces a
+    teaser body
     with the real article passes `grade="full"`. What that line does not settle
     is that only two of this module's three writes are that upgrade, and the
     difference is in the gates rather than in the passes' names:

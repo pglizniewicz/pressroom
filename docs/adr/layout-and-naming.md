@@ -1,6 +1,7 @@
 # Layout and naming
 
-Why the tree is shaped the way it is. `CLAUDE.md` carries the convention itself
+Why the tree is shaped the way it is. `README.md`'s Conventions and the system
+doc carry the convention itself
 — the three layers, how a scraper splits — and [../layout.md](../layout.md)
 carries the map of what each component owns. What follows is the reasoning,
 including what BCE says and this tree does differently, and why.
@@ -40,7 +41,8 @@ Three names stayed:
 - **`releases.source` and `--source`.** The tag is per mirror and one scraper
   may own several, so the column does not hold a scraper's name — renaming it to
   match this vocabulary would have made a false claim in every place it appears,
-  and the true one is already in `CLAUDE.md`: a source tag identifies a scraper.
+  and the true one is already in the system doc (D4): a source tag identifies a
+  scraper.
 - **"source component", the word.** It named a grouping directory once
   (`pressroom/sources/`, below); the directory is gone and the word stays, for
   the unit the test and this file already call that.
@@ -58,7 +60,8 @@ one rule: **a word the rulebook uses for a role has a place named for it, and
 "it is a role inside X" is not an answer.** BCE names a component for its
 responsibility and the vocabulary names the responsibilities, so a reader
 entering `pressroom/` should see the same words. `scraper/`, `fetcher/` and
-`converter/` are in the root now and read as the sentence in `CLAUDE.md`; a
+`converter/` are in the root now and read as the sentence in the system doc's
+`## Ubiquitous language`; a
 `<firm>/control/<generation>.py` is a crawler and a parser, which is
 where the rule had always put them.
 
@@ -154,8 +157,8 @@ one-off and no longer one". Two rules replaced them:
   re-extraction modes became `scraper/control/catch_up.py` and are driven by
   the source component that owns the tag.
 - **a fix that is genuinely finished gets deleted.** The code stays in git
-  history (`git show <sha>:repair_cache_hashes.py`), `CLAUDE.md` holds the rule
-  it established.
+  history (`git show <sha>:repair_cache_hashes.py`), the system doc holds the
+  rule it established (D2).
 
 The schema migrations went the same way and for the same reason. Every table's
 `entity/` module carried an upgrade path beside its `CREATE TABLE` — a
@@ -247,7 +250,7 @@ work, not a decision.
   `page.store`, `schema.insert`/`upgrade`/`rebuild_fts`, `origin.record`/`clear`,
   `call_log.record`. No control module executes a change to a table
   (`tests/test_table_ownership.py`). What there is not is a row class: a
-  `Release` object would be the row dataclass `CLAUDE.md` rules out, and the
+  `Release` object would be the row dataclass D3 rules out, and the
   pattern asks for state and behaviour, not for classes. `Grade` is the one
   closed set modelled as an enum, and it is a `StrEnum` precisely so that no
   call site had to change for it to exist.
@@ -271,6 +274,49 @@ work, not a decision.
   corpus or the network in every test. Two tests go through the boundary and
   prove what only that route can: `test_offline_is_offline` runs every command,
   `test_entry_points` proves each points at a boundary. Kept by decision.
+
+## A component's spec is its `__init__.py` docstring; the base package's is the system doc
+
+A component's contract — what its boundary promises, never how — is written
+into the package's own docstring, as Markdown in the form the `/sbce` skill
+prescribes: the one-line responsibility, then `## Boundary` (operations as
+verb-noun, transport-neutral), `## Requirements` (EARS statements grouped under
+`### Rn`, each carrying a stable id `Rn.m`), an optional `## Decisions`, and
+`## Out of scope`. An id is never renumbered and a retired id is never reused,
+because a test or a `checks.md` line carries the id of the statement it holds,
+and that grep is the whole trace between spec and test. `browser/__init__.py`
+is the first spec written out; every other component carries the one-liner
+alone, which is the spec's first line once one is written.
+
+One altitude up, `pressroom/__init__.py` is the system doc the same skill
+describes: what spans components and has no other home. Its `## Components` is
+the wiring — who may import whom, with the dependency-direction paragraph below
+repeated there word for word, which is what `tests/test_import_direction.py`
+reads; its `## System invariants` are `Sn` statements, each held by a test; its
+`## Ubiquitous language` defines the three sizes and the five roles once; its
+`## Decisions` are the `Dn` that span components, each with its rejected
+alternatives and a pointer to the file here that holds the reasoning. The skill's
+litmus sorts every rule: testable behaviour becomes an EARS statement, `Rn.m` in
+one component's spec or `Sn` in the system doc; a point-in-time choice with
+rejected alternatives becomes a `Dn`; a standing rule that is neither — a
+tooling step, a "not wanted here", a coding convention no test holds — is
+`README.md`'s `## Conventions`. A rule leaves that section the day it becomes an
+`Rn.m` or an `Sn`, so the section shrinks as the specs are written out.
+
+Why the docstring and not a file beside the code: every component already has
+`__init__.py`, and it already holds the one-liner the spec opens with — a
+second file would be one more thing for the one-liner to drift from; pydoc
+renders it, so the published contract and the source of truth are one file;
+and no new file kind enters the tree, so `docs/layout.md` and its test have
+nothing new to map. Two alternatives were rejected. The `package-info.md` the
+`/sbce` skill uses for web stacks, for the drift above. And the arrangement this
+repo had until 2026-09-04: the rulebook in `CLAUDE.md`, with this directory as
+its record. `CLAUDE.md` is the agent's instruction file — loaded into an agent's
+session, read by no person — so a rule there was a rule only an agent could
+follow, and the doctrine in `README.md` of this directory said so without anyone
+noticing what it meant. `CLAUDE.md` now holds this machine's quirks and the
+reading order, and imports the README and the system doc, so an agent still has
+both in context while the repo owns the text.
 
 ## The dependency direction
 

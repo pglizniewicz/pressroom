@@ -188,7 +188,7 @@ class AttachmentExtensionTest(unittest.TestCase):
 
 
 class GradeVerdictTest(unittest.TestCase):
-    """CLAUDE.md's `grade="full"` against every call that could break it.
+    """README's `grade="full"` rule against every call that could break it.
 
     The odd one out here: the second copy is not another file to compare
     against but `upgrade_release`'s own docstring, and neither copy is what

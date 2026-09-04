@@ -1,6 +1,7 @@
 """A table is changed only by the entity layer that owns it.
 
-CLAUDE.md: "A component's entity layer holds its table's DDL and the statements
+The system doc, `## Components` (S2): "A component's entity layer holds its
+table's DDL and the statements
 that change it, and nothing else creates that table." That was prose until
 `page_cache` turned out to have both of its INSERTs in `fetcher/control/` and
 `releases_fts` its rebuild in `release/control/` - the rule held for two tables

@@ -34,8 +34,12 @@ from tests import support
 ROOT = support.HERE.parent
 PACKAGE = ROOT / "pressroom"
 
-# The dependency-direction paragraph is in both files, word for word.
-RULEBOOK = (ROOT / "CLAUDE.md", ROOT / "docs" / "adr" / "layout-and-naming.md")
+# The dependency-direction paragraph is in both files, word for word: the
+# system doc's `## Components` and the ADR that reasons about it.
+RULEBOOK = (
+    ROOT / "pressroom" / "__init__.py",
+    ROOT / "docs" / "adr" / "layout-and-naming.md",
+)
 DIRECTION_RE = re.compile(
     r"A source component\s+imports\s+(.+?);\s*none of those", re.S
 )
@@ -405,7 +409,7 @@ class ReaderClosureTest(unittest.TestCase):
                 if path:
                     self.fail(
                         f"{_trace(path)}\n    {command} is deliberately "
-                        f"dependency-free (CLAUDE.md, Invariant 4); it must run "
+                        f"dependency-free (pressroom/__init__.py, S4); it must run "
                         f"where nothing is installed"
                     )
 

@@ -20,7 +20,7 @@ number it explained had moved. The counts are now asserted where they can fail:
 
 **A measurement goes in a test or a verify pass; the prose gets the rule the
 measurement established.** If you catch yourself writing a row count into
-`CLAUDE.md` or into one of these files, that is the mistake.
+`README.md`, the system doc or one of these files, that is the mistake.
 
 Four standing decisions that came out of measurements and still change what
 someone does — they are rules, not status:

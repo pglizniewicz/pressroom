@@ -2,9 +2,13 @@
 
 The tree is `pressroom/<business component>/<boundary|control|entity>/`, and the
 convention itself — what each layer may call, that a component is named for its
-one responsibility, how a scraper splits — is in `CLAUDE.md`. The
+one responsibility, how a scraper splits — is in `README.md`'s Conventions and
+the system doc, `pressroom/__init__.py`. The
 reasoning behind it is in [adr/layout-and-naming.md](adr/layout-and-naming.md).
-This file is the third thing, and only that: **where a given job is.**
+This file is the third thing, and only that: **where a given job is.** Every
+component's `__init__.py` is its spec, and `pressroom/__init__.py` the system doc
+(`README.md`, "Where the rules are"), so the rows below map the three layers and
+nothing above them.
 
 It is a lookup table, so it is the prose most likely to go out of date in the
 repo — every rename has to be applied here. `tests/test_layout_map.py` is what

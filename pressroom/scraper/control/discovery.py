@@ -86,7 +86,7 @@ class Capture(NamedTuple):
     """One capture of one url, fetched and parsed.
 
     A NamedTuple rather than a dataclass because it is a return value, not an
-    entity - `CLAUDE.md` rules out row dataclasses and this is neither a row nor
+    entity - D3 in the system doc rules out row dataclasses and this is neither a row nor
     a table. `timestamp is None` means archive.org has no working capture of the
     url; the other two fields are then empty with it.
     """

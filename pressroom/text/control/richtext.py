@@ -13,8 +13,8 @@ rendered verbatim by `white-space: pre-wrap`.
 node. That is the whole reason `extract()` exists as one call: the indexed text
 and the displayed markup cannot drift apart if one is computed from the other.
 
-Imports bs4, so nothing on a reader's path may import this - CLAUDE.md
-invariant 4, held by tests/test_import_direction.py.
+Imports bs4, so nothing on a reader's path may import this - the system
+doc's S4, held by tests/test_import_direction.py.
 
 The tag allowlist below is mirrored in static/app.js, which rebuilds these nodes
 one by one instead of trusting innerHTML; tests/test_mirrored_rules.py fails when

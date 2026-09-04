@@ -152,7 +152,7 @@ def is_supported_page(url: str) -> bool:
 
 
 def parse_snapshot(content: bytes) -> Detail:
-    # cp1252, stated: these are 2001-era GoLive pages, which CLAUDE.md names
+    # cp1252, stated: these are 2001-era GoLive pages, which README's Encoding names
     # as the case where decode_html is wrong - in prose full of accents two
     # adjacent high bytes can coincidentally form a valid UTF-8 sequence.
     soup = BeautifulSoup(content, "html.parser", from_encoding="cp1252")

@@ -1,7 +1,7 @@
 # Working here
 
 What the suite is for, what each `verify` pass sees, what it cannot check and
-leaves for the next to cover, plus the standing don'ts. `CLAUDE.md` carries
+leaves for the next to cover, plus the standing don'ts. `README.md`'s Conventions carry
 these as instructions; here they keep the reason attached.
 
 - **`.venv/bin/python -m unittest discover -s tests` first, after anything.**
@@ -158,7 +158,7 @@ these as instructions; here they keep the reason attached.
   **Two things it cannot see.** `min_severity` takes only `warning` or `error`,
   so everything below that — the spellchecker included — is out of reach this
   way; a docstring's typos are still left to the reader. And it is the
-  IDE's analysis, not the project's: it does not know a rule from `CLAUDE.md`, so
+  IDE's analysis, not the project's: it does not know a rule from `README.md`, so
   a change can be clean here and still break something only the suite asserts.
 
   **Not headless `bin/inspect.sh`, though it is installed.** It requires an

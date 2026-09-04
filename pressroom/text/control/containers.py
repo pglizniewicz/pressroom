@@ -65,7 +65,7 @@ def best_container(soup, body: str):
 
 def locate(content: bytes, body: str):
     """`best_container` over a capture's bytes. cp1252 stated, never sniffed:
-    every source this runs on is pre-UTF-8 and declares no charset (CLAUDE.md's
-    encoding rule)."""
+    every source this runs on is pre-UTF-8 and declares no charset (README's
+    Encoding rule)."""
     soup = BeautifulSoup(content, "html.parser", from_encoding="cp1252")
     return best_container(soup, body)

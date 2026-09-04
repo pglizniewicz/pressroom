@@ -14,9 +14,10 @@ Same argument as tests/test_mirrored_rules.py: a comment cannot fail, and one
 that names a deleted file is worse than no comment, because it reads as a
 pointer. This one can fail.
 
-The prose files are in scope for the same reason and a stronger one: `CLAUDE.md`
+The prose files are in scope for the same reason and a stronger one: `README.md`
 and `docs/adr/` are where someone goes to look the tree *up*, so a stale name
-there is read as current rather than as a leftover.
+there is read as current rather than as a leftover; `CLAUDE.md` is the agent's
+file and imports the first.
 
 The allowlist below is for the opposite case - a *deliberate* mention of
 something gone, where the disappearance is the point. Each entry says why.
@@ -30,13 +31,14 @@ from tests import support
 
 ROOT = support.HERE.parent
 
-# Prose is not only docstrings. `CLAUDE.md` states the rules and `docs/adr/`
-# holds the reasoning behind them, and a pointer to a deleted file is worse
-# there than in a comment: those are the files someone opens *to look up* how
-# the tree is arranged. Added when the rules and the records were split into
-# separate files, which multiplied the places a stale module name can sit.
+# Prose is not only docstrings. `README.md` states the rules, `docs/adr/`
+# holds the reasoning behind them, `CLAUDE.md` tells the agent where both are,
+# and a pointer to a deleted file is worse there than in a comment: those are
+# the files someone opens *to look up* how the tree is arranged. Added when the
+# rules and the records were split into separate files, which multiplied the
+# places a stale module name can sit.
 SEARCHED = ("pressroom", "tests", "docs")
-PROSE = ("CLAUDE.md", "checks.md")
+PROSE = ("CLAUDE.md", "README.md", "checks.md")
 
 # A bare module-style filename in prose. Not matching a path with
 # directories in it: `text/control/decoding.py` is resolved by the same check
@@ -51,8 +53,8 @@ RETIRED = {
     "common.py": "the module of unrelated helpers politeness.py and q4/control/platform.py were split out of",
     # The second such module, named in the rule that banned both. Same argument as
     # common.py: without the name the rule loses its example.
-    "db.py": "the other module of unrelated helpers CLAUDE.md's Layout rule was written against",
-    # Counterexamples, not pointers: CLAUDE.md names them to say what a source
+    "db.py": "the other module of unrelated helpers README's Layout rule was written against",
+    # Counterexamples, not pointers: README names them to say what a source
     # module is *not* called, because the tag is a CMS generation not a domain.
     "terratec.py": "the name terratec/control/pressemit.py deliberately does not have",
     "midiman.py": "the name maudio/control/golive.py deliberately does not have",

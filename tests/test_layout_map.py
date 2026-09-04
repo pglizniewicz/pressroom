@@ -12,8 +12,9 @@ component with no row, a row naming a component that is gone, and a row naming a
 file that has moved inside its component (the map is subtly wrong, which is worse
 than either).
 
-The last assertion is the convention itself, which `CLAUDE.md` states and
-nothing enforced: a component holds only the three layers.
+The last assertion is the convention itself, which the system doc's
+`## Components` states and nothing enforced: a component holds only the three
+layers.
 `tests/test_no_dead_module_references.py` catches a dead `<name>.py` in this file
 too, but only by basename - `release/entity/schema.py` passes there as long as
 some `schema.py` exists anywhere, which is exactly the subtly-wrong case.
@@ -104,7 +105,7 @@ class LayoutMapTest(unittest.TestCase):
                     )
 
     def test_a_component_holds_only_the_three_layers(self):
-        """The convention CLAUDE.md states: `<component>/<layer>/`."""
+        """The convention the system doc states: `<component>/<layer>/`."""
         for component, path in sorted(self.components.items()):
             for child in sorted(_dirs(path)):
                 with self.subTest(component=component, directory=child.name):
