@@ -46,7 +46,7 @@ is renamed, and never reuse a name for a different area.
 | [provenance.md](provenance.md) | `body_origin`, the three URL shapes, what the two removed columns cost |
 | [catch-up.md](catch-up.md) | a run's two phases: why the six strategies are not interchangeable, the three rules inside each, the 122 articles, and what the hand-written copies of phase 1 drifted on |
 | [gates.md](gates.md) | `safe_to_write` and `wordchars` — what each refuses, and every named allowance |
-| [attachments.md](attachments.md) | PDF gets markup, `.doc` does not, dispatch is on magic bytes |
+| [attachments.md](attachments.md) | PDF gets markup, `.doc` does not, dispatch is on magic bytes; markitdown, tried and rejected |
 | [browser-panel.md](browser-panel.md) | why the panel sorts, labels and scrolls the way it does |
 | [odd-sources.md](odd-sources.md) | GlobeNewswire's TLS fingerprint; Sound on Sound, the one publisher |
 | [working-here.md](working-here.md) | the two test tiers, what each `verify` pass sees and what it cannot check, the standing don'ts |

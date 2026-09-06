@@ -47,6 +47,18 @@ was left in 37 bodies that should have had it cut.
 empty body. Every parser keeps the old flat text in that case and leaves
 `body_html` NULL; some of these captures are 290-byte "page moved" stubs.
 
+**Open defect: a DOCTYPE leaks into the body of a whole-document parse.**
+`richtext.clean()` strips every `Comment` and nothing else of that kind, and
+BeautifulSoup's `Doctype` is a string node too. A parser that hands `extract()`
+the whole soup because the page *is* the release - `pressdb.py`, `golive.py` -
+therefore stores `HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"` as the
+first paragraph of `body_html` and the first line of `body`; the golden
+`midiman_net_pressdb__detail` shows it, the `midiman_com` sibling has no
+doctype and does not. Found in passing while measuring markitdown
+([attachments.md](attachments.md)), not yet fixed. The fix belongs in `clean()`
+next to the comment pass, never in each parser, and it is a change to `clean()`,
+so the HTML has to be rebuilt afterwards - `--retext` is not enough.
+
 **Every parser is DOM-based, and a selector comes from the dominant shape.**
 `pressroom-calibrate-containers` walks **every cached capture** of a source,
 finds the smallest element covering that row's stored body, and reports the

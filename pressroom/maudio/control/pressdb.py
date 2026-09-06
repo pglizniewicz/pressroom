@@ -32,6 +32,9 @@ Known quirk: one entry (09 Jul 2003, midiman.net) has an absolute url pasted
 into what should be a relative path, producing a doubled link. Handled by taking
 the last http(s):// occurrence in the href - though that target was never
 archived anyway.
+
+Known defect: on a midiman.net detail page the DOCTYPE comes through
+`richtext.extract` as the body's first paragraph - docs/adr/text-and-markup.md.
 """
 
 import re

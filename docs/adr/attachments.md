@@ -64,3 +64,39 @@ known dead.
 kept: the rows with no cached bytes are dead, and the rows whose bytes exist
 only under a mirror domain have no capture of their own. Both were established
 by a full crawl that returned nothing — do not run that crawl again.
+
+**markitdown was tried as a replacement for both converters and rejected.**
+Microsoft's `markitdown` turns a document into Markdown, which is not this
+corpus's target format, so the comparison was of what it reads out of the bytes,
+not of what it writes. Measured on the committed fixtures - the one PDF, the one
+`.doc` and every detail-page capture in `tests/fixtures/` - against the outputs
+the tree produces from the same bytes:
+
+- **A PDF loses its structure and keeps its words.** markitdown reads PDFs with
+  pdfplumber and pdfminer, which return text; nothing in that path knows the
+  gap between two lines or the height of a type. The word multiset came out the
+  same as `to_richtext()`'s, but where ours had headings, paragraphs and a list,
+  markitdown had blank lines and the double spaces of a justified line. The one
+  thing it did better was the small-type address footer, where `WORD_GAP_RATIO`
+  glued a street number to its street and a country to the brand - three tokens
+  in the footer, none in the release. It has no equivalent of the rotated-block
+  rule or the marker-column reunion, the two defects that were live before those
+  rules existed.
+- **A `.doc` it does not read at all.** Only `.docx` has a converter; the Word
+  97-2003 container raises `UnsupportedFormatException`. The obvious bridge,
+  LibreOffice converting `.doc` to `.docx` first, failed on the fixture itself -
+  a Mac Word document `antiword` reads whole - so the bridge is not a route
+  either.
+- **On HTML it converts the whole page.** There is no container step, so the
+  navigation, the menus and the footer of every Q4 and Creative page come out as
+  release text, several times the size of the body the parser stores. Old
+  layout tables become one Markdown table with the release in a single cell,
+  which cannot become the allowlisted `body_html` subset. And it decodes by
+  sniffing: `charset_normalizer` over a page that declares UTF-8 produced
+  `mĂ¶chte` on a German TerraTec page and lost every umlauted word - the
+  exact mistake `docs/adr/encoding.md` exists to prevent.
+
+The tree's own rule stands: what a converter is asked for decides what it can
+give back, and a text extractor cannot be asked for layout. A candidate worth a
+second look would have to read poppler's `-bbox-layout` or its equivalent, and
+read the Word 97 container.
